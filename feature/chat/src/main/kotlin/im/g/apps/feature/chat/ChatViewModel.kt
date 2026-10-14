@@ -187,7 +187,7 @@ class ChatViewModel(
                 val path = client.fetchMedia(chatId, messageId, mediaPaths.mediaPath(file.media, file.fileName))
                 _events.send(ChatEvent.OpenFile(path, file.media.mime))
             } catch (_: GimException) {
-                // Nothing to open.
+                _events.send(ChatEvent.Error(UiText.Res(R.string.chat_error_open_file)))
             }
         }
     }
@@ -199,6 +199,7 @@ class ChatViewModel(
                 client.retrySend(chatId, messageId)
             } catch (_: GimException) {
                 // The message stays failed.
+                _events.send(ChatEvent.Error(UiText.Res(R.string.composer_error_retry)))
             }
         }
     }

@@ -349,6 +349,17 @@ class ChatViewModelTest {
         assertTrue(File(event.path).isFile)
     }
 
+    @Test
+    fun retryFailure_emitsErrorEvent() = test {
+        val client = demoClient()
+        val vm = viewModel(client, DemoData.DIRECT_CHAT_ID)
+
+        // Not in Failed state, so the client rejects the retry.
+        vm.retry(vm.message("See you then!").key)
+
+        assertEquals(ChatEvent.Error(UiText.Res(R.string.composer_error_retry)), vm.events.first())
+    }
+
     /** Records markRead and pagination calls; pagination waits for [gate] when given. */
     private class CountingClient(
         private val delegate: FakeGimClient,
