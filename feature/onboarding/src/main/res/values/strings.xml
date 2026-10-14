@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="onboarding_title">Create your account</string>
+    <string name="onboarding_explanation">Enter the address of your server, pick a handle other people can find you by, and choose the name they will see.</string>
+    <string name="onboarding_server_url_label">Server address</string>
+    <string name="onboarding_server_url_placeholder">https://</string>
+    <string name="onboarding_handle_label">Handle</string>
+    <string name="onboarding_handle_supporting">3–32 characters: a–z, 0–9, dot and underscore</string>
+    <string name="onboarding_display_name_label">Display name</string>
+    <string name="onboarding_submit">Create account</string>
+    <string name="onboarding_submitting">Creating account</string>
+    <string name="onboarding_error_server_url">Enter an http:// or https:// address with a host name</string>
+    <string name="onboarding_error_handle">Use 3–32 characters: a–z, 0–9, dot and underscore</string>
+    <string name="onboarding_error_handle_taken">This handle is already taken</string>
+    <string name="onboarding_error_display_name">Enter 1–64 characters</string>
+    <string name="onboarding_error_cannot_reach_server">Cannot reach the server. Check the address and your connection.</string>
+    <string name="onboarding_error_generic">Something went wrong. Please try again.</string>
+</resources>
