@@ -37,7 +37,7 @@ class ComponentsTest {
         assertEquals("G", avatarInitials("grace"))
         assertEquals("AB", avatarInitials("  anna  maria  bauer "))
         assertEquals("?", avatarInitials("   "))
-        assertEquals("😀", avatarInitials("😀 smile").take(2))
+        assertEquals("😀S", avatarInitials("😀 smile"))
     }
 
     @Test
