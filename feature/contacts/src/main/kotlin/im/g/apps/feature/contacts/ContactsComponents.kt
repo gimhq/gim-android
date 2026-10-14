@@ -1,0 +1,174 @@
+package im.g.apps.feature.contacts
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import im.g.apps.core.bridge.UserProfile
+import im.g.apps.core.designsystem.component.Avatar
+import im.g.apps.core.designsystem.theme.GimTheme
+
+/**
+ * Handle search used by new chat, new group and the add-member dialog: a text field plus the result of
+ * the lookup. [resultAction] renders the trailing action of a found user (e.g. "Start chat", "Add").
+ */
+@Composable
+internal fun UserSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    state: UserSearchState,
+    modifier: Modifier = Modifier,
+    resultAction: @Composable (UserProfile) -> Unit,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            label = { Text(stringResource(R.string.contacts_search_label)) },
+            placeholder = { Text(stringResource(R.string.contacts_search_placeholder)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.None,
+                autoCorrectEnabled = false,
+                keyboardType = KeyboardType.Ascii,
+                imeAction = ImeAction.Search,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        when (state) {
+            UserSearchState.Idle -> SearchNote(stringResource(R.string.contacts_search_hint))
+            UserSearchState.Searching -> Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                SearchNote(stringResource(R.string.contacts_search_searching))
+            }
+            is UserSearchState.Found -> UserRow(user = state.user, trailing = { resultAction(state.user) })
+            is UserSearchState.NotFound -> SearchNote(stringResource(R.string.contacts_search_not_found, state.handle))
+            is UserSearchState.Error -> Text(
+                text = stringResource(state.error.messageRes),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SearchNote(text: String) {
+    Text(text = text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/** Avatar, display name (with an optional "You" marker) and handle, plus a trailing slot. */
+@Composable
+internal fun UserRow(
+    user: UserProfile,
+    modifier: Modifier = Modifier,
+    isSelf: Boolean = false,
+    trailing: @Composable () -> Unit = {},
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Avatar(name = user.displayName, imagePath = null, size = 40.dp)
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            val name = if (isSelf) "${user.displayName} (${stringResource(R.string.contacts_you)})" else user.displayName
+            Text(text = name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                text = stringResource(R.string.contacts_handle, user.handle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        trailing()
+    }
+}
+
+@Composable
+internal fun BackButton(onClick: () -> Unit) {
+    val description = stringResource(R.string.contacts_back)
+    IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = description }) {
+        BackGlyph(LocalContentColor.current)
+    }
+}
+
+/** Icon button with a decorative "x"; [description] names the action for accessibility. */
+@Composable
+internal fun RemoveButton(description: String, onClick: () -> Unit, enabled: Boolean = true) {
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.semantics { contentDescription = description },
+    ) {
+        CrossGlyph(LocalContentColor.current)
+    }
+}
+
+@Composable
+private fun BackGlyph(color: Color) {
+    Canvas(modifier = Modifier.size(18.dp)) {
+        val stroke = size.minDimension * 0.12f
+        val midY = size.height / 2
+        drawLine(color, Offset(size.width, midY), Offset(0f, midY), stroke, StrokeCap.Round)
+        drawLine(color, Offset(0f, midY), Offset(size.width * 0.45f, 0f), stroke, StrokeCap.Round)
+        drawLine(color, Offset(0f, midY), Offset(size.width * 0.45f, size.height), stroke, StrokeCap.Round)
+    }
+}
+
+@Composable
+internal fun CrossGlyph(color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.size(12.dp)) {
+        val stroke = size.minDimension * 0.16f
+        drawLine(color, Offset.Zero, Offset(size.width, size.height), stroke, StrokeCap.Round)
+        drawLine(color, Offset(size.width, 0f), Offset(0f, size.height), stroke, StrokeCap.Round)
+    }
+}
+
+@Preview
+@Composable
+private fun UserSearchFieldPreview() {
+    GimTheme {
+        Surface {
+            UserSearchField(
+                query = "ana",
+                onQueryChange = {},
+                state = UserSearchState.Found(UserProfile("u-ana", "ana", "Ana Kovač")),
+                modifier = Modifier.padding(16.dp),
+            ) { TextButton(onClick = {}) { Text(stringResource(R.string.contacts_start_chat)) } }
+        }
+    }
+}

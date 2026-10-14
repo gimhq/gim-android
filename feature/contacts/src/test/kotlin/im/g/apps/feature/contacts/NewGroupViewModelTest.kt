@@ -1,0 +1,128 @@
+package im.g.apps.feature.contacts
+
+import im.g.apps.core.bridge.ChatKind
+import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.fake.DemoData
+import im.g.apps.core.bridge.flow.chatListFlow
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class NewGroupViewModelTest {
+
+    @get:Rule
+    val main = MainDispatcherRule()
+
+    private fun TestScope.newViewModel(): Pair<NewGroupViewModel, TestClient> {
+        val client = TestClient(demoClient(backgroundScope))
+        return NewGroupViewModel(client) to client
+    }
+
+    @Test
+    fun addMember_fromSearch_selectsAndClearsQuery() = runTest {
+        val (vm, _) = newViewModel()
+        vm.onQueryChange("ana")
+        advanceUntilIdle()
+        assertEquals(UserSearchState.Found(DemoData.ana), vm.state.value.search)
+
+        vm.addMember(DemoData.ana)
+        advanceUntilIdle()
+        with(vm.state.value) {
+            assertEquals(listOf(DemoData.ana), members)
+            assertEquals("", query)
+            assertEquals(UserSearchState.Idle, search)
+            assertFalse(canAdd(DemoData.ana))
+        }
+
+        vm.addMember(DemoData.ana)
+        vm.addMember(DemoData.me)
+        assertEquals(listOf(DemoData.ana), vm.state.value.members)
+    }
+
+    @Test
+    fun removeMember_dropsChip() = runTest {
+        val (vm, _) = newViewModel()
+        advanceUntilIdle()
+        vm.addMember(DemoData.ana)
+        vm.addMember(DemoData.nikos)
+        vm.removeMember(DemoData.ana.userId)
+        assertEquals(listOf(DemoData.nikos), vm.state.value.members)
+    }
+
+    @Test
+    fun next_requiresAtLeastOneMember() = runTest {
+        val (vm, _) = newViewModel()
+        advanceUntilIdle()
+        assertFalse(vm.state.value.canProceed)
+        vm.next()
+        assertEquals(NewGroupStep.MEMBERS, vm.state.value.step)
+
+        vm.addMember(DemoData.ana)
+        vm.next()
+        assertEquals(NewGroupStep.NAME, vm.state.value.step)
+
+        assertTrue(vm.back())
+        assertEquals(NewGroupStep.MEMBERS, vm.state.value.step)
+        assertFalse(vm.back())
+    }
+
+    @Test
+    fun name_isRequiredAndCapped() = runTest {
+        val (vm, _) = newViewModel()
+        advanceUntilIdle()
+        vm.addMember(DemoData.ana)
+        vm.next()
+        assertFalse(vm.state.value.canCreate)
+        vm.onNameChange("   ")
+        assertFalse(vm.state.value.canCreate)
+        vm.onNameChange("x".repeat(MAX_GROUP_NAME_LENGTH + 10))
+        assertEquals(MAX_GROUP_NAME_LENGTH, vm.state.value.name.length)
+        assertTrue(vm.state.value.canCreate)
+
+        vm.onNameChange("")
+        vm.create()
+        advanceUntilIdle()
+        assertFalse(vm.state.value.creating)
+    }
+
+    @Test
+    fun create_createsGroupAndOpensIt() = runTest {
+        val (vm, client) = newViewModel()
+        advanceUntilIdle()
+        vm.addMember(DemoData.ana)
+        vm.addMember(DemoData.nikos)
+        vm.next()
+        vm.onNameChange("  Adriatic Run  ")
+        vm.create()
+        advanceUntilIdle()
+
+        val event = vm.events.first() as NewGroupEvent.OpenChat
+        val row = client.chatListFlow().first().single { it.chatId == event.chatId }
+        assertEquals(ChatKind.GROUP, row.kind)
+        assertEquals("Adriatic Run", row.name)
+        assertEquals(listOf(DemoData.me, DemoData.ana, DemoData.nikos), client.chatMembers(event.chatId))
+        assertFalse(vm.state.value.creating)
+    }
+
+    @Test
+    fun create_failure_emitsError() = runTest {
+        val (vm, client) = newViewModel()
+        client.createGroupChatError = GimException.InvalidInput("too many members")
+        advanceUntilIdle()
+        vm.addMember(DemoData.ana)
+        vm.next()
+        vm.onNameChange("Crew")
+        vm.create()
+        advanceUntilIdle()
+        assertEquals(NewGroupEvent.ShowError(ContactsError.INVALID_INPUT), vm.events.first())
+        assertTrue(vm.state.value.canCreate)
+    }
+}
