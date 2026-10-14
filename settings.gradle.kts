@@ -1,4 +1,5 @@
 pluginManagement {
+    includeBuild("build-logic")
     repositories {
         google()
         mavenCentral()
@@ -16,3 +17,9 @@ dependencyResolutionManagement {
 
 rootProject.name = "gim-android"
 include(":app")
+include(":core:bridge")
+include(":core:designsystem")
+include(":feature:onboarding")
+include(":feature:chatlist")
+include(":feature:chat")
+include(":feature:contacts")
