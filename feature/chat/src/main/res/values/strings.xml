@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_today">Today</string>
+    <string name="chat_yesterday">Yesterday</string>
+    <plurals name="chat_members">
+        <item quantity="one">%d member</item>
+        <item quantity="other">%d members</item>
+    </plurals>
+    <string name="chat_typing">typing…</string>
+    <string name="chat_typing_one">%1$s is typing…</string>
+    <string name="chat_typing_two">%1$s and %2$s are typing…</string>
+    <string name="chat_typing_someone">Someone is typing…</string>
+    <plurals name="chat_typing_many">
+        <item quantity="one">%d person is typing…</item>
+        <item quantity="other">%d people are typing…</item>
+    </plurals>
+    <string name="chat_member_added">%1$s was added</string>
+    <string name="chat_member_removed">%1$s was removed</string>
+    <string name="chat_member_left">%1$s left</string>
+    <string name="chat_message_deleted">Message deleted</string>
+    <string name="chat_message_unsupported">This message can\'t be shown</string>
+    <string name="chat_message_edited">edited</string>
+    <string name="chat_message_failed">Not sent. Tap to retry</string>
+    <string name="chat_back">Back</string>
+    <string name="chat_group_info">Group info</string>
+    <string name="chat_jump_to_bottom">Jump to latest messages</string>
+    <string name="chat_loading_older">Loading older messages</string>
+    <string name="chat_image">Photo</string>
+    <string name="chat_file_open">Open %1$s</string>
+    <string name="chat_composer_placeholder">Message</string>
+</resources>
