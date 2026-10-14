@@ -1,86 +1,128 @@
 package im.g.apps.core.bridge
 
-import im.g.apps.core.bridge.platform.PlatformHooks
-
 /**
- * Kotlin mirror of gim-core's UniFFI `GimClient` object.
+ * Kotlin mirror of gim-core's UniFFI `GimClient` (gim-core `bindings/gim-ffi`, contract in `docs/API.md`).
  *
  * gim-core (Rust) owns storage, networking, sync, outbox, MLS and media crypto; this interface is the only
- * surface the UI layer sees. Names and shapes follow UniFFI output (plain records, sealed enums, suspend
- * methods, callback listeners, a `TaskHandle`-style [Subscription]) so the real adapter over the vendored
- * bindings maps 1:1 with no logic of its own. Until the bindings are vendored, use
+ * surface the UI layer sees. Features never import `im.g.gimcore`: the real adapter maps the generated
+ * bindings onto these types mechanically. Until the bindings are vendored, use
  * [im.g.apps.core.bridge.fake.FakeGimClient].
  *
- * Every suspend method throws [GimException] on failure. Every `subscribe*` call immediately delivers the
- * current state (a `Reset` diff, or the current value) and then incremental updates.
+ * Every suspend method throws [GimException] on failure. Listeners are called on a background thread, in
+ * order; see [im.g.apps.core.bridge.flow] for main-safe flows.
+ *
+ * ## Mapping (gim-core `im.g.gimcore` -> `im.g.apps.core.bridge`)
+ *
+ * | gim-core | mirror | notes |
+ * |---|---|---|
+ * | `GimClient` / `GimClientInterface` | [GimClient] | same methods, names, parameters, suspend-ness |
+ * | `createClient(config, hooks)` | [GimClientFactory.create] | |
+ * | `Timeline` / `TimelineInterface` | [Timeline] | `paginateBackwards(count: UShort)` -> `Int` |
+ * | `TaskHandle` | [TaskHandle] | Kotlin interface; `close()` cancels like `destroy()` |
+ * | `PlatformHooks` | [PlatformHooks] | |
+ * | `ChatListListener`, `TimelineListener`, `ConnectionStateListener`, `TypingListener` | same names | `fun interface` |
+ * | `ChatListDiff`, `TimelineDiff` | [ChatListDiff], [TimelineDiff] | `index`/`length: UInt` -> `Int` |
+ * | `Session`, `UserProfile`, `ChatKind`, `ChatSummary`, `MessagePreview` | same names | `UInt` -> `Int`, `ULong` -> `Long` |
+ * | `TimelineItem`, `MembershipChangeKind`, `MessageItem`, `MessageContent` | same names | `ULong` -> `Long`, `UInt?` -> `Int?` |
+ * | `MediaRef`, `ReplyPreview`, `ReactionGroup`, `SendState`, `ConnectionState`, `ClientConfig` | same names | `size: ULong` -> `Long`, `count: UInt` -> `Int` |
+ * | `GimException.<Variant>` | [GimException]`.<Variant>` | `Server.status: UShort` -> `Int` |
+ * | — | [chatMembers] | extension pending in gim-core |
+ *
+ * Enum constants keep UniFFI's Kotlin spelling (`ChatKind.DIRECT`, `ConnectionState.CONNECTED`, ...).
  */
 interface GimClient {
-    suspend fun loginState(): LoginState
+    /** The persisted session, or null before [register]. */
+    suspend fun session(): Session?
 
-    suspend fun register(serverUrl: String, handle: String, displayName: String): Session
+    /** Creates the account and this device on the server and persists the session. */
+    suspend fun register(handle: String, displayName: String): Session
 
-    suspend fun logout()
+    /** Stops sync and deletes the session, local data and keystore secrets. Create a new client afterwards. */
+    suspend fun signOut()
 
-    /** Starts the sync loop (stream connection, outbox sender). */
-    suspend fun start()
+    /** Starts the background sync loop and outbox sender. */
+    suspend fun startSync()
 
-    /** Stops the sync loop. */
-    suspend fun stop()
+    /** Stops the background sync loop and outbox sender. */
+    suspend fun stopSync()
 
-    suspend fun findUser(handle: String): User?
+    /** Reports a reachability change from the platform network monitor. Synchronous, never throws. */
+    fun setNetworkReachable(reachable: Boolean)
 
-    /** Returns the existing direct chat with [userId] or creates one. */
-    suspend fun createDirectChat(userId: UserId): ChatId
+    /** Looks up a user by handle; null if no such user exists. */
+    suspend fun findUser(handle: String): UserProfile?
 
-    suspend fun createGroupChat(name: String, memberIds: List<UserId>): ChatId
+    /** Returns the chat id of the direct chat with [userId], creating it if needed. */
+    suspend fun createDirectChat(userId: String): String
 
-    suspend fun addMember(chatId: ChatId, userId: UserId)
+    /** Creates a group chat and returns its chat id. */
+    suspend fun createGroupChat(name: String, memberUserIds: List<String>): String
 
-    suspend fun removeMember(chatId: ChatId, userId: UserId)
+    suspend fun addMembers(chatId: String, userIds: List<String>)
 
-    suspend fun chatDetails(chatId: ChatId): ChatSummary
+    suspend fun removeMember(chatId: String, userId: String)
 
-    /** Enqueues a text message in the outbox and returns its client id. */
-    suspend fun sendText(chatId: ChatId, body: String, replyTo: MessageId?): MessageId
+    suspend fun leaveChat(chatId: String)
 
-    suspend fun sendMedia(
-        chatId: ChatId,
-        filePath: String,
-        mime: String,
-        fileName: String,
-        caption: String?,
-        replyTo: MessageId?,
-    ): MessageId
+    /** Updates the group name and/or avatar; null leaves a field unchanged. */
+    suspend fun setGroupInfo(chatId: String, name: String?, avatarFilePath: String?)
 
-    suspend fun editMessage(messageId: MessageId, newBody: String)
+    /** Queues a text message and returns its message id; it appears immediately as [SendState.Pending]. */
+    suspend fun sendText(chatId: String, body: String, replyTo: String?): String
 
-    suspend fun deleteMessage(messageId: MessageId)
+    /** Encrypts, uploads and sends a file; returns its message id. The file is copied before this returns. */
+    suspend fun sendMedia(chatId: String, filePath: String, mime: String, caption: String?, replyTo: String?): String
 
-    suspend fun toggleReaction(messageId: MessageId, emoji: String)
+    suspend fun editMessage(chatId: String, messageId: String, newBody: String)
 
-    /** Re-queues a [SendStatus.FAILED] message. */
-    suspend fun retrySend(messageId: MessageId)
+    suspend fun deleteMessage(chatId: String, messageId: String)
 
-    suspend fun markRead(chatId: ChatId, upTo: MessageId)
+    suspend fun react(chatId: String, messageId: String, emoji: String)
 
-    suspend fun setTyping(chatId: ChatId, typing: Boolean)
+    suspend fun unreact(chatId: String, messageId: String, emoji: String)
 
-    /** Loads up to [count] older items into the timeline. Returns true while more history exists. */
-    suspend fun paginateBackwards(chatId: ChatId, count: Int): Boolean
+    /** Re-queues a message in [SendState.Failed]. */
+    suspend fun retrySend(chatId: String, messageId: String)
 
-    /** Downloads and decrypts a media blob; returns the absolute path of the decrypted file. */
-    suspend fun fetchMedia(mediaId: String): String
+    /** Removes an unsent message from the outbox and the timeline. */
+    suspend fun cancelSend(chatId: String, messageId: String)
 
-    fun subscribeChatList(listener: ChatListListener): Subscription
+    /** Marks everything up to and including [upToMessageId] as read and sends a read receipt. */
+    suspend fun markRead(chatId: String, upToMessageId: String)
 
-    fun subscribeTimeline(chatId: ChatId, listener: TimelineListener): Subscription
+    suspend fun setTyping(chatId: String, active: Boolean)
 
-    fun subscribeConnection(listener: ConnectionListener): Subscription
+    /** Downloads and decrypts an attachment to [destPath] and returns the path of the decrypted file. */
+    suspend fun fetchMedia(chatId: String, messageId: String, destPath: String): String
 
-    fun subscribeTyping(listener: TypingListener): Subscription
+    /** Like [fetchMedia] for the thumbnail; null if there is none. */
+    suspend fun fetchThumbnail(chatId: String, messageId: String, destPath: String): String?
+
+    /** Subscribes to the chat list; the first callback is a `Reset`. */
+    suspend fun chatList(listener: ChatListListener): TaskHandle
+
+    /** The timeline of one chat. Cheap; listeners are added on the result. */
+    suspend fun timeline(chatId: String): Timeline
+
+    /** Subscribes to connection state changes; the first callback carries the current state. */
+    suspend fun connectionState(listener: ConnectionStateListener): TaskHandle
+
+    /** Subscribes to typing notifications of one chat; the first callback carries the current set. */
+    suspend fun typing(chatId: String, listener: TypingListener): TaskHandle
+
+    /**
+     * Current members of [chatId], the signed-in user included.
+     *
+     * Mirror-only extension: pending in gim-core; the real adapter throws [GimException.NotImplemented]
+     * until gim-core adds `chat_members`.
+     */
+    suspend fun chatMembers(chatId: String): List<UserProfile>
 }
 
-/** Creates a [GimClient] bound to the platform hooks; mirrors gim-core's UniFFI constructor. */
+/**
+ * Creates a [GimClient]; mirrors gim-core's `createClient`. Throws [GimException.InvalidInput] unless
+ * [ClientConfig.serverUrl] is an `http://` or `https://` URL with a host.
+ */
 fun interface GimClientFactory {
-    fun create(hooks: PlatformHooks): GimClient
+    suspend fun create(config: ClientConfig, hooks: PlatformHooks): GimClient
 }

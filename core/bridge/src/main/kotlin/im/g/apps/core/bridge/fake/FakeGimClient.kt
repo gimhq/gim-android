@@ -1,50 +1,54 @@
 package im.g.apps.core.bridge.fake
 
-import im.g.apps.core.bridge.ChatId
 import im.g.apps.core.bridge.ChatKind
+import im.g.apps.core.bridge.ChatListDiff
 import im.g.apps.core.bridge.ChatListListener
 import im.g.apps.core.bridge.ChatSummary
-import im.g.apps.core.bridge.ConnectionListener
 import im.g.apps.core.bridge.ConnectionState
+import im.g.apps.core.bridge.ConnectionStateListener
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
-import im.g.apps.core.bridge.LoginState
+import im.g.apps.core.bridge.MediaRef
+import im.g.apps.core.bridge.MembershipChangeKind
 import im.g.apps.core.bridge.MessageContent
-import im.g.apps.core.bridge.MessageId
+import im.g.apps.core.bridge.MessageItem
 import im.g.apps.core.bridge.MessagePreview
 import im.g.apps.core.bridge.ReactionGroup
 import im.g.apps.core.bridge.ReplyPreview
-import im.g.apps.core.bridge.SendStatus
+import im.g.apps.core.bridge.SendState
 import im.g.apps.core.bridge.Session
-import im.g.apps.core.bridge.Subscription
-import im.g.apps.core.bridge.SystemEventKind
+import im.g.apps.core.bridge.TaskHandle
+import im.g.apps.core.bridge.Timeline
+import im.g.apps.core.bridge.TimelineDiff
 import im.g.apps.core.bridge.TimelineItem
 import im.g.apps.core.bridge.TimelineListener
 import im.g.apps.core.bridge.TypingListener
-import im.g.apps.core.bridge.User
-import im.g.apps.core.bridge.UserId
-import im.g.apps.core.bridge.diff.ListDiff
+import im.g.apps.core.bridge.UserProfile
+import im.g.apps.core.bridge.key
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
+import java.time.Instant
+import java.time.ZoneId
 
 /**
  * Deterministic in-memory [GimClient] for ViewModel/UI tests, previews and the app until gim-core's
- * bindings are vendored.
+ * bindings are vendored. Follows gim-core's semantics: chat list most recently updated first, timelines
+ * oldest first with a [TimelineItem.DateSeparator] before the first item of each local day (in [zone]).
  *
  * All state lives behind one lock and listeners are invoked synchronously on the calling thread, in
- * mutation order. Outbound messages start [SendStatus.PENDING] and advance to SENT, DELIVERED and READ
+ * mutation order. Outbound messages start [SendState.Pending] and advance to Sent, Delivered and Read
  * after [outboxDelays] (run on [scope]); pass `outboxDelays = null` to drive them with [advanceOutbox].
  *
  * @param clock epoch-millisecond time source for timestamps.
- * @param cacheDir directory where [fetchMedia] writes placeholder files.
- * @param pageSize number of newest timeline items visible before [paginateBackwards].
+ * @param pageSize number of newest history events (messages, membership changes) loaded before
+ *   [Timeline.paginateBackwards].
  */
 class FakeGimClient(
     private val scope: CoroutineScope,
     private val clock: () -> Long = System::currentTimeMillis,
-    private val cacheDir: File = File(System.getProperty("java.io.tmpdir"), "gim-fake-media"),
+    private val zone: ZoneId = ZoneId.systemDefault(),
     private val outboxDelays: OutboxDelays? = OutboxDelays(),
     private val pageSize: Int = DEFAULT_PAGE_SIZE,
 ) : GimClient {
@@ -56,107 +60,150 @@ class FakeGimClient(
     )
 
     private class FakeChat(
-        val id: ChatId,
+        val id: String,
         val kind: ChatKind,
         var name: String,
-        val members: MutableList<User>,
+        val members: MutableList<UserProfile>,
         val createdAt: Long,
     ) {
-        /** Full history, newest first; the first [visible] items are exposed to timeline listeners. */
-        val history = mutableListOf<TimelineItem>()
-        var visible = 0
+        var avatar: MediaRef? = null
+
+        /** Messages and membership changes, oldest first; the newest [loaded] are in the timeline. */
+        val events = mutableListOf<TimelineItem>()
+        var loaded = 0
         var unread = 0
+
+        /** Timeline items as last delivered to listeners. */
+        var rendered: List<TimelineItem> = emptyList()
     }
 
-    private class MediaEntry(val mime: String, val width: Int?, val height: Int?, val sourcePath: String?)
+    private class MediaEntry(val ref: MediaRef, val width: Int?, val height: Int?, val sourcePath: String?)
 
-    private class Registration<L>(val chatId: ChatId?, val listener: L)
+    private data class MessageKey(val chatId: String, val messageId: String)
+
+    private inner class Registration<L>(
+        val chatId: String?,
+        val listener: L,
+        private val regs: MutableList<Registration<L>>,
+    ) : TaskHandle {
+        private var finished = false
+
+        override fun cancel() {
+            synchronized(lock) {
+                finished = true
+                regs.remove(this)
+            }
+        }
+
+        override fun isFinished(): Boolean = synchronized(lock) { finished }
+
+        override fun close() = cancel()
+    }
+
+    private inner class FakeTimeline(private val chatId: String) : Timeline {
+        override fun chatId(): String = chatId
+
+        override suspend fun addListener(listener: TimelineListener): TaskHandle = synchronized(lock) {
+            listener.onUpdate(listOf(TimelineDiff.Reset(chats[chatId]?.rendered.orEmpty())))
+            register(timelineRegs, chatId, listener)
+        }
+
+        override suspend fun paginateBackwards(count: Int): Boolean = synchronized(lock) {
+            if (count <= 0) throw GimException.InvalidInput("count must be positive")
+            val chat = chat(chatId)
+            chat.loaded += minOf(count, chat.events.size - chat.loaded)
+            refreshTimeline(chat)
+            chat.loaded < chat.events.size
+        }
+    }
 
     private val lock = Any()
-    private var loginState: LoginState = LoginState.Unregistered
+    private var session: Session? = null
     private var connection = ConnectionState.OFFLINE
-    private val directory = LinkedHashMap<UserId, User>()
-    private val chats = LinkedHashMap<ChatId, FakeChat>()
-    private val messageChats = HashMap<MessageId, ChatId>()
-    private val media = HashMap<String, MediaEntry>()
-    private val typing = LinkedHashMap<ChatId, List<User>>()
-    private val myTyping = HashMap<ChatId, Boolean>()
-    private val outbox = LinkedHashSet<MessageId>()
-    private val doomed = HashSet<MessageId>()
-    private var failNext = false
+    private var syncing = false
+    private var reachable = true
+    private val directory = LinkedHashMap<String, UserProfile>()
+    private val chats = LinkedHashMap<String, FakeChat>()
+    private val media = HashMap<MessageKey, MediaEntry>()
+    private val typingUsers = HashMap<String, List<String>>()
+    private val myTyping = HashMap<String, Boolean>()
+    private val outbox = LinkedHashSet<MessageKey>()
+    private val doomed = HashMap<MessageKey, String>()
+    private var failNextReason: String? = null
     private var nextId = 1
     private var chatList: List<ChatSummary> = emptyList()
 
     private val chatListRegs = mutableListOf<Registration<ChatListListener>>()
     private val timelineRegs = mutableListOf<Registration<TimelineListener>>()
-    private val connectionRegs = mutableListOf<Registration<ConnectionListener>>()
+    private val connectionRegs = mutableListOf<Registration<ConnectionStateListener>>()
     private val typingRegs = mutableListOf<Registration<TypingListener>>()
 
-    /** Number of live subscriptions of every kind; lets tests assert that flows cancel on close. */
+    /** Number of live subscriptions of every kind; lets tests assert that flows close their handles. */
     val activeSubscriptions: Int
         get() = synchronized(lock) { chatListRegs.size + timelineRegs.size + connectionRegs.size + typingRegs.size }
 
     // region GimClient
 
-    override suspend fun loginState(): LoginState = synchronized(lock) { loginState }
+    override suspend fun session(): Session? = synchronized(lock) { session }
 
-    override suspend fun register(serverUrl: String, handle: String, displayName: String): Session =
-        synchronized(lock) {
-            if (loginState is LoginState.Registered) throw GimException.Conflict("already registered")
-            val url = serverUrl.trim()
-            if (!url.startsWith("https://") && !url.startsWith("http://")) {
-                throw GimException.InvalidInput("serverUrl", "must start with http:// or https://")
-            }
-            val normalized = normalizeHandle(handle)
-            if (normalized.isEmpty()) throw GimException.InvalidInput("handle", "must not be blank")
-            if (!HANDLE_PATTERN.matches(normalized)) {
-                throw GimException.InvalidInput("handle", "use 3-32 of a-z, 0-9, '.', '_', '-'")
-            }
-            val name = displayName.trim()
-            if (name.isEmpty()) throw GimException.InvalidInput("displayName", "must not be blank")
-            if (directory.values.any { it.handle == normalized }) throw GimException.Conflict("handle taken")
-
-            val session = Session("u-$normalized", "d-${nextId++}", normalized, name, url)
-            seedSession(session)
-            session
+    override suspend fun register(handle: String, displayName: String): Session = synchronized(lock) {
+        if (session != null) throw GimException.InvalidInput("already registered")
+        val normalized = normalizeHandle(handle)
+        if (!HANDLE_PATTERN.matches(normalized)) {
+            throw GimException.InvalidInput("handle: use 3-32 of a-z, 0-9, '.', '_', '-'")
         }
+        val name = displayName.trim()
+        if (name.isEmpty()) throw GimException.InvalidInput("displayName must not be blank")
+        if (directory.values.any { it.handle == normalized }) throw GimException.Server(409, "handle taken")
+        Session("u-$normalized", "d-${nextId++}", normalized, name).also(::seedSession)
+    }
 
-    override suspend fun logout() = synchronized(lock) {
-        val session = requireSession()
-        directory.remove(session.userId)
-        loginState = LoginState.Unregistered
+    override suspend fun signOut() = synchronized(lock) {
+        val me = requireSession()
+        directory.remove(me.userId)
+        session = null
+        syncing = false
         chats.clear()
-        messageChats.clear()
+        media.clear()
         outbox.clear()
         doomed.clear()
-        typing.clear()
+        myTyping.clear()
         chatList = emptyList()
-        chatListRegs.toList().forEach { it.listener.onUpdate(listOf(ListDiff.Clear)) }
-        timelineRegs.toList().forEach { it.listener.onUpdate(listOf(ListDiff.Clear)) }
-        updateConnection(ConnectionState.OFFLINE)
+        chatListRegs.toList().forEach { it.listener.onUpdate(listOf(ChatListDiff.Clear)) }
+        timelineRegs.toList().forEach { it.listener.onUpdate(listOf(TimelineDiff.Clear)) }
+        val typingChats = typingUsers.keys.toSet()
+        typingUsers.clear()
+        typingRegs.toList().filter { it.chatId in typingChats }.forEach { it.listener.onUpdate(emptyList()) }
+        refreshConnection()
     }
 
-    override suspend fun start() = synchronized(lock) {
+    override suspend fun startSync() = synchronized(lock) {
         requireSession()
-        if (connection != ConnectionState.ONLINE) {
-            updateConnection(ConnectionState.CONNECTING)
-            updateConnection(ConnectionState.ONLINE)
-        }
+        syncing = true
+        refreshConnection()
     }
 
-    override suspend fun stop() = synchronized(lock) { updateConnection(ConnectionState.OFFLINE) }
+    override suspend fun stopSync() = synchronized(lock) {
+        syncing = false
+        refreshConnection()
+    }
 
-    override suspend fun findUser(handle: String): User? = synchronized(lock) {
+    override fun setNetworkReachable(reachable: Boolean) = synchronized(lock) {
+        this.reachable = reachable
+        refreshConnection()
+    }
+
+    override suspend fun findUser(handle: String): UserProfile? = synchronized(lock) {
         requireSession()
         val normalized = normalizeHandle(handle)
         directory.values.firstOrNull { it.handle == normalized }
     }
 
-    override suspend fun createDirectChat(userId: UserId): ChatId = synchronized(lock) {
+    override suspend fun createDirectChat(userId: String): String = synchronized(lock) {
         val me = me()
-        if (userId == me.id) throw GimException.InvalidInput("userId", "cannot chat with yourself")
+        if (userId == me.userId) throw GimException.InvalidInput("cannot chat with yourself")
         val other = user(userId)
-        chats.values.firstOrNull { it.kind == ChatKind.DIRECT && it.members.any { m -> m.id == userId } }
+        chats.values.firstOrNull { it.kind == ChatKind.DIRECT && it.members.any { m -> m.userId == userId } }
             ?.let { return@synchronized it.id }
         val chat = FakeChat("chat-${nextId++}", ChatKind.DIRECT, other.displayName, mutableListOf(me, other), clock())
         chats[chat.id] = chat
@@ -164,163 +211,233 @@ class FakeGimClient(
         chat.id
     }
 
-    override suspend fun createGroupChat(name: String, memberIds: List<UserId>): ChatId = synchronized(lock) {
+    override suspend fun createGroupChat(name: String, memberUserIds: List<String>): String = synchronized(lock) {
         val me = me()
         val trimmed = name.trim()
-        if (trimmed.isEmpty()) throw GimException.InvalidInput("name", "must not be blank")
-        val members = (listOf(me) + memberIds.filter { it != me.id }.distinct().map(::user)).toMutableList()
-        val chat = FakeChat("chat-${nextId++}", ChatKind.GROUP, trimmed, members, clock())
+        if (trimmed.isEmpty()) throw GimException.InvalidInput("name must not be blank")
+        val others = memberUserIds.filter { it != me.userId }.distinct().map(::user)
+        val chat = FakeChat("chat-${nextId++}", ChatKind.GROUP, trimmed, (listOf(me) + others).toMutableList(), clock())
+        others.forEach { chat.events += membership(it, MembershipChangeKind.ADDED) }
+        chat.loaded = chat.events.size
+        chat.rendered = render(chat)
         chats[chat.id] = chat
-        chat.history.add(0, system(SystemEventKind.CHAT_CREATED, "${me.displayName} created the group"))
-        chat.visible = 1
         publishChat(chat.id)
         chat.id
     }
 
-    override suspend fun addMember(chatId: ChatId, userId: UserId) = synchronized(lock) {
+    override suspend fun addMembers(chatId: String, userIds: List<String>) = synchronized(lock) {
         me()
         val chat = groupChat(chatId)
-        val user = user(userId)
-        if (chat.members.any { it.id == userId }) throw GimException.Conflict("already a member")
-        chat.members.add(user)
-        pushFront(chat, system(SystemEventKind.MEMBER_ADDED, "${user.displayName} was added"))
-        publishChat(chat.id)
-    }
-
-    override suspend fun removeMember(chatId: ChatId, userId: UserId) = synchronized(lock) {
-        me()
-        val chat = groupChat(chatId)
-        val user = chat.members.firstOrNull { it.id == userId } ?: throw GimException.NotFound("member $userId")
-        chat.members.remove(user)
-        pushFront(chat, system(SystemEventKind.MEMBER_REMOVED, "${user.displayName} was removed"))
-        publishChat(chat.id)
-    }
-
-    override suspend fun chatDetails(chatId: ChatId): ChatSummary = synchronized(lock) { summary(chat(chatId)) }
-
-    override suspend fun sendText(chatId: ChatId, body: String, replyTo: MessageId?): MessageId =
-        synchronized(lock) {
-            if (body.isBlank()) throw GimException.InvalidInput("body", "must not be blank")
-            enqueue(chatId, MessageContent.Text(body), replyTo)
+        if (userIds.isEmpty()) throw GimException.InvalidInput("userIds must not be empty")
+        val users = userIds.distinct().map(::user)
+        users.firstOrNull { u -> chat.members.any { it.userId == u.userId } }
+            ?.let { throw GimException.InvalidInput("${it.userId} is already a member") }
+        users.forEach {
+            chat.members += it
+            appendEvent(chat, membership(it, MembershipChangeKind.ADDED))
         }
+        refreshTimeline(chat)
+        publishChat(chat.id)
+    }
+
+    override suspend fun removeMember(chatId: String, userId: String) = synchronized(lock) {
+        val me = me()
+        val chat = groupChat(chatId)
+        if (userId == me.userId) throw GimException.InvalidInput("use leaveChat to leave")
+        val member = chat.members.firstOrNull { it.userId == userId } ?: throw GimException.NotFound("member $userId")
+        chat.members.remove(member)
+        appendEvent(chat, membership(member, MembershipChangeKind.REMOVED))
+        refreshTimeline(chat)
+        publishChat(chat.id)
+    }
+
+    override suspend fun leaveChat(chatId: String) = synchronized(lock) {
+        val me = me()
+        val chat = groupChat(chatId)
+        chat.members.removeAll { it.userId == me.userId }
+        appendEvent(chat, membership(me, MembershipChangeKind.LEFT))
+        refreshTimeline(chat)
+        chats.remove(chatId)
+        publishChat(chatId)
+    }
+
+    override suspend fun setGroupInfo(chatId: String, name: String?, avatarFilePath: String?) = synchronized(lock) {
+        me()
+        val chat = groupChat(chatId)
+        val trimmed = name?.trim()
+        if (trimmed != null && trimmed.isEmpty()) throw GimException.InvalidInput("name must not be blank")
+        val avatarFile = avatarFilePath?.let(::File)
+        if (avatarFile != null && !avatarFile.isFile) throw GimException.InvalidInput("avatar file not found")
+        if (trimmed != null) chat.name = trimmed
+        if (avatarFile != null) {
+            val ref = MediaRef(chatId, "avatar-${nextId++}", imageMime(avatarFile), avatarFile.length(), hasThumbnail = true)
+            media[MessageKey(chatId, ref.messageId)] = MediaEntry(ref, null, null, avatarFile.absolutePath)
+            chat.avatar = ref
+        }
+        publishChat(chatId)
+    }
+
+    override suspend fun sendText(chatId: String, body: String, replyTo: String?): String = synchronized(lock) {
+        if (body.isBlank()) throw GimException.InvalidInput("body must not be blank")
+        enqueue(chatId, replyTo) { MessageContent.Text(body) }
+    }
 
     override suspend fun sendMedia(
-        chatId: ChatId,
+        chatId: String,
         filePath: String,
         mime: String,
-        fileName: String,
         caption: String?,
-        replyTo: MessageId?,
-    ): MessageId = synchronized(lock) {
+        replyTo: String?,
+    ): String = synchronized(lock) {
         val file = File(filePath)
-        if (!file.isFile) throw GimException.InvalidInput("filePath", "file not found")
-        val mediaId = "media-${nextId++}"
-        media[mediaId] = MediaEntry(mime, null, null, file.absolutePath)
-        val content = if (mime.startsWith("image/")) {
-            MessageContent.Image(caption, mime, null, null, file.length(), null, mediaId)
-        } else {
-            MessageContent.File(caption, fileName, mime, file.length(), mediaId)
+        if (!file.isFile) throw GimException.InvalidInput("file not found: $filePath")
+        val isImage = mime.startsWith("image/")
+        enqueue(chatId, replyTo) { messageId ->
+            val ref = MediaRef(chatId, messageId, mime, file.length(), hasThumbnail = isImage)
+            media[MessageKey(chatId, messageId)] = MediaEntry(ref, null, null, file.absolutePath)
+            if (isImage) MessageContent.Image(ref, null, null, caption) else MessageContent.File(ref, file.name, caption)
         }
-        enqueue(chatId, content, replyTo)
     }
 
-    override suspend fun editMessage(messageId: MessageId, newBody: String) = synchronized(lock) {
+    override suspend fun editMessage(chatId: String, messageId: String, newBody: String) = synchronized(lock) {
         me()
-        if (newBody.isBlank()) throw GimException.InvalidInput("newBody", "must not be blank")
-        val (chat, index, message) = locateMessage(messageId)
-        if (!message.fromMe || message.deleted || message.content !is MessageContent.Text) {
-            throw GimException.InvalidInput("messageId", "only own text messages can be edited")
+        if (newBody.isBlank()) throw GimException.InvalidInput("newBody must not be blank")
+        updateMessage(chatId, messageId) { message ->
+            if (!message.isOwn || message.content !is MessageContent.Text) {
+                throw GimException.InvalidInput("only own text messages can be edited")
+            }
+            message.copy(content = MessageContent.Text(newBody), edited = true)
         }
-        replace(chat, index, message.copy(content = MessageContent.Text(newBody), editedAt = clock()))
     }
 
-    override suspend fun deleteMessage(messageId: MessageId) = synchronized(lock) {
+    override suspend fun deleteMessage(chatId: String, messageId: String) = synchronized(lock) {
         me()
-        val (chat, index, message) = locateMessage(messageId)
-        if (!message.fromMe) throw GimException.InvalidInput("messageId", "only own messages can be deleted")
-        if (message.deleted) return@synchronized
-        replace(chat, index, message.copy(content = MessageContent.Deleted, deleted = true, reactions = emptyList()))
-    }
-
-    override suspend fun toggleReaction(messageId: MessageId, emoji: String) = synchronized(lock) {
-        me()
-        if (emoji.isBlank()) throw GimException.InvalidInput("emoji", "must not be blank")
-        val (chat, index, message) = locateMessage(messageId)
-        if (message.deleted) throw GimException.InvalidInput("messageId", "message was deleted")
-        val existing = message.reactions.firstOrNull { it.emoji == emoji }
-        val reactions = when {
-            existing == null -> message.reactions + ReactionGroup(emoji, 1, mine = true)
-            existing.mine && existing.count == 1 -> message.reactions - existing
-            existing.mine -> message.reactions.map { if (it == existing) it.copy(count = it.count - 1, mine = false) else it }
-            else -> message.reactions.map { if (it == existing) it.copy(count = it.count + 1, mine = true) else it }
+        updateMessage(chatId, messageId) { message ->
+            if (!message.isOwn) throw GimException.InvalidInput("only own messages can be deleted")
+            message.copy(content = MessageContent.Deleted, reactions = emptyList())
         }
-        replace(chat, index, message.copy(reactions = reactions))
     }
 
-    override suspend fun retrySend(messageId: MessageId) = synchronized(lock) {
+    override suspend fun react(chatId: String, messageId: String, emoji: String) = synchronized(lock) {
         me()
-        val (chat, index, message) = locateMessage(messageId)
-        if (!message.fromMe || message.status != SendStatus.FAILED) throw GimException.Conflict("message is not failed")
-        replace(chat, index, message.copy(status = SendStatus.PENDING))
-        startDelivery(messageId)
+        if (emoji.isBlank()) throw GimException.InvalidInput("emoji must not be blank")
+        updateMessage(chatId, messageId) { message ->
+            requireNotDeleted(message)
+            val existing = message.reactions.firstOrNull { it.emoji == emoji }
+            val reactions = when {
+                existing == null -> message.reactions + ReactionGroup(emoji, 1, own = true)
+                existing.own -> message.reactions
+                else -> message.reactions.map { if (it == existing) it.copy(count = it.count + 1, own = true) else it }
+            }
+            message.copy(reactions = reactions)
+        }
     }
 
-    override suspend fun markRead(chatId: ChatId, upTo: MessageId) = synchronized(lock) {
+    override suspend fun unreact(chatId: String, messageId: String, emoji: String) = synchronized(lock) {
+        me()
+        updateMessage(chatId, messageId) { message ->
+            requireNotDeleted(message)
+            val existing = message.reactions.firstOrNull { it.emoji == emoji && it.own }
+            val reactions = when {
+                existing == null -> message.reactions
+                existing.count <= 1 -> message.reactions - existing
+                else -> message.reactions.map { if (it == existing) it.copy(count = it.count - 1, own = false) else it }
+            }
+            message.copy(reactions = reactions)
+        }
+    }
+
+    override suspend fun retrySend(chatId: String, messageId: String) = synchronized(lock) {
+        me()
+        updateMessage(chatId, messageId) { message ->
+            if (message.sendState !is SendState.Failed) throw GimException.InvalidInput("message is not failed")
+            message.copy(sendState = SendState.Pending)
+        }
+        startDelivery(MessageKey(chatId, messageId))
+    }
+
+    override suspend fun cancelSend(chatId: String, messageId: String) = synchronized(lock) {
         me()
         val chat = chat(chatId)
-        if (chat.history.none { it.id == upTo }) throw GimException.NotFound("message $upTo")
-        chat.unread = 0
-        publishChat(chat.id)
+        val index = messageIndex(chat, messageId)
+        val message = (chat.events[index] as TimelineItem.Message).item
+        if (message.sendState != SendState.Pending && message.sendState !is SendState.Failed) {
+            throw GimException.InvalidInput("message was already sent")
+        }
+        val key = MessageKey(chatId, messageId)
+        outbox.remove(key)
+        doomed.remove(key)
+        media.remove(key)
+        if (index >= chat.events.size - chat.loaded) chat.loaded--
+        chat.events.removeAt(index)
+        refreshTimeline(chat)
+        publishChat(chatId)
     }
 
-    override suspend fun setTyping(chatId: ChatId, typing: Boolean) = synchronized(lock) {
+    override suspend fun markRead(chatId: String, upToMessageId: String) = synchronized(lock) {
+        me()
+        val chat = chat(chatId)
+        val index = messageIndex(chat, upToMessageId)
+        chat.unread = chat.events.drop(index + 1).count { it is TimelineItem.Message && !it.item.isOwn }
+        publishChat(chatId)
+    }
+
+    override suspend fun setTyping(chatId: String, active: Boolean) = synchronized(lock) {
         me()
         chat(chatId)
-        myTyping[chatId] = typing
+        myTyping[chatId] = active
     }
 
-    override suspend fun paginateBackwards(chatId: ChatId, count: Int): Boolean = synchronized(lock) {
-        if (count <= 0) throw GimException.InvalidInput("count", "must be positive")
-        val chat = chat(chatId)
-        val older = chat.history.subList(chat.visible, minOf(chat.history.size, chat.visible + count)).toList()
-        chat.visible += older.size
-        if (older.isNotEmpty()) emitTimeline(chat.id, older.map { ListDiff.PushBack(it) })
-        chat.visible < chat.history.size
-    }
-
-    override suspend fun fetchMedia(mediaId: String): String = synchronized(lock) {
-        val entry = media[mediaId] ?: throw GimException.NotFound("media $mediaId")
-        cacheDir.mkdirs()
-        val target = File(cacheDir, mediaId.replace(UNSAFE_FILE_CHARS, "_"))
+    override suspend fun fetchMedia(chatId: String, messageId: String, destPath: String): String = synchronized(lock) {
+        me()
+        val entry = mediaEntry(chatId, messageId)
+        val target = File(destPath).absoluteFile
+        target.parentFile?.mkdirs()
         val source = entry.sourcePath?.let(::File)
         when {
             source != null && source.isFile -> source.copyTo(target, overwrite = true)
-            entry.mime.startsWith("image/") ->
-                writePlaceholderPng(target, entry.width ?: 4, entry.height ?: 3, mediaId.hashCode())
-            else -> target.writeText("Placeholder for $mediaId\n")
+            entry.ref.mime.startsWith("image/") ->
+                writePlaceholderPng(target, entry.width ?: 4, entry.height ?: 3, messageId.hashCode())
+            else -> target.writeText("Placeholder for $messageId\n")
         }
-        target.absolutePath
+        target.path
     }
 
-    override fun subscribeChatList(listener: ChatListListener): Subscription = synchronized(lock) {
-        listener.onUpdate(listOf(ListDiff.Reset(chatList)))
-        addRegistration(chatListRegs, Registration(null, listener))
+    override suspend fun fetchThumbnail(chatId: String, messageId: String, destPath: String): String? =
+        synchronized(lock) {
+            me()
+            val entry = mediaEntry(chatId, messageId)
+            if (!entry.ref.hasThumbnail) return@synchronized null
+            val target = File(destPath).absoluteFile
+            target.parentFile?.mkdirs()
+            writePlaceholderPng(target, entry.width ?: 4, entry.height ?: 3, messageId.hashCode())
+            target.path
+        }
+
+    override suspend fun chatList(listener: ChatListListener): TaskHandle = synchronized(lock) {
+        listener.onUpdate(listOf(ChatListDiff.Reset(chatList)))
+        register(chatListRegs, null, listener)
     }
 
-    override fun subscribeTimeline(chatId: ChatId, listener: TimelineListener): Subscription = synchronized(lock) {
-        val items = chats[chatId]?.let { it.history.take(it.visible) }.orEmpty()
-        listener.onUpdate(listOf(ListDiff.Reset(items)))
-        addRegistration(timelineRegs, Registration(chatId, listener))
+    override suspend fun timeline(chatId: String): Timeline = synchronized(lock) {
+        me()
+        chat(chatId)
+        FakeTimeline(chatId)
     }
 
-    override fun subscribeConnection(listener: ConnectionListener): Subscription = synchronized(lock) {
-        listener.onState(connection)
-        addRegistration(connectionRegs, Registration(null, listener))
+    override suspend fun connectionState(listener: ConnectionStateListener): TaskHandle = synchronized(lock) {
+        listener.onChange(connection)
+        register(connectionRegs, null, listener)
     }
 
-    override fun subscribeTyping(listener: TypingListener): Subscription = synchronized(lock) {
-        typing.forEach { (chatId, users) -> listener.onTyping(chatId, users) }
-        addRegistration(typingRegs, Registration(null, listener))
+    override suspend fun typing(chatId: String, listener: TypingListener): TaskHandle = synchronized(lock) {
+        listener.onUpdate(typingUsers[chatId].orEmpty())
+        register(typingRegs, chatId, listener)
+    }
+
+    override suspend fun chatMembers(chatId: String): List<UserProfile> = synchronized(lock) {
+        me()
+        chat(chatId).members.toList()
     }
 
     // endregion
@@ -328,83 +445,76 @@ class FakeGimClient(
     // region Test controls
 
     /** Adds a user that [findUser] can discover. */
-    fun addDirectoryUser(user: User) = synchronized(lock) { directory[user.id] = user }
+    fun addDirectoryUser(user: UserProfile) = synchronized(lock) { directory[user.userId] = user }
 
-    /** Makes the next outbound send (or retry) end in [SendStatus.FAILED]. */
-    fun failNextSend() = synchronized(lock) { failNext = true }
+    /** Makes the next outbound send (or retry) end in [SendState.Failed] with [reason]. */
+    fun failNextSend(reason: String = "Simulated send failure") = synchronized(lock) { failNextReason = reason }
 
-    /** Advances every in-flight outbound message by one status step (manual outbox mode). */
+    /** Advances every in-flight outbound message by one send state (manual outbox mode). */
     fun advanceOutbox() = synchronized(lock) { outbox.toList().forEach(::step) }
 
+    /** Overrides the connection state, as if the sync loop changed it. */
     fun setConnection(state: ConnectionState) = synchronized(lock) { updateConnection(state) }
 
-    /** Delivers an inbound text message from [from] into [chatId]; returns its id. */
-    fun simulateIncoming(chatId: ChatId, text: String, from: UserId, replyTo: MessageId? = null): MessageId =
+    /** Delivers an incoming text message from [from] (a member) into [chatId]; returns its message id. */
+    fun simulateIncoming(chatId: String, text: String, from: String, replyTo: String? = null): String =
         synchronized(lock) {
             val chat = chat(chatId)
-            val sender = chat.members.firstOrNull { it.id == from } ?: throw GimException.NotFound("member $from")
+            val sender = member(chat, from)
+            val reply = replyTo?.let { replyPreview(chat, it) }
             val id = "m-${nextId++}"
-            val message = TimelineItem.Message(
-                id = id,
-                chatId = chatId,
-                sender = sender,
-                fromMe = false,
-                sentAt = clock(),
-                content = MessageContent.Text(text),
-                replyTo = replyTo?.let(::replyPreview),
-                reactions = emptyList(),
-                editedAt = null,
-                deleted = false,
-                status = null,
+            val item = MessageItem(
+                id, chatId, sender, isOwn = false, sentAtMs = clock(), content = MessageContent.Text(text),
+                replyTo = reply, reactions = emptyList(), edited = false, sendState = null,
             )
-            messageChats[id] = chatId
+            appendEvent(chat, TimelineItem.Message(item))
             chat.unread++
-            pushFront(chat, message)
+            refreshTimeline(chat)
             publishChat(chatId)
             id
         }
 
-    /** Marks [userId] as typing (or not) in [chatId] and notifies typing listeners. */
-    fun simulateTyping(chatId: ChatId, userId: UserId, typing: Boolean) = synchronized(lock) {
-        val chat = chat(chatId)
-        val user = chat.members.firstOrNull { it.id == userId } ?: throw GimException.NotFound("member $userId")
-        val current = this.typing[chatId].orEmpty()
-        val updated = if (typing) (current.filter { it.id != userId } + user) else current.filter { it.id != userId }
-        if (updated.isEmpty()) this.typing.remove(chatId) else this.typing[chatId] = updated
-        typingRegs.toList().forEach { it.listener.onTyping(chatId, updated) }
+    /** Marks [userId] (a member) as typing or not in [chatId] and notifies that chat's typing listeners. */
+    fun simulateTyping(chatId: String, userId: String, typing: Boolean) = synchronized(lock) {
+        member(chat(chatId), userId)
+        val current = typingUsers[chatId].orEmpty()
+        val updated = if (typing) current.filter { it != userId } + userId else current.filter { it != userId }
+        if (updated == current) return@synchronized
+        if (updated.isEmpty()) typingUsers.remove(chatId) else typingUsers[chatId] = updated
+        typingRegs.toList().filter { it.chatId == chatId }.forEach { it.listener.onUpdate(updated) }
     }
 
     /** Last value passed to [setTyping] for [chatId]. */
-    fun isTyping(chatId: ChatId): Boolean = synchronized(lock) { myTyping[chatId] == true }
+    fun isTyping(chatId: String): Boolean = synchronized(lock) { myTyping[chatId] == true }
 
     // endregion
 
     // region Seeding (used by DemoData)
 
     internal fun seedSession(session: Session) = synchronized(lock) {
-        loginState = LoginState.Registered(session)
-        directory[session.userId] = User(session.userId, session.handle, session.displayName)
+        this.session = session
+        directory[session.userId] = UserProfile(session.userId, session.handle, session.displayName)
     }
 
-    internal fun seedMedia(mediaId: String, mime: String, width: Int?, height: Int?) = synchronized(lock) {
-        media[mediaId] = MediaEntry(mime, width, height, null)
+    internal fun seedMedia(ref: MediaRef, width: Int?, height: Int?) = synchronized(lock) {
+        media[MessageKey(ref.chatId, ref.messageId)] = MediaEntry(ref, width, height, null)
     }
 
-    /** Adds a chat whose [history] is ordered newest first. */
+    /** Adds a chat whose [events] (messages and membership changes) are ordered oldest first. */
     internal fun seedChat(
-        id: ChatId,
+        id: String,
         kind: ChatKind,
         name: String,
-        members: List<User>,
+        members: List<UserProfile>,
         createdAt: Long,
-        history: List<TimelineItem>,
+        events: List<TimelineItem>,
         unread: Int,
     ) = synchronized(lock) {
         val chat = FakeChat(id, kind, name, members.toMutableList(), createdAt)
-        chat.history.addAll(history)
-        chat.visible = minOf(pageSize, history.size)
+        chat.events.addAll(events)
+        chat.loaded = minOf(pageSize, events.size)
         chat.unread = unread
-        history.forEach { messageChats[it.id] = id }
+        chat.rendered = render(chat)
         chats[id] = chat
         publishChat(id)
     }
@@ -413,154 +523,187 @@ class FakeGimClient(
 
     // region Internals (callers hold the lock)
 
-    private fun <L> addRegistration(regs: MutableList<Registration<L>>, reg: Registration<L>): Subscription {
-        regs.add(reg)
-        return Subscription { synchronized(lock) { regs.remove(reg) } }
+    private fun <L> register(regs: MutableList<Registration<L>>, chatId: String?, listener: L): TaskHandle =
+        Registration(chatId, listener, regs).also { regs.add(it) }
+
+    private fun requireSession(): Session = session ?: throw GimException.NotRegistered()
+
+    private fun me(): UserProfile = requireSession().let { UserProfile(it.userId, it.handle, it.displayName) }
+
+    private fun user(userId: String): UserProfile = directory[userId] ?: throw GimException.NotFound("user $userId")
+
+    private fun chat(chatId: String): FakeChat = chats[chatId] ?: throw GimException.NotFound("chat $chatId")
+
+    private fun groupChat(chatId: String): FakeChat = chat(chatId).also {
+        if (it.kind != ChatKind.GROUP) throw GimException.InvalidInput("$chatId is not a group chat")
     }
 
-    private fun requireSession(): Session =
-        (loginState as? LoginState.Registered)?.session ?: throw GimException.Unauthorized()
+    private fun member(chat: FakeChat, userId: String): UserProfile =
+        chat.members.firstOrNull { it.userId == userId } ?: throw GimException.NotFound("member $userId")
 
-    private fun me(): User = requireSession().let { User(it.userId, it.handle, it.displayName) }
+    private fun mediaEntry(chatId: String, messageId: String): MediaEntry =
+        media[MessageKey(chatId, messageId)] ?: throw GimException.NotFound("media $chatId/$messageId")
 
-    private fun user(userId: UserId): User = directory[userId] ?: throw GimException.NotFound("user $userId")
+    private fun messageIndex(chat: FakeChat, messageId: String): Int =
+        chat.events.indexOfFirst { it is TimelineItem.Message && it.item.messageId == messageId }
+            .takeIf { it >= 0 } ?: throw GimException.NotFound("message $messageId")
 
-    private fun chat(chatId: ChatId): FakeChat = chats[chatId] ?: throw GimException.NotFound("chat $chatId")
-
-    private fun groupChat(chatId: ChatId): FakeChat = chat(chatId).also {
-        if (it.kind != ChatKind.GROUP) throw GimException.InvalidInput("chatId", "not a group chat")
+    private fun requireNotDeleted(message: MessageItem) {
+        if (message.content == MessageContent.Deleted) throw GimException.InvalidInput("message was deleted")
     }
 
-    private data class Located(val chat: FakeChat, val index: Int, val message: TimelineItem.Message)
-
-    private fun locateOrNull(messageId: MessageId): Located? {
-        val chat = messageChats[messageId]?.let { chats[it] } ?: return null
-        val index = chat.history.indexOfFirst { it.id == messageId }
-        val message = chat.history.getOrNull(index) as? TimelineItem.Message ?: return null
-        return Located(chat, index, message)
+    private fun replyPreview(chat: FakeChat, messageId: String): ReplyPreview {
+        val message = (chat.events[messageIndex(chat, messageId)] as TimelineItem.Message).item
+        return ReplyPreview(message.messageId, message.sender.displayName, previewText(message.content))
     }
 
-    private fun locateMessage(messageId: MessageId): Located =
-        locateOrNull(messageId) ?: throw GimException.NotFound("message $messageId")
+    private fun membership(user: UserProfile, change: MembershipChangeKind) =
+        TimelineItem.MembershipChange(user.displayName, change, clock())
 
-    private fun replyPreview(messageId: MessageId): ReplyPreview {
-        val message = locateMessage(messageId).message
-        return ReplyPreview(message.id, message.sender.displayName, snippet(message.content))
-    }
-
-    private fun system(kind: SystemEventKind, text: String) =
-        TimelineItem.System("s-${nextId++}", clock(), kind, text)
-
-    private fun enqueue(chatId: ChatId, content: MessageContent, replyTo: MessageId?): MessageId {
+    private fun enqueue(chatId: String, replyTo: String?, content: (messageId: String) -> MessageContent): String {
         val me = me()
         val chat = chat(chatId)
-        val reply = replyTo?.let(::replyPreview)
+        val reply = replyTo?.let { replyPreview(chat, it) }
         val id = "c-${nextId++}"
-        val message = TimelineItem.Message(id, chatId, me, true, clock(), content, reply, emptyList(), null, false, SendStatus.PENDING)
-        messageChats[id] = chatId
-        pushFront(chat, message)
+        val item = MessageItem(
+            id, chatId, me, isOwn = true, sentAtMs = clock(), content = content(id), replyTo = reply,
+            reactions = emptyList(), edited = false, sendState = SendState.Pending,
+        )
+        appendEvent(chat, TimelineItem.Message(item))
+        refreshTimeline(chat)
         publishChat(chatId)
-        startDelivery(id)
+        startDelivery(MessageKey(chatId, id))
         return id
     }
 
-    private fun startDelivery(id: MessageId) {
-        if (failNext) {
-            failNext = false
-            doomed.add(id)
+    private fun updateMessage(chatId: String, messageId: String, transform: (MessageItem) -> MessageItem) {
+        val chat = chat(chatId)
+        val index = messageIndex(chat, messageId)
+        chat.events[index] = TimelineItem.Message(transform((chat.events[index] as TimelineItem.Message).item))
+        refreshTimeline(chat)
+        publishChat(chatId)
+    }
+
+    private fun startDelivery(key: MessageKey) {
+        failNextReason?.let {
+            failNextReason = null
+            doomed[key] = it
         }
-        outbox.add(id)
+        outbox.add(key)
         val delays = outboxDelays ?: return
         scope.launch {
             for (ms in listOf(delays.sentMs, delays.deliveredMs, delays.readMs)) {
                 delay(ms)
-                if (!synchronized(lock) { step(id) }) break
+                if (!synchronized(lock) { step(key) }) break
             }
         }
     }
 
-    /** Moves [id] one status step forward; returns true while it stays in flight. */
-    private fun step(id: MessageId): Boolean {
-        if (id !in outbox) return false
-        val located = locateOrNull(id)
+    /** Moves [key] one send state forward; returns true while it stays in flight. */
+    private fun step(key: MessageKey): Boolean {
+        if (key !in outbox) return false
+        val message = chats[key.chatId]?.events
+            ?.firstNotNullOfOrNull { (it as? TimelineItem.Message)?.item?.takeIf { m -> m.messageId == key.messageId } }
+        val failure = doomed.remove(key)
         val next = when {
-            located == null -> null
-            doomed.remove(id) -> SendStatus.FAILED
-            else -> when (located.message.status) {
-                SendStatus.PENDING -> SendStatus.SENT
-                SendStatus.SENT -> SendStatus.DELIVERED
-                SendStatus.DELIVERED -> SendStatus.READ
-                else -> null
+            message == null -> null
+            failure != null -> SendState.Failed(failure)
+            message.sendState == SendState.Pending -> SendState.Sent
+            message.sendState == SendState.Sent -> SendState.Delivered
+            message.sendState == SendState.Delivered -> SendState.Read
+            else -> null
+        }
+        if (next == null || next is SendState.Failed || next == SendState.Read) outbox.remove(key)
+        if (next != null) updateMessage(key.chatId, key.messageId) { it.copy(sendState = next) }
+        return key in outbox
+    }
+
+    private fun appendEvent(chat: FakeChat, event: TimelineItem) {
+        chat.events += event
+        chat.loaded++
+    }
+
+    private fun dayStart(ms: Long): Long =
+        Instant.ofEpochMilli(ms).atZone(zone).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
+
+    /** Loaded events with a date separator before the first item of each local day. */
+    private fun render(chat: FakeChat): List<TimelineItem> {
+        val out = ArrayList<TimelineItem>()
+        var day: Long? = null
+        for (event in chat.events.subList(chat.events.size - chat.loaded, chat.events.size)) {
+            val start = dayStart(eventTime(event))
+            if (start != day) {
+                out += TimelineItem.DateSeparator(start)
+                day = start
+            }
+            out += event
+        }
+        return out
+    }
+
+    /** Re-renders [chat] and sends listeners the diffs from the previously delivered items. */
+    private fun refreshTimeline(chat: FakeChat) {
+        val new = render(chat)
+        val diffs = timelineDiffs(chat.rendered, new)
+        chat.rendered = new
+        if (diffs.isEmpty()) return
+        timelineRegs.toList().filter { it.chatId == chat.id }.forEach { it.listener.onUpdate(diffs) }
+    }
+
+    private fun refreshConnection() {
+        val online = syncing && reachable && session != null
+        when {
+            !online -> updateConnection(ConnectionState.OFFLINE)
+            connection == ConnectionState.OFFLINE -> {
+                updateConnection(ConnectionState.CONNECTING)
+                updateConnection(ConnectionState.SYNCING)
+                updateConnection(ConnectionState.CONNECTED)
             }
         }
-        if (next == null || next == SendStatus.FAILED || next == SendStatus.READ) outbox.remove(id)
-        if (located != null && next != null) {
-            replace(located.chat, located.index, located.message.copy(status = next))
-        }
-        return id in outbox
-    }
-
-    private fun pushFront(chat: FakeChat, item: TimelineItem) {
-        chat.history.add(0, item)
-        chat.visible++
-        emitTimeline(chat.id, listOf(ListDiff.PushFront(item)))
-    }
-
-    private fun replace(chat: FakeChat, index: Int, item: TimelineItem) {
-        chat.history[index] = item
-        if (index < chat.visible) emitTimeline(chat.id, listOf(ListDiff.Set(index, item)))
-        publishChat(chat.id)
-    }
-
-    private fun emitTimeline(chatId: ChatId, diffs: List<ListDiff<TimelineItem>>) {
-        timelineRegs.toList().filter { it.chatId == chatId }.forEach { it.listener.onUpdate(diffs) }
     }
 
     private fun updateConnection(state: ConnectionState) {
         if (state == connection) return
         connection = state
-        connectionRegs.toList().forEach { it.listener.onState(state) }
+        connectionRegs.toList().forEach { it.listener.onChange(state) }
     }
 
     private fun summary(chat: FakeChat): ChatSummary {
-        val me = (loginState as? LoginState.Registered)?.session?.userId
+        val me = session?.userId
         val name = if (chat.kind == ChatKind.DIRECT) {
-            chat.members.firstOrNull { it.id != me }?.displayName ?: chat.name
+            chat.members.firstOrNull { it.userId != me }?.displayName ?: chat.name
         } else {
             chat.name
         }
-        val last = chat.history.firstOrNull { it is TimelineItem.Message } as TimelineItem.Message?
-        val newestAt = when (val newest = chat.history.firstOrNull()) {
-            is TimelineItem.Message -> newest.sentAt
-            is TimelineItem.System -> newest.at
-            null -> chat.createdAt
-        }
+        val last = chat.events.lastOrNull { it is TimelineItem.Message } as TimelineItem.Message?
         return ChatSummary(
-            id = chat.id,
+            chatId = chat.id,
             kind = chat.kind,
             name = name,
-            avatarPath = null,
-            unreadCount = chat.unread,
-            lastMessage = last?.let {
-                MessagePreview(it.id, it.sender.displayName, it.fromMe, it.content, it.sentAt, it.status)
+            avatar = chat.avatar,
+            lastMessage = last?.item?.let {
+                MessagePreview(it.sender.displayName, previewText(it.content), it.sentAtMs, it.isOwn)
             },
-            lastActivityAt = maxOf(chat.createdAt, newestAt),
-            members = chat.members.toList(),
+            unreadCount = chat.unread,
+            updatedAtMs = maxOf(chat.createdAt, chat.events.lastOrNull()?.let(::eventTime) ?: chat.createdAt),
+            memberCount = chat.members.size,
         )
     }
 
     /** Recomputes the ordered chat list and emits the minimal diff for the single changed [chatId]. */
-    private fun publishChat(chatId: ChatId) {
+    private fun publishChat(chatId: String) {
         val old = chatList
         val new = chats.values.map(::summary)
-            .sortedWith(compareByDescending<ChatSummary> { it.lastActivityAt }.thenBy { it.id })
+            .sortedWith(compareByDescending<ChatSummary> { it.updatedAtMs }.thenBy { it.chatId })
         chatList = new
-        val from = old.indexOfFirst { it.id == chatId }
-        val to = new.indexOfFirst { it.id == chatId }
+        val from = old.indexOfFirst { it.chatId == chatId }
+        val to = new.indexOfFirst { it.chatId == chatId }
         val diffs = when {
-            from == -1 -> listOf(ListDiff.Insert(to, new[to]))
-            from == to -> if (old[from] == new[to]) return else listOf(ListDiff.Set(to, new[to]))
-            else -> listOf(ListDiff.Remove(from), ListDiff.Insert(to, new[to]))
+            from == -1 && to == -1 -> return
+            to == -1 -> listOf(ChatListDiff.Remove(from))
+            from == -1 -> listOf(ChatListDiff.Insert(to, new[to]))
+            from == to -> if (old[from] == new[to]) return else listOf(ChatListDiff.Set(to, new[to]))
+            else -> listOf(ChatListDiff.Remove(from), ChatListDiff.Insert(to, new[to]))
         }
         chatListRegs.toList().forEach { it.listener.onUpdate(diffs) }
     }
@@ -571,26 +714,66 @@ class FakeGimClient(
         const val DEFAULT_PAGE_SIZE = 20
 
         private val HANDLE_PATTERN = Regex("[a-z0-9._-]{3,32}")
-        private val UNSAFE_FILE_CHARS = Regex("[^A-Za-z0-9._-]")
 
         private fun normalizeHandle(handle: String) = handle.trim().removePrefix("@").lowercase()
+
+        private fun imageMime(file: File) = if (file.extension.equals("png", ignoreCase = true)) "image/png" else "image/jpeg"
 
         /** A registered client seeded with [DemoData]: three contacts, a direct chat and a group. */
         fun withDemoData(
             scope: CoroutineScope,
             clock: () -> Long = System::currentTimeMillis,
-            cacheDir: File = File(System.getProperty("java.io.tmpdir"), "gim-fake-media"),
+            zone: ZoneId = ZoneId.systemDefault(),
             outboxDelays: OutboxDelays? = OutboxDelays(),
             pageSize: Int = DEFAULT_PAGE_SIZE,
-        ): FakeGimClient = FakeGimClient(scope, clock, cacheDir, outboxDelays, pageSize).also { DemoData.seed(it, clock()) }
+        ): FakeGimClient = FakeGimClient(scope, clock, zone, outboxDelays, pageSize).also { DemoData.seed(it, clock()) }
     }
 }
 
-/** Plain-text snippet used for fake reply previews. */
-internal fun snippet(content: MessageContent): String = when (content) {
+/** Plain-text rendering used for chat list previews and reply quotes, as gim-core renders them. */
+internal fun previewText(content: MessageContent): String = when (content) {
     is MessageContent.Text -> content.body
-    is MessageContent.Image -> content.caption ?: "Photo"
-    is MessageContent.File -> content.fileName
+    is MessageContent.Image -> "Photo"
+    is MessageContent.File -> "File: ${content.fileName ?: "attachment"}"
     MessageContent.Deleted -> "Message deleted"
     MessageContent.Unsupported -> "Unsupported message"
+}
+
+private fun eventTime(item: TimelineItem): Long = when (item) {
+    is TimelineItem.Message -> item.item.sentAtMs
+    is TimelineItem.DateSeparator -> item.dayStartMs
+    is TimelineItem.MembershipChange -> item.atMs
+}
+
+/**
+ * Diffs from [old] to [new] in gim-core's style: removals first, then insertions and in-place updates in
+ * ascending index order. Pure tail growth is a `PushBack`/`Append`. Falls back to `Reset` if the common
+ * items were reordered (never happens in the fake).
+ */
+internal fun timelineDiffs(old: List<TimelineItem>, new: List<TimelineItem>): List<TimelineDiff> {
+    if (old == new) return emptyList()
+    if (new.size > old.size && new.subList(0, old.size) == old) {
+        val tail = new.subList(old.size, new.size).toList()
+        return listOf(if (tail.size == 1) TimelineDiff.PushBack(tail[0]) else TimelineDiff.Append(tail))
+    }
+    val newKeys = new.mapTo(HashSet()) { it.key }
+    val oldKeys = old.mapTo(HashSet()) { it.key }
+    val diffs = mutableListOf<TimelineDiff>()
+    var index = 0
+    for (item in old) {
+        if (item.key in newKeys) index++ else diffs += TimelineDiff.Remove(index)
+    }
+    val kept = old.filter { it.key in newKeys }
+    var next = 0
+    for ((i, item) in new.withIndex()) {
+        when {
+            next < kept.size && kept[next].key == item.key -> {
+                if (kept[next] != item) diffs += TimelineDiff.Set(i, item)
+                next++
+            }
+            item.key !in oldKeys -> diffs += if (i == 0) TimelineDiff.PushFront(item) else TimelineDiff.Insert(i, item)
+            else -> return listOf(TimelineDiff.Reset(new))
+        }
+    }
+    return diffs
 }
