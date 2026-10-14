@@ -1,129 +1,163 @@
 package im.g.apps.core.bridge
 
-/** Opaque user identifier assigned by gim-server. UniFFI exposes ids as plain strings. */
-typealias UserId = String
+// Mirrors gim-core `bindings/gim-ffi/src/types.rs` and `client.rs` (ClientConfig).
+// All ids are opaque strings; all timestamps are Unix epoch milliseconds.
+// Unsigned Rust integers map to signed Kotlin ones: u32 -> Int, u64 -> Long.
 
-/** Opaque device identifier assigned at registration. */
-typealias DeviceId = String
-
-/** Opaque chat identifier (one MLS group per chat). */
-typealias ChatId = String
-
-/** Message identifier; for outbound messages this is the outbox `client_id`. */
-typealias MessageId = String
-
-data class User(
-    val id: UserId,
-    val handle: String,
-    val displayName: String,
-)
-
+/** The signed-in account on this device. */
 data class Session(
-    val userId: UserId,
-    val deviceId: DeviceId,
+    val userId: String,
+    val deviceId: String,
     val handle: String,
     val displayName: String,
-    val serverUrl: String,
 )
 
-sealed class LoginState {
-    data object Unregistered : LoginState()
-
-    data class Registered(val session: Session) : LoginState()
-}
-
-enum class ConnectionState { OFFLINE, CONNECTING, ONLINE }
+/** Public profile of a user. */
+data class UserProfile(
+    val userId: String,
+    val handle: String,
+    val displayName: String,
+)
 
 enum class ChatKind { DIRECT, GROUP }
 
-/** Outbound delivery state, driven by the outbox and encrypted receipts. */
-enum class SendStatus { PENDING, SENT, DELIVERED, READ, FAILED }
-
+/** One row of the chat list. */
 data class ChatSummary(
-    val id: ChatId,
+    val chatId: String,
     val kind: ChatKind,
+    /** Group name, or the other user's display name for a direct chat. */
     val name: String,
-    val avatarPath: String?,
-    val unreadCount: Int,
+    val avatar: MediaRef?,
     val lastMessage: MessagePreview?,
-    /** Epoch milliseconds of the newest timeline item (or chat creation). */
-    val lastActivityAt: Long,
-    val members: List<User>,
+    val unreadCount: Int,
+    val updatedAtMs: Long,
+    val memberCount: Int,
 )
 
+/** Last message shown in a chat list row. */
 data class MessagePreview(
-    val messageId: MessageId,
     val senderName: String,
-    val fromMe: Boolean,
+    /** Plain-text rendering ("Photo", "File: report.pdf" for media). */
+    val text: String,
+    val sentAtMs: Long,
+    val isOwn: Boolean,
+)
+
+/** One row of a chat timeline. */
+sealed class TimelineItem {
+    data class Message(val item: MessageItem) : TimelineItem()
+
+    /** Inserted before the first item of each local calendar day. */
+    data class DateSeparator(val dayStartMs: Long) : TimelineItem()
+
+    data class MembershipChange(
+        val userName: String,
+        val change: MembershipChangeKind,
+        val atMs: Long,
+    ) : TimelineItem()
+}
+
+/** Stable key for lazy lists: unique within one timeline. */
+val TimelineItem.key: String
+    get() = when (this) {
+        is TimelineItem.Message -> item.messageId
+        is TimelineItem.DateSeparator -> "date-$dayStartMs"
+        is TimelineItem.MembershipChange -> "member-$atMs-$userName-$change"
+    }
+
+enum class MembershipChangeKind { ADDED, REMOVED, LEFT }
+
+data class MessageItem(
+    /** Client id of the message; stable from local echo to delivery. */
+    val messageId: String,
+    val chatId: String,
+    val sender: UserProfile,
+    val isOwn: Boolean,
+    val sentAtMs: Long,
     val content: MessageContent,
-    val sentAt: Long,
-    val status: SendStatus?,
-)
-
-data class ReplyPreview(
-    val messageId: MessageId,
-    val senderName: String,
-    val snippet: String,
-)
-
-data class ReactionGroup(
-    val emoji: String,
-    val count: Int,
-    /** True when the local user is one of the reactors. */
-    val mine: Boolean,
+    val replyTo: ReplyPreview?,
+    val reactions: List<ReactionGroup>,
+    val edited: Boolean,
+    /** Delivery state of own messages; null for messages from others. */
+    val sendState: SendState?,
 )
 
 sealed class MessageContent {
     data class Text(val body: String) : MessageContent()
 
     data class Image(
-        val caption: String?,
-        val mime: String,
+        val media: MediaRef,
         val width: Int?,
         val height: Int?,
-        val size: Long,
-        val thumbnailPath: String?,
-        val mediaId: String,
+        val caption: String?,
     ) : MessageContent()
 
     data class File(
+        val media: MediaRef,
+        val fileName: String?,
         val caption: String?,
-        val fileName: String,
-        val mime: String,
-        val size: Long,
-        val mediaId: String,
     ) : MessageContent()
 
+    /** The sender deleted the message. */
     data object Deleted : MessageContent()
 
+    /** Content this client version cannot render. */
     data object Unsupported : MessageContent()
 }
 
-enum class SystemEventKind { CHAT_CREATED, MEMBER_ADDED, MEMBER_REMOVED }
+/**
+ * Handle to an encrypted attachment. Pass its ids back to [GimClient.fetchMedia] /
+ * [GimClient.fetchThumbnail]; keys and blob ids never leave gim-core.
+ */
+data class MediaRef(
+    val chatId: String,
+    val messageId: String,
+    val mime: String,
+    val size: Long,
+    val hasThumbnail: Boolean,
+)
 
-/** One row of a chat timeline. Timelines are ordered newest first (index 0 = newest). */
-sealed class TimelineItem {
-    abstract val id: String
+/** Quoted message shown above a reply. */
+data class ReplyPreview(
+    val messageId: String,
+    val senderName: String,
+    val text: String,
+)
 
-    data class Message(
-        override val id: MessageId,
-        val chatId: ChatId,
-        val sender: User,
-        val fromMe: Boolean,
-        val sentAt: Long,
-        val content: MessageContent,
-        val replyTo: ReplyPreview?,
-        val reactions: List<ReactionGroup>,
-        val editedAt: Long?,
-        val deleted: Boolean,
-        /** Delivery state for outbound messages; null for inbound ones. */
-        val status: SendStatus?,
-    ) : TimelineItem()
+data class ReactionGroup(
+    val emoji: String,
+    val count: Int,
+    /** Whether the signed-in user is among the reactors. */
+    val own: Boolean,
+)
 
-    data class System(
-        override val id: String,
-        val at: Long,
-        val kind: SystemEventKind,
-        val text: String,
-    ) : TimelineItem()
+sealed class SendState {
+    /** Queued in the outbox or being uploaded. */
+    data object Pending : SendState()
+
+    /** Accepted by the server. */
+    data object Sent : SendState()
+
+    /** Delivered to at least one recipient device. */
+    data object Delivered : SendState()
+
+    /** Read by at least one recipient. */
+    data object Read : SendState()
+
+    /** Gave up; [GimClient.retrySend] or [GimClient.cancelSend]. */
+    data class Failed(val reason: String) : SendState()
 }
+
+enum class ConnectionState {
+    OFFLINE,
+    CONNECTING,
+    CONNECTED,
+
+    /** Connected and catching up on missed events. */
+    SYNCING,
+}
+
+data class ClientConfig(
+    /** Base URL of gim-server, `http://` or `https://`. */
+    val serverUrl: String,
+)
