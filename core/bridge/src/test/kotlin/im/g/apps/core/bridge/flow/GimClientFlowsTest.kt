@@ -7,6 +7,7 @@ import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.DemoData.DIRECT_CHAT_ID
 import im.g.apps.core.bridge.fake.DemoData.GROUP_CHAT_ID
 import im.g.apps.core.bridge.fake.FakeGimClient
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -16,6 +17,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class GimClientFlowsTest {
     @get:Rule
     val tmp = TemporaryFolder()

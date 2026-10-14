@@ -17,6 +17,7 @@ import im.g.apps.core.bridge.diff.ListDiff
 import im.g.apps.core.bridge.diff.applyDiffs
 import im.g.apps.core.bridge.fake.DemoData.DIRECT_CHAT_ID
 import im.g.apps.core.bridge.fake.DemoData.GROUP_CHAT_ID
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -32,6 +33,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class FakeGimClientTest {
     @get:Rule
     val tmp = TemporaryFolder()
@@ -247,6 +249,7 @@ class FakeGimClientTest {
         val client = demo()
         val timeline = TimelineRecorder()
         client.subscribeTimeline(GROUP_CHAT_ID, timeline)
+        client.paginateBackwards(GROUP_CHAT_ID, 50)
         val index = timeline.items.indexOfFirst { (it as? TimelineItem.Message)?.reactions?.any { r -> r.emoji == "😍" } == true }
         val target = timeline.message(index)
 
