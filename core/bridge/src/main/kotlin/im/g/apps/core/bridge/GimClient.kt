@@ -1,7 +1,8 @@
 package im.g.apps.core.bridge
 
 /**
- * Kotlin mirror of gim-core's UniFFI `GimClient` (gim-core `bindings/gim-ffi`, contract in `docs/API.md`).
+ * Kotlin mirror of gim-core's UniFFI `GimClient` (gim-core `bindings/gim-ffi`, contract in
+ * `docs/API.md` at gim-core commit e69fcba).
  *
  * gim-core (Rust) owns storage, networking, sync, outbox, MLS and media crypto; this interface is the only
  * surface the UI layer sees. Features never import `im.g.gimcore`: the real adapter maps the generated
@@ -26,7 +27,6 @@ package im.g.apps.core.bridge
  * | `TimelineItem`, `MembershipChangeKind`, `MessageItem`, `MessageContent` | same names | `ULong` -> `Long`, `UInt?` -> `Int?` |
  * | `MediaRef`, `ReplyPreview`, `ReactionGroup`, `SendState`, `ConnectionState`, `ClientConfig` | same names | `size: ULong` -> `Long`, `count: UInt` -> `Int` |
  * | `GimException.<Variant>` | [GimException]`.<Variant>` | `Server.status: UShort` -> `Int` |
- * | — | [chatMembers] | extension pending in gim-core |
  *
  * Enum constants keep UniFFI's Kotlin spelling (`ChatKind.DIRECT`, `ConnectionState.CONNECTED`, ...).
  */
@@ -57,6 +57,13 @@ interface GimClient {
 
     /** Creates a group chat and returns its chat id. */
     suspend fun createGroupChat(name: String, memberUserIds: List<String>): String
+
+    /**
+     * Current members of [chatId], one entry per user (not per device), including the signed-in user.
+     * There is no members listener: re-query when a [ChatListDiff] touches the chat or a
+     * [TimelineItem.MembershipChange] arrives.
+     */
+    suspend fun chatMembers(chatId: String): List<UserProfile>
 
     suspend fun addMembers(chatId: String, userIds: List<String>)
 
@@ -109,14 +116,6 @@ interface GimClient {
 
     /** Subscribes to typing notifications of one chat; the first callback carries the current set. */
     suspend fun typing(chatId: String, listener: TypingListener): TaskHandle
-
-    /**
-     * Current members of [chatId], the signed-in user included.
-     *
-     * Mirror-only extension: pending in gim-core; the real adapter throws [GimException.NotImplemented]
-     * until gim-core adds `chat_members`.
-     */
-    suspend fun chatMembers(chatId: String): List<UserProfile>
 }
 
 /**

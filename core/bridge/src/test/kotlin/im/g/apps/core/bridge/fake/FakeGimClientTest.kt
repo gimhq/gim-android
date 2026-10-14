@@ -383,6 +383,18 @@ class FakeGimClientTest {
     }
 
     @Test
+    fun chat_members_lists_each_user_once_including_the_local_user() = runTest {
+        val client = demo()
+        assertEquals(listOf(me, lukas), client.chatMembers(DIRECT_CHAT_ID))
+        assertEquals(listOf(me, ana, lukas, nikos), client.chatMembers(GROUP_CHAT_ID))
+        val anaChat = client.createDirectChat(ana.userId)
+        assertEquals(listOf(me, ana), client.chatMembers(anaChat))
+        val group = client.createGroupChat("Ionian", listOf(me.userId, nikos.userId, nikos.userId))
+        assertEquals(listOf(me, nikos), client.chatMembers(group))
+        assertGimError<GimException.NotFound> { client.chatMembers("chat-missing") }
+    }
+
+    @Test
     fun chat_list_is_ordered_by_update_and_tracks_unread() = runTest {
         val client = demo()
         val chats = client.recordChats()
