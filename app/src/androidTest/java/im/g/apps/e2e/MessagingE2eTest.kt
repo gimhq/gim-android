@@ -31,7 +31,8 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.printToString
 import androidx.core.content.FileProvider
-import androidx.test.espresso.Espresso
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.espresso.intent.Intents
 import androidx.test.espresso.intent.Intents.intending
 import androidx.test.espresso.intent.matcher.IntentMatchers.isInternal
@@ -50,6 +51,7 @@ import im.g.apps.core.bridge.flow.itemsFlow
 import im.g.apps.core.bridge.platform.KeystoreSecretCipher
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
 import im.g.apps.testing.awaitServerReachable
+import im.g.apps.testing.dismissSystemDialogs
 import java.io.File
 import java.security.KeyStore
 import java.util.UUID
@@ -130,14 +132,18 @@ class MessagingE2eTest {
         Log.i(LOG_TAG, "server URL $serverUrl")
         awaitServerReachable(instrumentation.targetContext, serverUrl)
         Log.i(LOG_TAG, "$serverUrl/healthz returned 200")
+        // A system "isn't responding" dialog right after boot keeps the app window from getting focus.
+        if (!dismissSystemDialogs(instrumentation, timeoutMs) { appHasFocus() }) {
+            Log.w(LOG_TAG, "app window still has no focus; continuing")
+        }
 
-        // Onboarding -> chat list. On small screens the soft keyboard covers the submit button, and an injected
-        // tap there goes to the keyboard: close it and scroll the button into view first.
+        // Onboarding -> chat list. Input goes through Compose semantics only (no Espresso root lookups, which wait
+        // for window focus); hide the soft keyboard and scroll the button into view in case it covers the button.
         waitForText("onboarding shown", string(OnboardingR.string.onboarding_title))
         enterText("server address", TAG_SERVER_URL, serverUrl)
         enterText("handle", TAG_HANDLE, appHandle)
         enterText("display name", TAG_DISPLAY_NAME, appName)
-        Espresso.closeSoftKeyboard()
+        hideSoftKeyboard()
         compose.onNodeWithTag(TAG_SUBMIT).performScrollTo().assertIsDisplayed().assertIsEnabled().performClick()
         Log.i(LOG_TAG, "submit clicked")
         val chatList = hasText(string(ChatListR.string.chatlist_title))
@@ -297,6 +303,20 @@ class MessagingE2eTest {
 
     private fun waitForText(step: String, text: String) = waitFor(step, hasText(text))
 
+    private fun appHasFocus(): Boolean {
+        var focused = false
+        instrumentation.runOnMainSync { focused = compose.activity.hasWindowFocus() }
+        return focused
+    }
+
+    private fun hideSoftKeyboard() {
+        instrumentation.runOnMainSync {
+            val window = compose.activity.window
+            WindowCompat.getInsetsController(window, window.decorView).hide(WindowInsetsCompat.Type.ime())
+        }
+        compose.waitForIdle()
+    }
+
     /**
      * Fails with [step] and what is on screen (texts, field values, content descriptions such as the onboarding
      * progress indicator, disabled / focused flags), after dumping the semantics tree of every window to logcat
@@ -308,7 +328,8 @@ class MessagingE2eTest {
             roots.printToString().lines().forEach { Log.d(LOG_TAG, it) }
             roots.fetchSemanticsNodes().flatMap { it.describe() }.distinct().joinToString(" | ")
         }.getOrElse { "unavailable: $it" }
-        throw AssertionError("step '$step' timed out after $timeoutMs ms; on screen: [$screen]", cause)
+        val focus = runCatching { appHasFocus() }.getOrElse { "unknown" }
+        throw AssertionError("step '$step' timed out after $timeoutMs ms; app focused: $focus; on screen: [$screen]", cause)
     }
 
     private fun SemanticsNode.describe(): List<String> {
