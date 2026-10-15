@@ -140,7 +140,11 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-metrics -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.gimServerUrl=http://10.0.2.2:8080 --no-daemon
+          # boot_completed comes before Android has a default network (mirrors scripts/e2e-interop.sh). Waits in
+          # the tests are doubled: the software-rendered emulator draws ~3 frames/s on these runners.
+          script: |
+            adb shell 'for i in $(seq 1 90); do dumpsys connectivity | grep -qE "^Active default network: [0-9]+" && exit 0; sleep 1; done; echo "no default network after 90 s" >&2; exit 1'
+            ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.gimServerUrl=http://10.0.2.2:8080 -Pandroid.testInstrumentationRunnerArguments.timeoutScale=2 --no-daemon
 
       - name: Collect emulator diagnostics
         if: failure()
