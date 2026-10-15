@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="contacts_back">Back</string>
+    <string name="contacts_you">You</string>
+    <string name="contacts_handle">\@%1$s</string>
+
+    <string name="contacts_search_label">Handle</string>
+    <string name="contacts_search_placeholder">\@handle</string>
+    <string name="contacts_search_hint">Enter at least 3 characters of a handle</string>
+    <string name="contacts_search_searching">Searching…</string>
+    <string name="contacts_search_not_found">No user with handle \@%1$s</string>
+
+    <string name="contacts_error_network">Can\'t reach the server. Check your connection and try again.</string>
+    <string name="contacts_error_not_registered">You are signed out. Sign in again to continue.</string>
+    <string name="contacts_error_invalid_input">That request isn\'t allowed.</string>
+    <string name="contacts_error_not_found">It no longer exists.</string>
+    <string name="contacts_error_server">The server rejected the request. Try again later.</string>
+    <string name="contacts_error_not_supported">This isn\'t supported yet.</string>
+    <string name="contacts_error_unknown">Something went wrong. Try again.</string>
+
+    <string name="contacts_new_chat_title">New chat</string>
+    <string name="contacts_start_chat">Start chat</string>
+
+    <string name="contacts_new_group_title">New group</string>
+    <string name="contacts_new_group_members_title">Add members</string>
+    <string name="contacts_new_group_name_title">Group name</string>
+    <string name="contacts_add">Add</string>
+    <string name="contacts_added">Added</string>
+    <string name="contacts_remove_selected">Remove %1$s</string>
+    <string name="contacts_new_group_no_members">Add at least one member to continue.</string>
+    <string name="contacts_next">Next</string>
+    <string name="contacts_create_group">Create group</string>
+    <string name="contacts_group_name_label">Group name</string>
+    <string name="contacts_group_name_counter">%1$d/%2$d</string>
+    <plurals name="contacts_member_count">
+        <item quantity="one">%d member</item>
+        <item quantity="other">%d members</item>
+    </plurals>
+
+    <string name="contacts_group_info_title">Group info</string>
+    <string name="contacts_contact_info_title">Contact info</string>
+    <string name="contacts_chat_missing">This chat is no longer available.</string>
+    <string name="contacts_members">Members</string>
+    <string name="contacts_members_unavailable">The member list is unavailable for now.</string>
+    <string name="contacts_add_member">Add member</string>
+    <string name="contacts_rename_group">Rename group</string>
+    <string name="contacts_save">Save</string>
+    <string name="contacts_cancel">Cancel</string>
+    <string name="contacts_remove">Remove</string>
+    <string name="contacts_remove_member_description">Remove %1$s</string>
+    <string name="contacts_remove_member_confirm">Remove %1$s from the group?</string>
+    <string name="contacts_leave_group">Leave group</string>
+    <string name="contacts_leave">Leave</string>
+    <string name="contacts_leave_group_confirm">Leave this group? You will stop receiving its messages.</string>
+</resources>

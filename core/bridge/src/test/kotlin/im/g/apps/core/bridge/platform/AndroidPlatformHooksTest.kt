@@ -1,0 +1,105 @@
+package im.g.apps.core.bridge.platform
+
+import android.content.Context
+import android.util.Log
+import androidx.test.core.app.ApplicationProvider
+import im.g.apps.core.bridge.GimException
+import org.junit.After
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.shadows.ShadowLog
+import java.io.File
+
+@RunWith(RobolectricTestRunner::class)
+class AndroidPlatformHooksTest {
+    private val context: Context = ApplicationProvider.getApplicationContext()
+    private lateinit var monitor: AndroidReachabilityMonitor
+    private lateinit var hooks: AndroidPlatformHooks
+    private val secretsDir get() = File(context.noBackupFilesDir, "secrets")
+
+    @Before
+    fun setUp() {
+        monitor = AndroidReachabilityMonitor(context)
+        hooks = AndroidPlatformHooks(context, FakeSecretCipher(), monitor)
+    }
+
+    @After
+    fun tearDown() {
+        monitor.close()
+    }
+
+    @Test
+    fun secure_store_round_trips_overwrites_and_deletes() {
+        assertNull(hooks.secureStoreGet("session"))
+
+        hooks.secureStoreSet("session", byteArrayOf(1, 2, 3))
+        assertArrayEquals(byteArrayOf(1, 2, 3), hooks.secureStoreGet("session"))
+
+        hooks.secureStoreSet("session", byteArrayOf(9))
+        assertArrayEquals(byteArrayOf(9), hooks.secureStoreGet("session"))
+
+        hooks.secureStoreSet("other", byteArrayOf())
+        assertArrayEquals(byteArrayOf(), hooks.secureStoreGet("other"))
+
+        hooks.secureStoreDelete("session")
+        assertNull(hooks.secureStoreGet("session"))
+        assertArrayEquals(byteArrayOf(), hooks.secureStoreGet("other"))
+        hooks.secureStoreDelete("session")
+    }
+
+    @Test
+    fun secret_files_are_sealed_and_named_by_key_hash() {
+        hooks.secureStoreSet("identity/mls-key", "plain-secret".toByteArray())
+
+        val files = secretsDir.listFiles().orEmpty()
+        assertEquals(1, files.size)
+        val file = files.single()
+        assertEquals(sha256Hex("identity/mls-key"), file.name)
+        assertTrue(file.name.matches(Regex("[0-9a-f]{64}")))
+        assertFalse(file.name.contains("mls"))
+        assertFalse(String(file.readBytes(), Charsets.ISO_8859_1).contains("plain-secret"))
+    }
+
+    @Test
+    fun corrupted_file_reads_as_null_and_is_logged() {
+        hooks.secureStoreSet("session", byteArrayOf(1, 2, 3))
+        File(secretsDir, sha256Hex("session")).writeBytes(byteArrayOf(0, 0, 0, 0))
+        ShadowLog.clear()
+
+        assertNull(hooks.secureStoreGet("session"))
+        assertTrue(ShadowLog.getLogsForTag("SecretFileStore").any { it.type == Log.WARN })
+    }
+
+    @Test
+    fun write_failure_throws_storage_error() {
+        secretsDir.deleteRecursively()
+        secretsDir.writeText("not a directory")
+        try {
+            hooks.secureStoreSet("session", byteArrayOf(1))
+            fail("expected GimException.Storage")
+        } catch (_: GimException.Storage) {
+        } finally {
+            secretsDir.delete()
+        }
+    }
+
+    @Test
+    fun data_dir_is_created_under_files_dir() {
+        val dir = File(hooks.dataDir())
+        assertEquals(File(context.filesDir, "gim").absolutePath, dir.absolutePath)
+        assertTrue(dir.isDirectory)
+    }
+
+    @Test
+    fun network_reachability_reads_the_monitor() {
+        assertEquals(monitor.reachable.value, hooks.isNetworkReachable())
+    }
+}
