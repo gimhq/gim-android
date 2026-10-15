@@ -5,12 +5,17 @@ import android.app.Instrumentation.ActivityResult
 import android.content.Context
 import android.content.Intent
 import androidx.annotation.StringRes
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -20,6 +25,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.printToLog
 import androidx.core.content.FileProvider
 import androidx.test.espresso.intent.Intents
 import androidx.test.espresso.intent.Intents.intending
@@ -38,6 +44,7 @@ import im.g.apps.core.bridge.flow.chatListFlow
 import im.g.apps.core.bridge.flow.itemsFlow
 import im.g.apps.core.bridge.platform.KeystoreSecretCipher
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
+import im.g.apps.testing.awaitServerReachable
 import java.io.File
 import java.security.KeyStore
 import java.util.UUID
@@ -47,6 +54,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -77,7 +85,11 @@ class MessagingE2eTest {
     val compose = createAndroidComposeRule<MainActivity>()
 
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
-    private val serverUrl = InstrumentationRegistry.getArguments().getString("gimServerUrl") ?: DEFAULT_SERVER_URL
+    private val args = InstrumentationRegistry.getArguments()
+    private val serverUrl = args.getString("gimServerUrl") ?: DEFAULT_SERVER_URL
+
+    /** Per-wait timeout; CI's software-rendered emulator passes `timeoutScale` > 1. */
+    private val timeoutMs = TIMEOUT_MS * (args.getString("timeoutScale")?.toLongOrNull()?.coerceAtLeast(1) ?: 1)
     private val suffix = UUID.randomUUID().toString().replace("-", "").take(10)
     private val appHandle = "app_$suffix"
     private val appName = "App $suffix"
@@ -109,13 +121,16 @@ class MessagingE2eTest {
 
     @Test
     fun messagingFlowThenSignOut() {
+        // The emulator may not have a default network yet right after boot; registering then hangs.
+        awaitServerReachable(instrumentation.targetContext, serverUrl)
+
         // Onboarding -> chat list.
-        compose.waitForText(string(OnboardingR.string.onboarding_title))
+        waitForText("onboarding shown", string(OnboardingR.string.onboarding_title))
         compose.onNodeWithTag(TAG_SERVER_URL).performTextReplacement(serverUrl)
         compose.onNodeWithTag(TAG_HANDLE).performTextInput(appHandle)
         compose.onNodeWithTag(TAG_DISPLAY_NAME).performTextInput(appName)
         compose.onNodeWithTag(TAG_SUBMIT).performClick()
-        compose.waitForText(string(ChatListR.string.chatlist_title))
+        waitForText("chat list after onboarding", string(ChatListR.string.chatlist_title))
 
         // Peer registers and syncs.
         val peer = runBlocking {
@@ -128,22 +143,21 @@ class MessagingE2eTest {
 
         // App creates a group with the peer.
         compose.onNodeWithContentDescription(string(ChatListR.string.chatlist_new_message)).performClick()
-        compose.waitForText(string(ChatListR.string.chatlist_new_group))
+        waitForText("new message menu", string(ChatListR.string.chatlist_new_group))
         compose.onNodeWithText(string(ChatListR.string.chatlist_new_group)).performClick()
-        compose.waitFor(hasSetTextAction())
+        waitFor("new group member search", hasSetTextAction())
         compose.onNode(hasSetTextAction()).performTextInput(peerHandle)
         val add = hasText(string(ContactsR.string.contacts_add)) and hasClickAction()
-        compose.waitFor(add)
+        waitFor("peer found by handle", add)
         compose.onNode(add).performClick()
         compose.onNodeWithText(string(ContactsR.string.contacts_next)).performClick()
-        compose.waitForText(string(ContactsR.string.contacts_create_group))
+        waitForText("group name step", string(ContactsR.string.contacts_create_group))
         compose.onNode(hasSetTextAction()).performTextInput(groupName)
         compose.onNodeWithText(string(ContactsR.string.contacts_create_group)).performClick()
-        compose.waitFor(hasTestTag(TAG_COMPOSER))
+        waitFor("group chat opened", hasTestTag(TAG_COMPOSER))
 
-        val chatId = runBlocking {
-            withTimeout(TIMEOUT_MS) { peer.chatListFlow().first { list -> list.any { it.name == groupName } } }
-                .first { it.name == groupName }.chatId
+        val chatId = peerWait("peer sees the group") {
+            peer.chatListFlow().first { list -> list.any { it.name == groupName } }.first { it.name == groupName }.chatId
         }
         val peerMessages = peerMessages(peer, chatId)
 
@@ -151,25 +165,29 @@ class MessagingE2eTest {
         val appText = "Anchored off Hydra $suffix"
         compose.onNodeWithTag(TAG_COMPOSER).performTextInput(appText)
         compose.onNodeWithContentDescription(string(ChatR.string.composer_send)).performClick()
-        val appMessage = peerMessages.await { !it.isOwn && (it.content as? MessageContent.Text)?.body == appText }
+        val appMessage = peerMessages.await("peer receives the app text") {
+            !it.isOwn && (it.content as? MessageContent.Text)?.body == appText
+        }
 
         // Peer replies; the app shows the reply with its quoted preview.
         val replyText = "Swim at noon $suffix"
         val replyId = runBlocking { peer.sendText(chatId, replyText, appMessage.messageId) }
-        compose.waitForText(replyText)
-        compose.waitFor(hasContentDescription(appText, substring = true))
+        waitForText("app shows the peer reply", replyText)
+        waitFor("app shows the quoted preview", hasContentDescription(appText, substring = true))
 
         // App reacts to the peer message; the peer sees it.
         compose.onNode(hasText(replyText) and hasClickAction()).performTouchInput { longClick() }
         val react = string(ChatR.string.composer_react, REACTION)
-        compose.waitFor(hasContentDescription(react))
+        waitFor("message actions sheet", hasContentDescription(react))
         compose.onNodeWithContentDescription(react).performClick()
-        peerMessages.await { it.messageId == replyId && it.reactions.any { r -> r.emoji == REACTION && r.count >= 1 } }
+        peerMessages.await("peer sees the reaction") {
+            it.messageId == replyId && it.reactions.any { r -> r.emoji == REACTION && r.count >= 1 }
+        }
 
         // Peer sends an image; the app shows the image row.
         val peerPhoto = copyAsset(File(peerDir, "peer-photo.png"))
         runBlocking { peer.sendMedia(chatId, peerPhoto.path, PNG_MIME, null, null) }
-        compose.waitFor(hasContentDescription(string(ChatR.string.chat_image)))
+        waitFor("app shows the peer image", hasContentDescription(string(ChatR.string.chat_image)))
 
         // App sends an image through the stubbed photo picker; the peer receives it.
         val picked = copyAsset(File(pickedDir, "app-photo.png"))
@@ -178,13 +196,15 @@ class MessagingE2eTest {
         try {
             intending(not(isInternal())).respondWith(ActivityResult(Activity.RESULT_OK, Intent().setData(pickedUri)))
             compose.onNodeWithContentDescription(string(ChatR.string.composer_attach)).performClick()
-            compose.waitForText(string(ChatR.string.composer_attach_photo))
+            waitForText("attach menu", string(ChatR.string.composer_attach_photo))
             compose.onNodeWithText(string(ChatR.string.composer_attach_photo)).performClick()
-            val appImage = peerMessages.await { !it.isOwn && it.content is MessageContent.Image }
+            val appImage = peerMessages.await("peer receives the app image") {
+                !it.isOwn && it.content is MessageContent.Image
+            }
 
             // Peer marks the app's latest message read; the app shows the read tick.
             runBlocking { peer.markRead(chatId, appImage.messageId) }
-            compose.waitFor(hasContentDescription(string(DesignR.string.gim_tick_read)))
+            waitFor("app shows the read tick", hasContentDescription(string(DesignR.string.gim_tick_read)))
         } finally {
             Intents.release()
         }
@@ -192,16 +212,16 @@ class MessagingE2eTest {
         // Sign out through the chat list overflow menu.
         assertTrue(keystoreHasAlias())
         compose.onNodeWithContentDescription(string(ChatR.string.chat_back)).performClick()
-        compose.waitForText(string(ChatListR.string.chatlist_title))
+        waitForText("chat list before sign-out", string(ChatListR.string.chatlist_title))
         compose.onNodeWithContentDescription(string(ChatListR.string.chatlist_more_options)).performClick()
-        compose.waitForText(string(ChatListR.string.chatlist_sign_out))
+        waitForText("overflow menu", string(ChatListR.string.chatlist_sign_out))
         compose.onNodeWithText(string(ChatListR.string.chatlist_sign_out)).performClick()
-        compose.waitForText(string(ChatListR.string.chatlist_sign_out_title))
+        waitForText("sign-out dialog", string(ChatListR.string.chatlist_sign_out_title))
         // The dialog's confirm button, once the overflow menu item has gone.
         val signOut = hasText(string(ChatListR.string.chatlist_sign_out))
-        compose.waitUntil(TIMEOUT_MS) { compose.onAllNodes(signOut).fetchSemanticsNodes().size == 1 }
+        waitFor("overflow menu closed") { compose.onAllNodes(signOut).fetchSemanticsNodes().size == 1 }
         compose.onNode(signOut).performClick()
-        compose.waitForText(string(OnboardingR.string.onboarding_title))
+        waitForText("onboarding after sign-out", string(OnboardingR.string.onboarding_title))
         assertFalse(keystoreHasAlias())
     }
 
@@ -211,12 +231,17 @@ class MessagingE2eTest {
         timeline.itemsFlow().stateIn(peerScope, SharingStarted.Eagerly, persistentListOf())
     }
 
-    private fun StateFlow<ImmutableList<TimelineItem>>.await(predicate: (MessageItem) -> Boolean): MessageItem =
-        runBlocking {
-            withTimeout(TIMEOUT_MS) {
-                first { items -> items.messages().any(predicate) }.messages().first(predicate)
-            }
-        }
+    private fun StateFlow<ImmutableList<TimelineItem>>.await(
+        step: String,
+        predicate: (MessageItem) -> Boolean,
+    ): MessageItem = peerWait(step) { first { items -> items.messages().any(predicate) }.messages().first(predicate) }
+
+    /** Runs a peer-side wait bounded by [timeoutMs]; a timeout fails the test with [step]. */
+    private fun <T> peerWait(step: String, block: suspend () -> T): T = try {
+        runBlocking { withTimeout(timeoutMs) { block() } }
+    } catch (e: TimeoutCancellationException) {
+        failStep(step, e)
+    }
 
     private fun List<TimelineItem>.messages(): List<MessageItem> =
         filterIsInstance<TimelineItem.Message>().map { it.item }
@@ -232,10 +257,34 @@ class MessagingE2eTest {
     private fun keystoreHasAlias(): Boolean =
         KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.containsAlias(KeystoreSecretCipher.KEY_ALIAS)
 
-    private fun androidx.compose.ui.test.junit4.ComposeTestRule.waitFor(matcher: SemanticsMatcher) =
-        waitUntil(TIMEOUT_MS) { onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty() }
+    private fun waitFor(step: String, condition: () -> Boolean) {
+        try {
+            compose.waitUntil(timeoutMs, condition)
+        } catch (e: ComposeTimeoutException) {
+            failStep(step, e)
+        }
+    }
 
-    private fun androidx.compose.ui.test.junit4.ComposeTestRule.waitForText(text: String) = waitFor(hasText(text))
+    private fun waitFor(step: String, matcher: SemanticsMatcher) =
+        waitFor(step) { compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty() }
+
+    private fun waitForText(step: String, text: String) = waitFor(step, hasText(text))
+
+    /**
+     * Fails with [step] and the texts on screen (e.g. an onboarding error), after dumping the semantics tree of
+     * every window to logcat under [LOG_TAG].
+     */
+    private fun failStep(step: String, cause: Throwable): Nothing {
+        val screen = runCatching {
+            val roots = compose.onAllNodes(isRoot(), useUnmergedTree = true)
+            roots.printToLog(LOG_TAG)
+            roots.fetchSemanticsNodes().flatMap { it.texts() }.distinct().joinToString(" | ")
+        }.getOrElse { "unavailable: $it" }
+        throw AssertionError("step '$step' timed out after $timeoutMs ms; on screen: [$screen]", cause)
+    }
+
+    private fun SemanticsNode.texts(): List<String> =
+        config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text } + children.flatMap { it.texts() }
 
     /** Peer [PlatformHooks]: secrets in memory, data in a per-run cache dir. */
     private class InMemoryHooks(private val dir: File) : PlatformHooks {
@@ -259,6 +308,7 @@ class MessagingE2eTest {
     private companion object {
         const val DEFAULT_SERVER_URL = "http://10.0.2.2:8080"
         const val TIMEOUT_MS = 30_000L
+        const val LOG_TAG = "MessagingE2eTest"
         const val REACTION = "👍"
         const val PHOTO_ASSET = "e2e-photo.png"
         const val PNG_MIME = "image/png"
