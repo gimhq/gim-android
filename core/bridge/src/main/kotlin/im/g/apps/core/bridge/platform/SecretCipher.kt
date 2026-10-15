@@ -15,6 +15,9 @@ interface SecretCipher {
 
     /** Throws [GeneralSecurityException] when [sealed] is malformed or was tampered with. */
     fun open(sealed: ByteArray): ByteArray
+
+    /** Destroys the sealing key; later calls create a new one, so previously sealed values become unreadable. */
+    fun deleteKey()
 }
 
 /**
@@ -36,6 +39,14 @@ class KeystoreSecretCipher(private val alias: String = KEY_ALIAS) : SecretCipher
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, sealed, 0, IV_SIZE))
         return cipher.doFinal(sealed, IV_SIZE, sealed.size - IV_SIZE)
+    }
+
+    /** Removes the keystore entry if present; the next [seal] or [open] creates a fresh key. */
+    @Synchronized
+    override fun deleteKey() {
+        key = null
+        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+        if (keyStore.containsAlias(alias)) keyStore.deleteEntry(alias)
     }
 
     @Synchronized

@@ -36,7 +36,17 @@ data class OnboardingUiState(
             serverUrlError == null &&
             handleError == null &&
             displayNameError == null
+
+    companion object {
+        /** Initial state with [serverUrl] prefilled and flagged when invalid. */
+        fun withServerUrl(serverUrl: String) =
+            OnboardingUiState(serverUrl = serverUrl, serverUrlError = serverUrlError(serverUrl))
+    }
 }
+
+/** Blank is not an error yet (the user has not typed); anything else must be a valid URL. */
+internal fun serverUrlError(value: String): FieldError? =
+    FieldError.InvalidServerUrl.takeIf { value.isNotBlank() && !isValidServerUrl(value) }
 
 sealed interface OnboardingEvent {
     data class Registered(val session: Session) : OnboardingEvent
