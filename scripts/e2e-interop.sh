@@ -13,11 +13,13 @@
 #   CARGO_CACHE     CARGO_HOME, default /srv/.tmp/cache/cargo
 #   CARGO_TARGET    cargo target dir of gim-cli, default /srv/.tmp/cache/cargo-target/gim-cli
 #   REBUILD_IMAGE=1 rebuild the emulator image (see scripts/lib/device.sh)
-#   GIM_DEVICE=real run on the phone attached to the ai-agent-adb container instead of an emulator (see
-#                   scripts/lib/real-device.sh; GIM_REAL_SERIAL, default 3ffc81dc): builds first, then takes the
-#                   device lock, runs gim-hub and the CLI container in ai-agent-adb's network namespace (hub on a free
-#                   127.0.0.1 port, `adb reverse`d to the phone), clears im.g.apps before and uninstalls it and its
-#                   test package after the run. logcat is limited to im.g.apps; a failure saves screenshot.png.
+#   GIM_DEVICE=real run on the test phone attached to the ai-agent-adb container instead of an emulator (see
+#                   scripts/lib/real-device.sh for GIM_REAL_SERIAL, GIM_REAL_NET=lan|reverse, GIM_REAL_LAN_HOST and the
+#                   package rules): builds first (pinned debug keystore), then takes the device lock, starts gim-hub
+#                   (published on the host in lan mode, in ai-agent-adb's network namespace in reverse mode) with the
+#                   CLI container in the hub's namespace, updates im.g.apps and im.g.apps.test in place and
+#                   `pm clear`s im.g.apps before and after the run (never uninstalls). logcat is limited to the
+#                   app's UID; a failure saves screenshot.png.
 #
 # Outputs (in LOG_DIR, printed at start and end): script.log, hub.log, gradle.log, cargo.log,
 # emulator.log, logcat.txt, markers.log (test step markers), instrumentation.txt (am instrument -r),
@@ -120,8 +122,8 @@ cleanup() {
     rm -rf "$work" 2>/dev/null || true
     if [[ $device == real ]] && ((gim_real_locked)); then
         gim_real_kill_bg
-        gim_real_uninstall im.g.apps.test im.g.apps
-        gim_real_stop_hub "$hub" "$port"
+        gim_real_reset
+        gim_real_stop_hub "$hub"
         gim_real_unlock
     fi
     docker rm -f "$emu" "$cli" "$hub" >/dev/null 2>&1 || true
@@ -227,7 +229,6 @@ signal() {
 
 # --- Setup --------------------------------------------------------------------------------------------
 
-port=
 if [[ $device == emulator ]]; then
     gim_ensure_emulator_image
     gim_start_hub "$hub" "$repo_root"
@@ -243,9 +244,6 @@ if [[ $device == emulator ]]; then
     docker exec "$emu" bash -c "$GIM_EMULATOR_BOOT" >"$log_dir/emulator-boot.log" 2>&1 &
     boot_pid=$!
     bg_pids+=("$boot_pid")
-else
-    # The hub starts once the builds are done and the device lock is held; the CLI joins the same namespace.
-    cli_network=container:$GIM_REAL_ADB_CONTAINER
 fi
 
 echo "building gim-cli at $core_ref"
@@ -265,15 +263,24 @@ docker run --rm --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --na
     rust:1 cargo build -p gim-cli \
     >"$log_dir/cargo.log" 2>&1 || { tail -n 30 "$log_dir/cargo.log"; fail "gim-cli build failed"; }
 cp "$cargo_target/debug/gim" "$work/gim"
-docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$cli" --network "$cli_network" \
-    -v "$work:$work" -w "$work" rust:1 sleep infinity >/dev/null
+start_cli() {
+    docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$cli" --network "$cli_network" \
+        -v "$work:$work" -w "$work" rust:1 sleep infinity >/dev/null
+}
+# On the phone the hub starts once the builds are done and the device lock is held; the CLI follows it.
+[[ $device == real ]] || start_cli
 cp "$photo" "$work/bob-photo.png"
 
 echo "building APKs"
 mkdir -p "$gradle_cache"
+signing=()
+if [[ $device == real ]]; then
+    gim_real_gradle_env
+    signing=("${GIM_REAL_GRADLE_ENV[@]}")
+fi
 docker run --rm --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$prefix-gradle" \
     -v "$repo_root:$repo_root" -w "$repo_root" \
-    -v "$gradle_cache:/cache/gradle" -e GRADLE_USER_HOME=/cache/gradle \
+    -v "$gradle_cache:/cache/gradle" -e GRADLE_USER_HOME=/cache/gradle "${signing[@]}" \
     ghcr.io/cirruslabs/android-sdk:35 ./gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest \
     >"$log_dir/gradle.log" 2>&1 || { tail -n 40 "$log_dir/gradle.log"; fail "gradle build failed"; }
 
@@ -285,11 +292,17 @@ if [[ $device == emulator ]]; then
     adb_ install -r -t "$repo_root/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk" >/dev/null
 else
     gim_real_lock
-    port=$(gim_real_free_port)
-    gim_real_start_hub "$hub" "$port" "$repo_root"
-    url=http://127.0.0.1:$port
-    app_url=$url
-    echo "device: $(adb_ shell getprop ro.product.model | tr -d '\r'), hub $url"
+    gim_real_start_hub "$hub" "$repo_root"
+    app_url=$GIM_REAL_HUB_URL
+    if [[ $GIM_REAL_NET == reverse ]]; then
+        cli_network=container:$GIM_REAL_ADB_CONTAINER
+        url=$GIM_REAL_HUB_URL
+    else
+        cli_network=container:$hub
+        url=http://127.0.0.1:8080
+    fi
+    start_cli
+    echo "device: $(adb_ shell getprop ro.product.model | tr -d '\r'), app hub URL $app_url, CLI hub URL $url"
     gim_real_install "$repo_root/app/build/outputs/apk/debug/app-debug.apk" \
         "$repo_root/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
     adb_ shell pm clear im.g.apps >/dev/null

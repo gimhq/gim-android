@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Runs the instrumented tests (app + core:bridge) on a real phone attached to the long-running `ai-agent-adb`
-# container, against gim-hub at the commit pinned in e2e/GIM_HUB_VERSION.
+# Runs the app's instrumented tests (im.g.apps.test) on a real test phone attached to the long-running `ai-agent-adb`
+# container, against gim-hub at the commit pinned in e2e/GIM_HUB_VERSION. See scripts/lib/real-device.sh for the
+# package and networking rules.
 #
 # Usage: scripts/run-real-device-tests.sh [AM_INSTRUMENT_ARGS...]
 #   AM_INSTRUMENT_ARGS  extra `am instrument` arguments for the app suite, e.g. -e class im.g.apps.e2e.LinkDeviceE2eTest
@@ -8,6 +9,11 @@
 # Environment:
 #   GIM_REAL_SERIAL     adb serial of the phone, default 3ffc81dc
 #   GIM_REAL_ADB_CONTAINER  container owning the adb server and the USB device, default ai-agent-adb
+#   GIM_REAL_NET        lan (default: hub published on the host, phone uses http://GIM_REAL_LAN_HOST:<port>) or
+#                       reverse (hub in ai-agent-adb's network namespace + adb reverse, phone uses 127.0.0.1)
+#   GIM_REAL_LAN_HOST   the host's LAN address as seen from the phone, default 192.168.68.220
+#   GIM_REAL_ANDROID_HOME  persistent ANDROID_USER_HOME holding the debug keystore the installed packages are signed
+#                       with, default /srv/.tmp/cache/android-debug-keystore
 #   TIMEOUT_SCALE       instrumentation argument timeoutScale (multiplies the tests' per-step waits), default 1
 #   LOCK_WAIT           seconds to wait for another run's device lock, default 900
 #   INSTRUMENT_TIMEOUT  seconds per `am instrument` run, default 1800
@@ -16,21 +22,20 @@
 #   GIM_HUB_SRC         gim-hub checkout the image is exported from, default /srv/gimhq/im-client/hub
 #
 # Flow:
-#   1. Builds the debug, androidTest and core:bridge androidTest APKs in ghcr.io/cirruslabs/android-sdk:35.
-#   2. Takes the device lock, starts gim-hub (ai-agent/gim-hub:<sha12>) in the adb container's network namespace on
-#      a free 127.0.0.1 port, `adb reverse`s that port, so the phone reaches the hub at http://127.0.0.1:<port>.
-#   3. Installs the APKs (copied into the adb container), clears im.g.apps, grants it CAMERA, and runs both suites
-#      with `am instrument -w -r` (gimServerUrl, timeoutScale, realCamera=true for CameraScannerE2eTest).
-#   4. Always: uninstalls the test packages and the app, removes the reverse, the hub container and the lock.
+#   1. Builds the debug and androidTest APKs in ghcr.io/cirruslabs/android-sdk:35 with the pinned debug keystore.
+#   2. Takes the device lock, starts gim-hub (ai-agent/gim-hub:<sha12>) on a free port from 18080 (GIM_REAL_NET).
+#   3. Updates im.g.apps and im.g.apps.test in place (`install -r -t`), clears im.g.apps, grants it CAMERA and runs
+#      the suite with `am instrument -w -r` (gimServerUrl, timeoutScale, realCamera=true for CameraScannerE2eTest).
+#   4. Always: `pm clear im.g.apps` (packages stay installed), removes the reverse, the hub container and the lock.
 #
 # Outputs (LOG_DIR): summary.txt (PASS/FAIL/SKIP per test with durations), instrumentation.txt (raw `-r` output),
 # logcat.txt (im.g.apps and test package UIDs only), hub.log, gradle.log, screenshots/ (taken by tests at the
 # failing step, plus one by this script per failed test). Exit code: 0 when every test passed, 1 otherwise, 3 when the
-# phone needs a human (install confirmation).
+# phone cannot be updated unattended (signature mismatch, refused or unverifiable install confirmation).
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,31p' "$0"
+    sed -n '2,38p' "$0"
     exit 0
 fi
 
@@ -48,12 +53,9 @@ log_dir=${LOG_DIR:-/tmp/gim-realdevice-$(date +%Y%m%d-%H%M%S)}
 hub=ai-agent-$GIM_RUN_LABEL-hub
 app_apk=$repo_root/app/build/outputs/apk/debug/app-debug.apk
 test_apk=$repo_root/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-bridge_apk=$repo_root/core/bridge/build/outputs/apk/androidTest/debug/bridge-debug-androidTest.apk
 app=$GIM_REAL_APP
 test_pkg=$app.test
-bridge_pkg=$app.core.bridge.test
 runner=androidx.test.runner.AndroidJUnitRunner
-port=
 
 mkdir -p "$log_dir/screenshots"
 exec > >(tee -a "$log_dir/script.log") 2>&1
@@ -65,9 +67,9 @@ cleanup() {
     if ((gim_real_locked)); then
         gim_real_kill_bg
         pull_test_screenshots
-        gim_real_uninstall "$test_pkg" "$bridge_pkg" "$app"
+        gim_real_reset
         docker logs "$hub" >"$log_dir/hub.log" 2>&1 || true
-        gim_real_stop_hub "$hub" "$port"
+        gim_real_stop_hub "$hub"
         gim_real_unlock
     else
         docker rm -f "$hub" >/dev/null 2>&1 || true
@@ -143,11 +145,11 @@ summarize() {
 
 echo "building APKs"
 mkdir -p "$gradle_cache"
+gim_real_gradle_env
 docker run --rm --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "ai-agent-$GIM_RUN_LABEL-gradle" \
     -v "$repo_root:$repo_root" -w "$repo_root" \
-    -v "$gradle_cache:/cache/gradle" -e GRADLE_USER_HOME=/cache/gradle \
-    ghcr.io/cirruslabs/android-sdk:35 ./gradlew --no-daemon \
-    :app:assembleDebug :app:assembleDebugAndroidTest :core:bridge:assembleDebugAndroidTest \
+    -v "$gradle_cache:/cache/gradle" -e GRADLE_USER_HOME=/cache/gradle "${GIM_REAL_GRADLE_ENV[@]}" \
+    ghcr.io/cirruslabs/android-sdk:35 ./gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest \
     >"$log_dir/gradle.log" 2>&1 || {
     tail -n 40 "$log_dir/gradle.log"
     echo "error: gradle build failed" >&2
@@ -155,12 +157,11 @@ docker run --rm --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --na
 }
 
 gim_real_lock
-port=$(gim_real_free_port)
-gim_real_start_hub "$hub" "$port" "$repo_root"
-url=http://127.0.0.1:$port
+gim_real_start_hub "$hub" "$repo_root"
+url=$GIM_REAL_HUB_URL
 gim_real_adb shell getprop ro.product.model | tr -d '\r' | sed 's/^/device: /'
 
-gim_real_install "$app_apk" "$test_apk" "$bridge_apk"
+gim_real_install "$app_apk" "$test_apk"
 gim_real_adb shell pm clear "$app" >/dev/null
 gim_real_adb shell pm grant "$app" android.permission.CAMERA
 
@@ -173,7 +174,6 @@ echo "setup done after ${SECONDS}s; hub $url"
 status=0
 instrument app "$test_pkg/$runner" -e gimServerUrl "$url" -e timeoutScale "${TIMEOUT_SCALE:-1}" -e realCamera true "$@" ||
     status=1
-instrument core:bridge "$bridge_pkg/$runner" || status=1
 
 echo
 echo "summary ($log_dir/summary.txt):"

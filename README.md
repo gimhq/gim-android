@@ -101,23 +101,32 @@ writes its logs to `LOG_DIR` (default `/tmp/gim-interop-<timestamp>`) and prints
 
 ### Real device
 
-A phone attached to the long-running `ai-agent-adb` container (its adb server owns the USB device; serial
-`GIM_REAL_SERIAL`, default `3ffc81dc`) runs the same suites. The phone cannot reach the host over TCP, so gim-hub
-runs in that container's network namespace on a free `127.0.0.1` port and `adb reverse` maps the port on the
-phone. Runs take the device lock (`/tmp/.lock-device` in the container), touch only `im.g.apps` and its test
-packages (install, `pm clear`, `pm grant`, uninstall at the end) and never change device settings.
+A dedicated test phone attached to the long-running `ai-agent-adb` container (its adb server owns the USB device;
+serial `GIM_REAL_SERIAL`, default `3ffc81dc`) runs the app suite and the interop. By default gim-hub is a sibling
+container published on the host (`-p <port>:8080`, first free port from 18080) and the phone, on the same LAN, uses
+`http://GIM_REAL_LAN_HOST:<port>` (default host `192.168.68.220`). `GIM_REAL_NET=reverse` is the fallback: the hub
+runs in `ai-agent-adb`'s network namespace on `127.0.0.1:<port>` and `adb reverse` maps the port on the phone.
+
+Runs take the device lock (`/tmp/.lock-device` in the container) and never change device settings. `im.g.apps` and
+`im.g.apps.test` stay installed: they are updated in place (`adb install -r -t`, no confirmation on the phone),
+reset with `pm clear im.g.apps` and never uninstalled. Updating needs the key the installed packages are signed
+with, so real-device builds sign with the persistent debug keystore in `GIM_REAL_ANDROID_HOME` (default
+`/srv/.tmp/cache/android-debug-keystore`, used as `ANDROID_USER_HOME`). A first install makes HyperOS ask for
+confirmation ("Install via USB"); the scripts accept it only while their own install of an `im.g.apps` package is
+running, after a UI dump shows the dialog names GIM, by tapping the accept button found by its text, and log it.
 
 - `scripts/run-real-device-tests.sh [AM_INSTRUMENT_ARGS...]` builds the debug and androidTest APKs, grants
-  `im.g.apps` CAMERA, runs the app and `:core:bridge` suites with `am instrument -w -r` and writes
-  `/tmp/gim-realdevice-<timestamp>/` (`summary.txt` with PASS/FAIL/SKIP and duration per test,
-  `instrumentation.txt`, `logcat.txt` limited to the app's UIDs, `hub.log`, `screenshots/`). Exit code is the test
-  result; 3 means the phone needs a person (an install confirmation was not accepted).
-- `GIM_DEVICE=real scripts/e2e-interop.sh` runs the CLI x Android interop on the phone; the CLI container joins the
-  same network namespace.
+  `im.g.apps` CAMERA, runs `im.g.apps.test` with `am instrument -w -r` and writes `/tmp/gim-realdevice-<timestamp>/`
+  (`summary.txt` with PASS/FAIL/SKIP and duration per test, `instrumentation.txt`, `logcat.txt` limited to the
+  app's UIDs, `hub.log`, `screenshots/`). Exit code is the test result; 3 means the phone could not be updated
+  unattended (signature mismatch, refused confirmation).
+- `GIM_DEVICE=real scripts/e2e-interop.sh` runs the CLI x Android interop on the phone; the CLI container shares
+  the hub's network namespace.
 - `CameraScannerE2eTest` (instrumentation argument `realCamera=true`, skipped on emulators) opens the link-device
   scanner with the real CameraX pipeline: the back camera is opened, preview and analysis streams are configured,
-  the scanner keeps running and leaving the screen releases the camera. Scanning a physical QR code needs a
-  person and is not automated; `LinkDeviceE2eTest` covers the QR payload end to end.
+  the scanner keeps running and leaving the screen releases the camera. Scanning a physical QR code with the
+  phone's camera is manual: show the new device's QR code (for example on an emulator window or another phone), open
+  **Link a new device** on the phone and point it at the code; `LinkDeviceE2eTest` covers the QR payload end to end.
 
 ### Pinned gim-hub
 
