@@ -32,8 +32,19 @@ jobs:
     timeout-minutes: 60
     env:
       API_LEVEL: 35
+      AVD_DISK_SIZE: 4096M
+      AVD_RAM_SIZE: 3072M
     steps:
       - uses: actions/checkout@v4
+
+      # The default AVD userdata partition does not fit on a stock runner; drop toolchains this job never uses.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost /opt/hostedtoolcache/CodeQL
+          docker image prune -af
+          df -h /
+          echo "AVD_CORES=$(( $(nproc) < 4 ? $(nproc) : 4 ))" >> "$GITHUB_ENV"
 
       - name: Enable KVM
         run: |
@@ -78,7 +89,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ env.API_LEVEL }}-google_apis-x86_64
+          key: avd-${{ env.API_LEVEL }}-google_apis-x86_64-disk${{ env.AVD_DISK_SIZE }}-ram${{ env.AVD_RAM_SIZE }}-cores${{ env.AVD_CORES }}
 
       # Boot/infra retry: the snapshot step runs no tests, so retrying it can never mask a test failure.
       # Device tests below are never retried.
@@ -91,8 +102,12 @@ jobs:
           api-level: ${{ env.API_LEVEL }}
           arch: x86_64
           target: google_apis
+          cores: ${{ env.AVD_CORES }}
+          ram-size: ${{ env.AVD_RAM_SIZE }}
+          disk-size: ${{ env.AVD_DISK_SIZE }}
+          emulator-boot-timeout: 300
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-metrics -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: false
           script: echo "Generated AVD snapshot for caching."
 
@@ -103,8 +118,12 @@ jobs:
           api-level: ${{ env.API_LEVEL }}
           arch: x86_64
           target: google_apis
+          cores: ${{ env.AVD_CORES }}
+          ram-size: ${{ env.AVD_RAM_SIZE }}
+          disk-size: ${{ env.AVD_DISK_SIZE }}
+          emulator-boot-timeout: 300
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-metrics -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: false
           script: echo "Generated AVD snapshot for caching."
 
@@ -114,10 +133,23 @@ jobs:
           api-level: ${{ env.API_LEVEL }}
           arch: x86_64
           target: google_apis
+          cores: ${{ env.AVD_CORES }}
+          ram-size: ${{ env.AVD_RAM_SIZE }}
+          disk-size: ${{ env.AVD_DISK_SIZE }}
+          emulator-boot-timeout: 300
           force-avd-creation: false
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-metrics -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.gimServerUrl=http://10.0.2.2:8080 --no-daemon
+
+      - name: Collect emulator diagnostics
+        if: failure()
+        run: |
+          mkdir -p "$RUNNER_TEMP/emulator-logs"
+          df -h / > "$RUNNER_TEMP/emulator-logs/df.txt"
+          cp -r /tmp/android-"$USER" "$RUNNER_TEMP/emulator-logs/tmp-android" 2>/dev/null || true
+          find ~/.android/avd -maxdepth 2 \( -name '*.ini' -o -name '*.log' -o -name '*.txt' \) \
+            -exec cp --parents {} "$RUNNER_TEMP/emulator-logs" \; 2>/dev/null || true
 
       - name: Upload device test reports
         if: failure()
@@ -128,3 +160,4 @@ jobs:
             **/build/reports/androidTests/**
             **/build/outputs/androidTest-results/**
             ${{ runner.temp }}/gim-server.log
+            ${{ runner.temp }}/emulator-logs/**
