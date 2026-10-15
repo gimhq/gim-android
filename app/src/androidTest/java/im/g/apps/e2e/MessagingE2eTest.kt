@@ -52,6 +52,7 @@ import im.g.apps.core.bridge.platform.KeystoreSecretCipher
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
 import im.g.apps.testing.awaitServerReachable
 import im.g.apps.testing.dismissSystemDialogs
+import im.g.apps.testing.saveFailureScreenshot
 import java.io.File
 import java.security.KeyStore
 import java.util.UUID
@@ -344,6 +345,7 @@ class MessagingE2eTest {
      * under [LOG_TAG], one line per entry because logcat truncates long entries.
      */
     private fun failStep(step: String, cause: Throwable): Nothing {
+        saveFailureScreenshot(instrumentation, "$LOG_TAG-$step")
         val screen = runCatching {
             val roots = compose.onAllNodes(isRoot(), useUnmergedTree = true)
             roots.printToString().lines().forEach { Log.d(LOG_TAG, it) }

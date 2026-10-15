@@ -47,6 +47,8 @@ private fun dismissButton(device: UiDevice) =
 
 private const val TAG = "SystemDialogs"
 private const val POLL_MS = 500L
-private val SYSTEM_DIALOG_TEXT = Pattern.compile(".*(isn.t responding|keeps stopping|has stopped).*", Pattern.CASE_INSENSITIVE)
-private val WAIT_TEXT = Pattern.compile("wait", Pattern.CASE_INSENSITIVE)
-private val CLOSE_TEXT = Pattern.compile("close( app)?", Pattern.CASE_INSENSITIVE)
+// English and Simplified Chinese (a zh-CN HyperOS phone) wording.
+private val SYSTEM_DIALOG_TEXT =
+    Pattern.compile(".*(isn.t responding|keeps stopping|has stopped|无响应|已停止|停止运行).*", Pattern.CASE_INSENSITIVE)
+private val WAIT_TEXT = Pattern.compile("wait|等待", Pattern.CASE_INSENSITIVE)
+private val CLOSE_TEXT = Pattern.compile("close( app)?|关闭应用", Pattern.CASE_INSENSITIVE)

@@ -99,6 +99,26 @@ resolved by handle on both sides (CLI JSON and the app's `findUser`). `leave_cha
 writes its logs to `LOG_DIR` (default `/tmp/gim-interop-<timestamp>`) and prints the passed steps; see `--help`.
 `InteropTest` is skipped in plain `connectedDebugAndroidTest` runs.
 
+### Real device
+
+A phone attached to the long-running `ai-agent-adb` container (its adb server owns the USB device; serial
+`GIM_REAL_SERIAL`, default `3ffc81dc`) runs the same suites. The phone cannot reach the host over TCP, so gim-hub
+runs in that container's network namespace on a free `127.0.0.1` port and `adb reverse` maps the port on the
+phone. Runs take the device lock (`/tmp/.lock-device` in the container), touch only `im.g.apps` and its test
+packages (install, `pm clear`, `pm grant`, uninstall at the end) and never change device settings.
+
+- `scripts/run-real-device-tests.sh [AM_INSTRUMENT_ARGS...]` builds the debug and androidTest APKs, grants
+  `im.g.apps` CAMERA, runs the app and `:core:bridge` suites with `am instrument -w -r` and writes
+  `/tmp/gim-realdevice-<timestamp>/` (`summary.txt` with PASS/FAIL/SKIP and duration per test,
+  `instrumentation.txt`, `logcat.txt` limited to the app's UIDs, `hub.log`, `screenshots/`). Exit code is the test
+  result; 3 means the phone needs a person (an install confirmation was not accepted).
+- `GIM_DEVICE=real scripts/e2e-interop.sh` runs the CLI x Android interop on the phone; the CLI container joins the
+  same network namespace.
+- `CameraScannerE2eTest` (instrumentation argument `realCamera=true`, skipped on emulators) opens the link-device
+  scanner with the real CameraX pipeline: the back camera is opened, preview and analysis streams are configured,
+  the scanner keeps running and leaving the screen releases the camera. Scanning a physical QR code needs a
+  person and is not automated; `LinkDeviceE2eTest` covers the QR payload end to end.
+
 ### Pinned gim-hub
 
 `e2e/GIM_HUB_VERSION` holds the full gim-hub commit the device tests run against. Locally the image is built
