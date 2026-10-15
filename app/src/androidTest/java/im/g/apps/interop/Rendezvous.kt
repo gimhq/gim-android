@@ -14,7 +14,8 @@ import org.junit.Assert.fail
 /**
  * Handshake with scripts/e2e-interop.sh, which drives the CLI side.
  *
- * - test -> script: [mark] logs `STEP <name>` under logcat tag [TAG]; the script follows that tag.
+ * - test -> script: [mark] logs `STEP <name>` under logcat tag [TAG]; the script follows that tag. [value]
+ *   logs `VALUE <name> <value>` there, for the script to read before the next mark.
  * - script -> test: `adb shell am broadcast -a im.g.apps.interop.GO -p im.g.apps --es step <name>`;
  *   [await] blocks until that step arrived (signals sent before the wait are kept).
  */
@@ -33,6 +34,10 @@ internal class Rendezvous(private val context: Context) : AutoCloseable {
 
     fun mark(step: String) {
         Log.i(TAG, "STEP $step")
+    }
+
+    fun value(name: String, value: String) {
+        Log.i(TAG, "VALUE $name $value")
     }
 
     fun await(step: String, timeoutMs: Long) {

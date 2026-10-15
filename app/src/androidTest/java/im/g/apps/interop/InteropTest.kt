@@ -3,13 +3,19 @@ package im.g.apps.interop
 import android.app.Activity
 import android.app.Instrumentation.ActivityResult
 import android.content.Intent
+import android.util.Log
 import androidx.annotation.StringRes
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
@@ -17,19 +23,26 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.core.content.FileProvider
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.espresso.intent.Intents
 import androidx.test.espresso.intent.Intents.intending
 import androidx.test.espresso.intent.matcher.IntentMatchers.isInternal
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import im.g.apps.GimApplication
 import im.g.apps.MainActivity
+import im.g.apps.testing.awaitServerReachable
 import java.io.File
+import kotlinx.coroutines.runBlocking
 import org.hamcrest.CoreMatchers.not
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
@@ -43,11 +56,10 @@ import im.g.apps.feature.onboarding.R as OnboardingR
 
 /**
  * Android side of scripts/e2e-interop.sh: the app user ("android") drives the real UI against the hub while the
- * script plays alice and bob with the gim CLI. Skipped unless the script passes `interopRun`; the script itself is
- * disabled until it moves to gim-hub.
+ * script plays alice and bob with the gim CLI. Skipped unless the script passes `interopRun`.
  *
  * Instrumentation arguments: `gimServerUrl`, `interopRun` (suffix of every text below), `aliceName`,
- * `bobName`, `androidHandle`, `androidName`. Each [Rendezvous.mark] hands over to the script; the test
+ * `aliceHandle`, `aliceUserId`, `bobName`, `androidHandle`, `androidName`. Each [Rendezvous.mark] hands over to the script; the test
  * then waits on UI state the CLI side produces. Message texts must match the script's.
  */
 @RunWith(AndroidJUnit4::class)
@@ -60,6 +72,8 @@ class InteropTest {
     private val run = args.getString("interopRun").orEmpty()
     private val serverUrl = args.getString("gimServerUrl") ?: DEFAULT_SERVER_URL
     private val aliceName = args.getString("aliceName").orEmpty()
+    private val aliceHandle = args.getString("aliceHandle").orEmpty()
+    private val aliceUserId = args.getString("aliceUserId").orEmpty()
     private val androidHandle = args.getString("androidHandle").orEmpty()
     private val androidName = args.getString("androidName").orEmpty()
 
@@ -82,19 +96,31 @@ class InteropTest {
 
     @Test
     fun interopWithCliPeers() {
-        // a. Create the identity through onboarding and claim the handle.
+        // a. Create the identity through onboarding, acknowledge the recovery code and claim the handle. Buttons
+        // are scrolled into view with the soft keyboard hidden, which can cover them.
+        awaitServerReachable(instrumentation.targetContext, serverUrl)
         compose.waitForText(string(OnboardingR.string.onboarding_welcome_title))
         compose.onNodeWithTag(TAG_SERVER_URL).performTextReplacement(serverUrl)
-        compose.onNodeWithTag(TAG_CREATE_ACCOUNT).performClick()
-        compose.onNodeWithTag(TAG_DISPLAY_NAME).performTextInput(androidName)
-        compose.onNodeWithTag(TAG_SUBMIT).performClick()
+        click(TAG_CREATE_ACCOUNT)
+        compose.waitFor(hasTestTag(TAG_DISPLAY_NAME))
+        compose.onNodeWithTag(TAG_DISPLAY_NAME).performTextReplacement(androidName)
+        click(TAG_SUBMIT)
         compose.waitFor(hasTestTag(TAG_CODE_SAVED))
-        compose.onNodeWithTag(TAG_CODE_SAVED).performClick()
-        compose.onNodeWithTag(TAG_CODE_CONTINUE).performClick()
-        compose.onNodeWithTag(TAG_HANDLE).performTextInput(androidHandle)
-        compose.onNodeWithTag(TAG_CLAIM_HANDLE).performClick()
+        click(TAG_CODE_SAVED)
+        click(TAG_CODE_CONTINUE)
+        compose.waitFor(hasTestTag(TAG_HANDLE))
+        compose.onNodeWithTag(TAG_HANDLE).performTextReplacement(androidHandle)
+        click(TAG_CLAIM_HANDLE)
         compose.waitForText(string(ChatListR.string.chatlist_title))
         rendezvous.mark("registered")
+
+        // h. User ids: the app finds alice by her claimed handle with the id from her CLI JSON; the script checks
+        // that alice's lookup of the app's handle returns the app's own id.
+        val client = checkNotNull((compose.activity.application as GimApplication).container.manager.client.value)
+        val alice = runBlocking { client.findUser(aliceHandle) }
+        assertEquals("user id of @$aliceHandle", aliceUserId, alice?.userId)
+        rendezvous.value("android-user-id", checkNotNull(client.userId()))
+        rendezvous.mark("user-ids")
 
         // b. alice's DM shows up; reply; alice reads the reply -> read tick.
         openChat(aliceName)
@@ -184,6 +210,16 @@ class InteropTest {
 
     private fun text(phrase: String) = "$phrase $run"
 
+    /** Hides the soft keyboard, then scrolls to and clicks the button tagged [tag]. */
+    private fun click(tag: String) {
+        instrumentation.runOnMainSync {
+            val window = compose.activity.window
+            WindowCompat.getInsetsController(window, window.decorView).hide(WindowInsetsCompat.Type.ime())
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag(tag).performScrollTo().performClick()
+    }
+
     private fun openChat(title: String) {
         val row = hasText(title) and hasClickAction()
         compose.waitFor(row)
@@ -229,10 +265,29 @@ class InteropTest {
     private fun string(@StringRes id: Int, vararg formatArgs: Any): String = compose.activity.getString(id, *formatArgs)
 
     private fun ComposeTestRule.waitFor(matcher: SemanticsMatcher) =
-        waitUntil(TIMEOUT_MS) { onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty() }
+        waitOrFail("${matcher.description} shown") { onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty() }
 
     private fun ComposeTestRule.waitGone(matcher: SemanticsMatcher) =
-        waitUntil(TIMEOUT_MS) { onAllNodes(matcher).fetchSemanticsNodes().isEmpty() }
+        waitOrFail("${matcher.description} gone") { onAllNodes(matcher).fetchSemanticsNodes().isEmpty() }
+
+    /** Waits for [condition]; on timeout fails with [what] and the texts on screen, also logged for the script. */
+    private fun ComposeTestRule.waitOrFail(what: String, condition: () -> Boolean) {
+        try {
+            waitUntil(TIMEOUT_MS, condition)
+        } catch (e: ComposeTimeoutException) {
+            val screen = runCatching {
+                onAllNodes(isRoot(), useUnmergedTree = true).fetchSemanticsNodes().flatMap { it.texts() }.distinct()
+            }.getOrElse { listOf("unavailable: $it") }
+            val message = "timed out after $TIMEOUT_MS ms waiting for $what; on screen: $screen"
+            Log.e(Rendezvous.TAG, "FAIL $message")
+            throw AssertionError(message, e)
+        }
+    }
+
+    private fun SemanticsNode.texts(): List<String> =
+        config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text } +
+            config.getOrNull(SemanticsProperties.ContentDescription).orEmpty() +
+            children.flatMap { it.texts() }
 
     /** Shown [text], not an input field's content (the composer or the rename field may hold it too). */
     private fun ComposeTestRule.waitForText(text: String) = waitFor(hasText(text) and !hasSetTextAction())
