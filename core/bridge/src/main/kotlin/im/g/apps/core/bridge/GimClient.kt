@@ -2,7 +2,7 @@ package im.g.apps.core.bridge
 
 /**
  * Kotlin mirror of gim-core's UniFFI `GimClient` (gim-core `bindings/gim-ffi`, contract in
- * `docs/API.md` at gim-core commit e69fcba).
+ * `docs/API.md` at gim-core commit b810805).
  *
  * gim-core (Rust) owns storage, networking, sync, outbox, MLS and media crypto; this interface is the only
  * surface the UI layer sees. Features never import `im.g.gimcore`: the real adapter maps the generated
@@ -40,13 +40,20 @@ interface GimClient {
     /** Stops sync and deletes the session, local data and keystore secrets. Create a new client afterwards. */
     suspend fun signOut()
 
-    /** Starts the background sync loop and outbox sender. */
+    /**
+     * Starts the background sync loop (WebSocket stream with a long-poll fallback) and the outbox sender. After a
+     * failure the loop reports [ConnectionState.OFFLINE] and retries with exponential backoff (up to 60 s).
+     */
     suspend fun startSync()
 
     /** Stops the background sync loop and outbox sender. */
     suspend fun stopSync()
 
-    /** Reports a reachability change from the platform network monitor. Synchronous, never throws. */
+    /**
+     * Reports a reachability change from the platform network monitor. Synchronous, never throws. Becoming
+     * reachable after unreachable reconnects at once and retries pending sends; becoming unreachable neither
+     * pauses sync nor forces [ConnectionState.OFFLINE].
+     */
     fun setNetworkReachable(reachable: Boolean)
 
     /** Looks up a user by handle; null if no such user exists. */
@@ -55,7 +62,7 @@ interface GimClient {
     /** Returns the chat id of the direct chat with [userId], creating it if needed. */
     suspend fun createDirectChat(userId: String): String
 
-    /** Creates a group chat and returns its chat id. */
+    /** Creates a group chat and returns its chat id. The name is shared with the members in a group info message. */
     suspend fun createGroupChat(name: String, memberUserIds: List<String>): String
 
     /**
@@ -71,7 +78,12 @@ interface GimClient {
 
     suspend fun leaveChat(chatId: String)
 
-    /** Updates the group name and/or avatar; null leaves a field unchanged. */
+    /**
+     * Updates the group name and/or avatar and shares them with the members; null leaves a field unchanged, but
+     * at least one must be set. The avatar file is encrypted and uploaded before this returns (MIME type from the
+     * file extension); the new values then arrive as a [ChatListDiff]. Throws [GimException.InvalidInput] for
+     * direct chats, a blank name or nothing to change.
+     */
     suspend fun setGroupInfo(chatId: String, name: String?, avatarFilePath: String?)
 
     /** Queues a text message and returns its message id; it appears immediately as [SendState.Pending]. */
@@ -111,7 +123,11 @@ interface GimClient {
     /** The timeline of one chat. Cheap; listeners are added on the result. */
     suspend fun timeline(chatId: String): Timeline
 
-    /** Subscribes to connection state changes; the first callback carries the current state. */
+    /**
+     * Subscribes to connection state changes; the first callback carries the current state. [ConnectionState.OFFLINE]
+     * until [startSync] and after a failure while waiting to retry; then CONNECTING -> SYNCING (catching up) ->
+     * CONNECTED.
+     */
     suspend fun connectionState(listener: ConnectionStateListener): TaskHandle
 
     /** Subscribes to typing notifications of one chat; the first callback carries the current set. */

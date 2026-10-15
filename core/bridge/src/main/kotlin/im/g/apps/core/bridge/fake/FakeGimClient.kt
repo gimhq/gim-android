@@ -188,9 +188,17 @@ class FakeGimClient(
         refreshConnection()
     }
 
+    /**
+     * Like gim-core: becoming unreachable changes nothing by itself; becoming reachable again reconnects at
+     * once if sync is running and not connected (e.g. after [setConnection] to OFFLINE). The fake outbox never
+     * stalls, so there are no pending sends to retry.
+     */
     override fun setNetworkReachable(reachable: Boolean) = synchronized(lock) {
+        val was = this.reachable
         this.reachable = reachable
-        refreshConnection()
+        if (reachable && !was && syncing && session != null && connection != ConnectionState.CONNECTED) {
+            goOnline()
+        }
     }
 
     override suspend fun findUser(handle: String): UserProfile? = synchronized(lock) {
@@ -264,6 +272,7 @@ class FakeGimClient(
     override suspend fun setGroupInfo(chatId: String, name: String?, avatarFilePath: String?) = synchronized(lock) {
         me()
         val chat = groupChat(chatId)
+        if (name == null && avatarFilePath == null) throw GimException.InvalidInput("nothing to change")
         val trimmed = name?.trim()
         if (trimmed != null && trimmed.isEmpty()) throw GimException.InvalidInput("name must not be blank")
         val avatarFile = avatarFilePath?.let(::File)
@@ -651,15 +660,16 @@ class FakeGimClient(
     }
 
     private fun refreshConnection() {
-        val online = syncing && reachable && session != null
         when {
-            !online -> updateConnection(ConnectionState.OFFLINE)
-            connection == ConnectionState.OFFLINE -> {
-                updateConnection(ConnectionState.CONNECTING)
-                updateConnection(ConnectionState.SYNCING)
-                updateConnection(ConnectionState.CONNECTED)
-            }
+            !syncing || session == null -> updateConnection(ConnectionState.OFFLINE)
+            connection == ConnectionState.OFFLINE -> goOnline()
         }
+    }
+
+    private fun goOnline() {
+        updateConnection(ConnectionState.CONNECTING)
+        updateConnection(ConnectionState.SYNCING)
+        updateConnection(ConnectionState.CONNECTED)
     }
 
     private fun updateConnection(state: ConnectionState) {
