@@ -31,7 +31,7 @@
 # done its part of a step; the script waits for that marker, then asserts and acts with the CLI (`--json`,
 # `wait-for`). The test waits on UI state the CLI produces; where it needs an explicit go (the CLI listener
 # being up) the script sends `am broadcast -a im.g.apps.interop.GO --es step <name>`. Every wait is bounded
-# (<= 60 s); on failure both sides' logs are dumped. Containers carry --label ai-agent=true and
+# (<= 120 s); on failure both sides' logs are dumped. Containers carry --label ai-agent=true and
 # --label ai-agent-run=gim-interop-<run>, are named ai-agent-gim-interop-<run>-* and are removed on exit, as is the
 # run's .tmp/e2e-interop-<run>/ directory.
 set -euo pipefail
@@ -173,12 +173,16 @@ instrument_running() {
     kill -0 "$instrument_pid" 2>/dev/null
 }
 
-# wait_marker STEP: waits for the test's `STEP <step>` marker.
+# wait_marker STEP: waits for the test's `STEP <step>` marker. The test may wait up to $timeout per UI state
+# between two markers, so this waits twice that, leaving the test time to fail with its own message first.
 wait_marker() {
     local _
-    for _ in $(seq 1 "$timeout"); do
+    for _ in $(seq 1 $((timeout * 2))); do
         has_marker "$1" && return 0
-        instrument_running || { has_marker "$1" && return 0; fail "test ended before step '$1'"; }
+        instrument_running || {
+            has_marker "$1" && return 0
+            fail "test ended before step '$1': $(grep -m1 ' FAIL ' "$log_dir/markers.log" || echo 'no FAIL marker')"
+        }
         sleep 1
     done
     fail "timed out waiting for test step '$1'"

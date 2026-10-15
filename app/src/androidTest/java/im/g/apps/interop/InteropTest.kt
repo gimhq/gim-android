@@ -3,13 +3,19 @@ package im.g.apps.interop
 import android.app.Activity
 import android.app.Instrumentation.ActivityResult
 import android.content.Intent
+import android.util.Log
 import androidx.annotation.StringRes
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
@@ -259,10 +265,29 @@ class InteropTest {
     private fun string(@StringRes id: Int, vararg formatArgs: Any): String = compose.activity.getString(id, *formatArgs)
 
     private fun ComposeTestRule.waitFor(matcher: SemanticsMatcher) =
-        waitUntil(TIMEOUT_MS) { onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty() }
+        waitOrFail("${matcher.description} shown") { onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty() }
 
     private fun ComposeTestRule.waitGone(matcher: SemanticsMatcher) =
-        waitUntil(TIMEOUT_MS) { onAllNodes(matcher).fetchSemanticsNodes().isEmpty() }
+        waitOrFail("${matcher.description} gone") { onAllNodes(matcher).fetchSemanticsNodes().isEmpty() }
+
+    /** Waits for [condition]; on timeout fails with [what] and the texts on screen, also logged for the script. */
+    private fun ComposeTestRule.waitOrFail(what: String, condition: () -> Boolean) {
+        try {
+            waitUntil(TIMEOUT_MS, condition)
+        } catch (e: ComposeTimeoutException) {
+            val screen = runCatching {
+                onAllNodes(isRoot(), useUnmergedTree = true).fetchSemanticsNodes().flatMap { it.texts() }.distinct()
+            }.getOrElse { listOf("unavailable: $it") }
+            val message = "timed out after $TIMEOUT_MS ms waiting for $what; on screen: $screen"
+            Log.e(Rendezvous.TAG, "FAIL $message")
+            throw AssertionError(message, e)
+        }
+    }
+
+    private fun SemanticsNode.texts(): List<String> =
+        config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text } +
+            config.getOrNull(SemanticsProperties.ContentDescription).orEmpty() +
+            children.flatMap { it.texts() }
 
     /** Shown [text], not an input field's content (the composer or the rename field may hold it too). */
     private fun ComposeTestRule.waitForText(text: String) = waitFor(hasText(text) and !hasSetTextAction())
