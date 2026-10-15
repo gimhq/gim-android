@@ -9,6 +9,15 @@ android {
         applicationId = "im.g.apps"
         versionCode = 1
         versionName = "0.1.0"
+        // Select the gim-core UniFFI client instead of the fake (debug builds can also opt in at runtime,
+        // see AppContainer.PREF_USE_REAL_CORE).
+        buildConfigField("boolean", "USE_REAL_GIM_CORE", "false")
+        // libgim_core.so ships for these ABIs only; drops JNA's other ABIs from the APK.
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- AndroidMediaPaths.root: decrypted attachments fetched by gim-core. -->
+    <cache-path name="media" path="gim/media/" />
+</paths>
