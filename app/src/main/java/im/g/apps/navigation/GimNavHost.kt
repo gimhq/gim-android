@@ -56,9 +56,12 @@ fun GimNavHost(
             val vm: OnboardingViewModel = viewModel(
                 factory = onboardingViewModelFactory(container.manager, container.defaultHubUrl),
             )
+            val state by vm.state.collectAsState()
+            // Display name -> Welcome; on the recovery code back is swallowed until it is acknowledged.
+            BackHandler(enabled = state.handlesBack) { vm.back() }
             OnboardingRoute(
                 viewModel = vm,
-                onRegistered = {
+                onFinished = {
                     container.sync.onSignedIn()
                     navController.navigate(Routes.CHAT_LIST) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
                 },

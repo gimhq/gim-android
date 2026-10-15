@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # CLI x Android interop E2E: two gim CLI users (alice, bob) and the Android app (real UI, real gim-core) talk
-# through the vendored gim-server.
+# through the mock delivery server that device tests used before gim-hub.
+#
+# DISABLED: pending switch to gim-hub. The mock server and its helper were removed when the device tests moved
+# to gim-hub; a follow-up task ports this script (gim-core CLI with identities and handles against gim-hub).
+# Until then it exits with an error instead of running against files that no longer exist.
 #
 # Usage: scripts/e2e-interop.sh
 #
 # Environment:
 #   GIM_CORE_REPO   gim-core checkout the CLI is built from (read only), default /srv/gimhq/im-client/core
-#   GIM_CORE_REF    gim-core commit of the CLI, default df3ee64 (last gim-server compatible protocol)
+#   GIM_CORE_REF    gim-core commit of the CLI, default df3ee64 (last protocol the mock server spoke)
 #   LOG_DIR         run log directory, default /tmp/gim-interop-<timestamp>
 #   GRADLE_CACHE    Gradle user home, default /srv/.tmp/cache/gradle
 #   CARGO_CACHE     CARGO_HOME, default /srv/.tmp/cache/cargo
@@ -18,7 +22,7 @@
 # cli-alice.log / cli-bob.log (every gim command, exit code and JSON output), bob-listen.jsonl.
 #
 # Flow:
-#   1. gim-server (e2e/gim-server) in oven/bun:1.4; the emulator (--device /dev/kvm, API 35 x86_64
+#   1. the mock server in oven/bun:1.4; the emulator (--device /dev/kvm, API 35 x86_64
 #      google_apis, headless) and a rust:1 container running the CLI share its network namespace, so the
 #      app uses http://10.0.2.2:8080 and the CLI http://127.0.0.1:8080.
 #   2. gim-cli is built from `git archive GIM_CORE_REF` (exported to .tmp/gim-core-<sha>/, reused) in rust:1;
@@ -35,9 +39,13 @@
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,36p' "$0"
+    sed -n '2,38p' "$0"
     exit 0
 fi
+
+echo "error: scripts/e2e-interop.sh is pending switch to gim-hub: the mock server it ran against was removed" >&2
+echo "       (device tests now use gim-hub, see scripts/run-device-tests.sh); a follow-up task ports this script." >&2
+exit 1
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # shellcheck source=lib/device.sh
@@ -85,7 +93,7 @@ dump_logs() {
     grep -E ' [EF]/|GimInterop|TestRunner' "$log_dir/logcat.txt" 2>/dev/null | tail -n 60 || true
     echo "---- CLI (tail) ----"
     tail -n 20 "$log_dir/cli-alice.log" "$log_dir/cli-bob.log" 2>/dev/null || true
-    echo "---- gim-server (tail) ----"
+    echo "---- server (tail) ----"
     docker logs --tail 40 "$server" 2>&1 || true
 }
 

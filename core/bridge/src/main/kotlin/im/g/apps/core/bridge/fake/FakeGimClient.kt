@@ -6,13 +6,16 @@ import im.g.apps.core.bridge.ChatListListener
 import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.ConnectionState
 import im.g.apps.core.bridge.ConnectionStateListener
+import im.g.apps.core.bridge.DeviceInfo
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.LinkSession
 import im.g.apps.core.bridge.MediaRef
 import im.g.apps.core.bridge.MembershipChangeKind
 import im.g.apps.core.bridge.MessageContent
 import im.g.apps.core.bridge.MessageItem
 import im.g.apps.core.bridge.MessagePreview
+import im.g.apps.core.bridge.PendingApproval
 import im.g.apps.core.bridge.ReactionGroup
 import im.g.apps.core.bridge.ReplyPreview
 import im.g.apps.core.bridge.SendState
@@ -41,9 +44,15 @@ import java.time.ZoneId
  * mutation order. Outbound messages start [SendState.Pending] and advance to Sent, Delivered and Read
  * after [outboxDelays] (run on [scope]); pass `outboxDelays = null` to drive them with [advanceOutbox].
  *
+ * Identity and devices are simulated deterministically: [createIdentity] returns [fakeRecoveryCode] of the new
+ * user's number, [restoreFromRecovery] accepts users added with [addRecoverableUser], and the link flow completes
+ * without a second device ([waitLink] signs in as [linkedUser]; [approveLink] accepts QR strings from
+ * [startLink]). Both sides' SAS are the same fixed-format digits.
+ *
  * @param clock epoch-millisecond time source for timestamps.
  * @param pageSize number of newest history events (messages, membership changes) loaded before
  *   [Timeline.paginateBackwards].
+ * @param discardedLocalState value of [localStateReset].
  */
 class FakeGimClient(
     private val scope: CoroutineScope,
@@ -51,6 +60,7 @@ class FakeGimClient(
     private val zone: ZoneId = ZoneId.systemDefault(),
     private val outboxDelays: OutboxDelays? = OutboxDelays(),
     private val pageSize: Int = DEFAULT_PAGE_SIZE,
+    private val discardedLocalState: Boolean = false,
 ) : GimClient {
 
     data class OutboxDelays(
@@ -117,8 +127,24 @@ class FakeGimClient(
         }
     }
 
+    private class FakeLinkSession(val owner: FakeGimClient, val qr: String) : LinkSession {
+        override fun qrString(): String = qr
+    }
+
+    private class FakePendingApproval(val owner: FakeGimClient, val sas: String, val deviceId: String) :
+        PendingApproval {
+        override fun sas(): String = sas
+
+        override fun deviceId(): String = deviceId
+    }
+
     private val lock = Any()
     private var session: Session? = null
+    private val ownDevices = mutableListOf<DeviceInfo>()
+    private val recoverable = HashMap<String, Pair<UserProfile, String>>()
+    private var startedLink: FakeLinkSession? = null
+    private var linkAwaitingConfirm = false
+    private val approvals = HashSet<String>()
     private var connection = ConnectionState.OFFLINE
     private var syncing = false
     private var reachable = true
@@ -146,22 +172,121 @@ class FakeGimClient(
 
     override suspend fun session(): Session? = synchronized(lock) { session }
 
-    override suspend fun register(handle: String, displayName: String): Session = synchronized(lock) {
-        if (session != null) throw GimException.InvalidInput("already registered")
+    override fun userId(): String? = synchronized(lock) { session?.userId }
+
+    override fun localStateReset(): Boolean = discardedLocalState
+
+    override suspend fun createIdentity(displayName: String): String = synchronized(lock) {
+        requireSignedOut()
+        val name = requireDisplayName(displayName)
+        val number = nextId++
+        signIn(Session("u-$number", "d-${nextId++}", "", name))
+        fakeRecoveryCode(number)
+    }
+
+    override suspend fun restoreFromRecovery(userId: String, recoveryCode: String, revokeOthers: Boolean) {
+        synchronized(lock) {
+            requireSignedOut()
+            val code = normalizeRecoveryCode(recoveryCode)
+                ?: throw GimException.InvalidInput("recovery code: wrong length or invalid character")
+            val (profile, expected) = recoverable[userId] ?: throw GimException.NotFound("device list of $userId")
+            if (normalizeRecoveryCode(expected) != code) throw GimException.Crypto("recovery code does not open the backup")
+            val previous = ownDevices.toList()
+            signIn(Session(profile.userId, "d-${nextId++}", profile.handle, profile.displayName))
+            ownDevices.addAll(0, previous.map { if (revokeOthers) it.copy(createdAtMs = 0, revoked = true) else it })
+        }
+    }
+
+    override fun startLink(hubs: List<String>): LinkSession = synchronized(lock) {
+        requireSignedOut()
+        FakeLinkSession(this, "$LINK_PREFIX${nextId++}").also { startedLink = it }
+    }
+
+    override suspend fun waitLink(link: LinkSession): String = synchronized(lock) {
+        requireSignedOut()
+        if (link !is FakeLinkSession || link.owner !== this || link !== startedLink) {
+            throw GimException.InvalidInput("link: unknown or already used session")
+        }
+        startedLink = null
+        val user = linkedUser
+        signIn(Session(user.userId, "d-${nextId++}", user.handle, user.displayName))
+        linkAwaitingConfirm = true
+        fakeSas(link.qr)
+    }
+
+    override suspend fun confirmLink(accepted: Boolean) {
+        synchronized(lock) {
+            if (!linkAwaitingConfirm) throw GimException.InvalidInput("no link to confirm")
+            linkAwaitingConfirm = false
+        }
+        if (!accepted) signOut()
+    }
+
+    override suspend fun approveLink(qrString: String): PendingApproval = synchronized(lock) {
+        requireSession()
+        if (!qrString.startsWith(LINK_PREFIX)) throw GimException.InvalidInput("qr: not a gim link code")
+        val deviceId = "d-${nextId++}"
+        approvals += deviceId
+        FakePendingApproval(this, fakeSas(qrString), deviceId)
+    }
+
+    override suspend fun confirmApproval(approval: PendingApproval, accepted: Boolean) = synchronized(lock) {
+        requireSession()
+        if (approval !is FakePendingApproval || approval.owner !== this || !approvals.remove(approval.deviceId)) {
+            throw GimException.InvalidInput("approval: unknown or already confirmed")
+        }
+        ownDevices += DeviceInfo(approval.deviceId, if (accepted) clock() else 0, isCurrent = false, revoked = !accepted)
+    }
+
+    override suspend fun devices(): List<DeviceInfo> = synchronized(lock) {
+        requireSession()
+        ownDevices.toList()
+    }
+
+    override suspend fun userDevices(userId: String): List<DeviceInfo> = synchronized(lock) {
+        requireSession()
+        if (userId == session?.userId) return@synchronized ownDevices.map { it.copy(isCurrent = false) }
+        if (directory[userId] == null) emptyList() else listOf(DeviceInfo("d-$userId", 0, isCurrent = false, revoked = false))
+    }
+
+    override suspend fun revokeDevice(deviceId: String) = synchronized(lock) {
+        val me = requireSession()
+        if (deviceId == me.deviceId) throw GimException.InvalidInput("cannot revoke the current device")
+        val index = ownDevices.indexOfFirst { it.deviceId == deviceId }
+        if (index < 0) throw GimException.NotFound("device $deviceId")
+        ownDevices[index] = ownDevices[index].copy(createdAtMs = 0, revoked = true)
+    }
+
+    override suspend fun setDisplayName(name: String) = synchronized(lock) {
+        val me = requireSession()
+        updateSession(me.copy(displayName = requireDisplayName(name)))
+    }
+
+    override suspend fun claimHandle(handle: String) = synchronized(lock) {
+        val me = requireSession()
         val normalized = normalizeHandle(handle)
         if (!HANDLE_PATTERN.matches(normalized)) {
-            throw GimException.InvalidInput("handle: use 3-32 of a-z, 0-9, '.', '_', '-'")
+            throw GimException.InvalidInput("handle: use 3-32 of a-z, 0-9, '_'")
         }
-        val name = displayName.trim()
-        if (name.isEmpty()) throw GimException.InvalidInput("displayName must not be blank")
-        if (directory.values.any { it.handle == normalized }) throw GimException.Server(409, "handle taken")
-        Session("u-$normalized", "d-${nextId++}", normalized, name).also(::seedSession)
+        if (directory.values.any { it.handle == normalized && it.userId != me.userId }) {
+            throw GimException.Server(409, "handle taken")
+        }
+        updateSession(me.copy(handle = normalized))
+    }
+
+    override suspend fun releaseHandle() = synchronized(lock) {
+        val me = requireSession()
+        if (me.handle.isEmpty()) throw GimException.InvalidInput("no handle claimed")
+        updateSession(me.copy(handle = ""))
     }
 
     override suspend fun signOut() = synchronized(lock) {
         val me = requireSession()
         directory.remove(me.userId)
         session = null
+        ownDevices.clear()
+        approvals.clear()
+        linkAwaitingConfirm = false
         syncing = false
         chats.clear()
         media.clear()
@@ -397,6 +522,8 @@ class FakeGimClient(
         myTyping[chatId] = active
     }
 
+    override suspend fun stopTyping(chatId: String) = setTyping(chatId, false)
+
     override suspend fun fetchMedia(chatId: String, messageId: String, destPath: String): String = synchronized(lock) {
         me()
         val entry = mediaEntry(chatId, messageId)
@@ -456,6 +583,19 @@ class FakeGimClient(
     /** Adds a user that [findUser] can discover. */
     fun addDirectoryUser(user: UserProfile) = synchronized(lock) { directory[user.userId] = user }
 
+    /** Lets [restoreFromRecovery] sign in as [user] with [recoveryCode]; [devices] lists earlier devices. */
+    fun addRecoverableUser(user: UserProfile, recoveryCode: String, devices: List<DeviceInfo> = emptyList()) =
+        synchronized(lock) {
+            recoverable[user.userId] = user to recoveryCode
+            if (session == null) {
+                ownDevices.clear()
+                ownDevices += devices
+            }
+        }
+
+    /** The account [waitLink] signs in as. */
+    @Volatile var linkedUser: UserProfile = UserProfile("u-linked", "linked", "Linked Account")
+
     /** Makes the next outbound send (or retry) end in [SendState.Failed] with [reason]. */
     fun failNextSend(reason: String = "Simulated send failure") = synchronized(lock) { failNextReason = reason }
 
@@ -503,6 +643,8 @@ class FakeGimClient(
     internal fun seedSession(session: Session) = synchronized(lock) {
         this.session = session
         directory[session.userId] = UserProfile(session.userId, session.handle, session.displayName)
+        ownDevices.clear()
+        ownDevices += DeviceInfo(session.deviceId, clock(), isCurrent = true, revoked = false)
     }
 
     internal fun seedMedia(ref: MediaRef, width: Int?, height: Int?) = synchronized(lock) {
@@ -536,6 +678,24 @@ class FakeGimClient(
         Registration(chatId, listener, regs).also { regs.add(it) }
 
     private fun requireSession(): Session = session ?: throw GimException.NotRegistered()
+
+    private fun requireSignedOut() {
+        if (session != null) throw GimException.InvalidInput("already signed in")
+    }
+
+    private fun requireDisplayName(value: String): String =
+        value.trim().ifEmpty { throw GimException.InvalidInput("displayName must not be blank") }
+
+    /** Signs in as a fresh device of [session]'s user (no chats, empty outbox). */
+    private fun signIn(session: Session) {
+        seedSession(session)
+        refreshConnection()
+    }
+
+    private fun updateSession(updated: Session) {
+        session = updated
+        directory[updated.userId] = UserProfile(updated.userId, updated.handle, updated.displayName)
+    }
 
     private fun me(): UserProfile = requireSession().let { UserProfile(it.userId, it.handle, it.displayName) }
 
@@ -723,7 +883,27 @@ class FakeGimClient(
     companion object {
         const val DEFAULT_PAGE_SIZE = 20
 
-        private val HANDLE_PATTERN = Regex("[a-z0-9._-]{3,32}")
+        private val HANDLE_PATTERN = Regex("[a-z0-9_]{3,32}")
+        private const val LINK_PREFIX = "gimlink:fake:"
+        private const val CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+        private const val RECOVERY_CODE_CHARS = 39
+
+        /**
+         * The recovery code [createIdentity] returns for the [number]th user: 39 Crockford base32 characters in
+         * groups of four separated by `-` (the last group has three), like gim-core's.
+         */
+        fun fakeRecoveryCode(number: Int): String =
+            (0 until RECOVERY_CODE_CHARS).map { CROCKFORD[(number * 7 + it * 11) % CROCKFORD.length] }
+                .chunked(4).joinToString("-") { it.joinToString("") }
+
+        /** Like gim-core's parser: case-insensitive, I/L -> 1, O -> 0, `-` and whitespace ignored; null if invalid. */
+        private fun normalizeRecoveryCode(code: String): String? {
+            val symbols = code.uppercase().filterNot { it == '-' || it.isWhitespace() }
+                .replace('I', '1').replace('L', '1').replace('O', '0')
+            return symbols.takeIf { it.length == RECOVERY_CODE_CHARS && it.all { c -> c in CROCKFORD } }
+        }
+
+        private fun fakeSas(qr: String): String = "%03d %03d".format(Math.floorMod(qr.hashCode(), 1000), qr.length)
 
         private fun normalizeHandle(handle: String) = handle.trim().removePrefix("@").lowercase()
 

@@ -4,6 +4,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import java.security.GeneralSecurityException
 import java.security.KeyStore
+import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -13,7 +14,10 @@ import javax.crypto.spec.GCMParameterSpec
 interface SecretCipher {
     fun seal(plaintext: ByteArray): ByteArray
 
-    /** Throws [GeneralSecurityException] when [sealed] is malformed or was tampered with. */
+    /**
+     * Throws [AEADBadTagException] when [sealed] is malformed or was tampered with (the value is lost), and any
+     * other [GeneralSecurityException] when the key cannot be used right now (keystore locked or unavailable).
+     */
     fun open(sealed: ByteArray): ByteArray
 
     /** Destroys the sealing key; later calls create a new one, so previously sealed values become unreadable. */
@@ -35,7 +39,7 @@ class KeystoreSecretCipher(private val alias: String = KEY_ALIAS) : SecretCipher
     }
 
     override fun open(sealed: ByteArray): ByteArray {
-        if (sealed.size < IV_SIZE + TAG_BITS / 8) throw GeneralSecurityException("sealed value too short")
+        if (sealed.size < IV_SIZE + TAG_BITS / 8) throw AEADBadTagException("sealed value too short")
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, sealed, 0, IV_SIZE))
         return cipher.doFinal(sealed, IV_SIZE, sealed.size - IV_SIZE)

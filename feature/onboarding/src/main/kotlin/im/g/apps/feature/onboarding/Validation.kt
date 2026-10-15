@@ -3,7 +3,8 @@ package im.g.apps.feature.onboarding
 import java.net.URI
 import java.net.URISyntaxException
 
-private val HANDLE_PATTERN = Regex("^[a-z0-9_.]{3,32}$")
+/** gim-hub's directory rule. */
+private val HANDLE_PATTERN = Regex("^[a-z0-9_]{3,32}$")
 
 internal const val DISPLAY_NAME_MAX_LENGTH = 64
 
