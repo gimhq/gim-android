@@ -10,7 +10,7 @@ import java.net.Socket
 import java.net.URI
 
 /**
- * Blocks until gim-server answers `GET /healthz` with 200 from this device, polling once a second for at most
+ * Blocks until gim-hub answers `GET /healthz` with 200 from this device, polling once a second for at most
  * [timeoutMs]. An emulator reports `sys.boot_completed` before it has a default network, and requests made in
  * that window hang, so device tests call this before the app talks to the server. Throws [AssertionError]
  * naming [serverUrl] and the last failure when the server never answers.
@@ -40,7 +40,7 @@ fun awaitServerReachable(context: Context, serverUrl: String, timeoutMs: Long = 
         Log.i(TAG, "waiting for $uri: $lastFailure")
         SystemClock.sleep(POLL_MS)
     }
-    throw AssertionError("gim-server not reachable at $uri within $timeoutMs ms (last: $lastFailure)")
+    throw AssertionError("gim-hub not reachable at $uri within $timeoutMs ms (last: $lastFailure)")
 }
 
 private fun healthStatus(host: String, port: Int, path: String): Int =

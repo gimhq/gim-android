@@ -18,10 +18,13 @@ object Routes {
     fun groupInfo(chatId: String) = "groupInfo/${Uri.encode(chatId)}"
 }
 
-/** Restores the stored client: the chat list when it has a session, onboarding otherwise. */
+/**
+ * Restores the stored client: the chat list when it has a session, onboarding otherwise, including when gim-core
+ * discarded the local state on open ([im.g.apps.core.bridge.GimClient.localStateReset]).
+ */
 suspend fun resolveStartDestination(manager: GimClientManager): String {
     val session = try {
-        manager.restore()?.session()
+        manager.restore()?.takeUnless { it.localStateReset() }?.session()
     } catch (_: GimException) {
         null
     }

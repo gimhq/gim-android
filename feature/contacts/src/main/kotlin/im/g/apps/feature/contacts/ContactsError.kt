@@ -20,7 +20,9 @@ internal fun GimException.toContactsError(): ContactsError = when (this) {
     is GimException.NotRegistered -> ContactsError.NOT_REGISTERED
     is GimException.InvalidInput -> ContactsError.INVALID_INPUT
     is GimException.NotFound -> ContactsError.NOT_FOUND
-    is GimException.Server -> ContactsError.SERVER
+    is GimException.Server,
+    is GimException.RetryLater,
+    -> ContactsError.SERVER
     is GimException.NotImplemented -> ContactsError.NOT_SUPPORTED
     is GimException.Crypto,
     is GimException.Storage,

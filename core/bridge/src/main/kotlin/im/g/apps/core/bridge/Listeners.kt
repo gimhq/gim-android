@@ -57,7 +57,10 @@ interface Timeline {
  * thread, so implementations must be fast and thread-safe.
  */
 interface PlatformHooks {
-    /** Reads a secret from the platform keystore; null when the key does not exist. */
+    /**
+     * Reads a secret from the platform keystore; null when the key does not exist. Throws [GimException] when the
+     * keystore cannot be read (e.g. locked), so gim-core fails the call instead of treating the secret as missing.
+     */
     fun secureStoreGet(key: String): ByteArray?
 
     /** Writes a secret, replacing any existing value. Throws [GimException] on failure. */

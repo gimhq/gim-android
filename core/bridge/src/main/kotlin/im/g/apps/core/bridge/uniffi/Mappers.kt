@@ -5,6 +5,7 @@ import im.g.apps.core.bridge.ChatListDiff
 import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.ClientConfig
 import im.g.apps.core.bridge.ConnectionState
+import im.g.apps.core.bridge.DeviceInfo
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.MediaRef
 import im.g.apps.core.bridge.MembershipChangeKind
@@ -34,6 +35,13 @@ internal fun im.g.gimcore.UserProfile.toMirror() = UserProfile(
     userId = userId,
     handle = handle,
     displayName = displayName,
+)
+
+internal fun im.g.gimcore.DeviceInfo.toMirror() = DeviceInfo(
+    deviceId = deviceId,
+    createdAtMs = createdAtMs.toLong(),
+    isCurrent = isCurrent,
+    revoked = revoked,
 )
 
 internal fun im.g.gimcore.ChatKind.toMirror(): ChatKind = when (this) {
@@ -172,6 +180,8 @@ internal fun im.g.gimcore.GimException.toMirror(): GimException = when (this) {
     is im.g.gimcore.GimException.Crypto -> GimException.Crypto(reason)
     is im.g.gimcore.GimException.Storage -> GimException.Storage(reason)
     is im.g.gimcore.GimException.Server -> GimException.Server(status.toInt(), reason)
+    is im.g.gimcore.GimException.RetryLater ->
+        GimException.RetryLater(status.toInt(), retryAfterSecs.toLong(), reason)
     is im.g.gimcore.GimException.Cancelled -> GimException.Cancelled()
     is im.g.gimcore.GimException.NotImplemented -> GimException.NotImplemented()
     is im.g.gimcore.GimException.Internal -> GimException.Internal(reason)
@@ -186,6 +196,8 @@ internal fun GimException.toCore(): im.g.gimcore.GimException = when (this) {
     is GimException.Crypto -> im.g.gimcore.GimException.Crypto(reason)
     is GimException.Storage -> im.g.gimcore.GimException.Storage(reason)
     is GimException.Server -> im.g.gimcore.GimException.Server(status.toUShort(), reason)
+    is GimException.RetryLater ->
+        im.g.gimcore.GimException.RetryLater(status.toUShort(), retryAfterSecs.toULong(), reason)
     is GimException.Cancelled -> im.g.gimcore.GimException.Cancelled()
     is GimException.NotImplemented -> im.g.gimcore.GimException.NotImplemented()
     is GimException.Internal -> im.g.gimcore.GimException.Internal(reason)

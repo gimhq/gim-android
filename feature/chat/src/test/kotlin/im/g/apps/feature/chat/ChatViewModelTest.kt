@@ -105,7 +105,8 @@ class ChatViewModelTest {
     @Test
     fun grouping_showsSenderOnlyOnFirstOfRunInGroups() = test {
         val client = FakeGimClient(backgroundScope, clock, zone, outboxDelays = null)
-        client.register("sofia", "Sofia Costa")
+        client.createIdentity("Sofia Costa")
+        client.claimHandle("sofia")
         val ana = UserProfile("u-ana", "ana", "Ana Kovač")
         client.addDirectoryUser(ana)
         val chatId = client.createGroupChat("Crew", listOf(ana.userId))
