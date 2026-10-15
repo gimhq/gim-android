@@ -159,7 +159,7 @@ private fun ChatDetails(
                 Avatar(name = peer?.displayName ?: chat.name, imagePath = null, size = 72.dp)
                 Text(text = peer?.displayName ?: chat.name, style = MaterialTheme.typography.titleLarge)
                 val subtitle = when {
-                    peer != null -> stringResource(R.string.contacts_handle, peer.handle)
+                    peer != null -> peer.handle.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.contacts_handle, it) }
                     isGroup -> {
                         val count = if (state.membersUnavailable) chat.memberCount else state.members.size
                         pluralStringResource(R.plurals.contacts_member_count, count, count)

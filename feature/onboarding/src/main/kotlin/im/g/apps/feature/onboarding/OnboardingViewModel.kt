@@ -18,9 +18,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Registration: connects to the server URL through [manager], then registers handle and display name.
- * Field errors are computed as the user types; server-side rejections replace them until the field changes.
- * The server field starts with [defaultServerUrl] (trimmed), validated like typed input.
+ * New account: Welcome (server address) -> display name -> `createIdentity` -> recovery code (shown once, saving
+ * must be confirmed) -> optional `claimHandle` -> [OnboardingEvent.Finished]. The server field starts with
+ * [defaultServerUrl] (trimmed), validated like typed input. Field errors are computed as the user types; server-side
+ * rejections replace them until the field changes.
  */
 class OnboardingViewModel(
     private val manager: GimClientManager,
@@ -32,13 +33,22 @@ class OnboardingViewModel(
     private val _events = Channel<OnboardingEvent>(Channel.BUFFERED)
     val events: Flow<OnboardingEvent> = _events.receiveAsFlow()
 
-    fun onServerUrlChange(value: String) = _state.update {
-        if (it.isLoading) return@update it
+    /** Set by [submitDisplayName]; [claimHandle] uses the same client. */
+    private var client: GimClient? = null
+
+    fun onServerUrlChange(value: String) = edit {
         it.copy(serverUrl = value, serverUrlError = serverUrlError(value), error = null)
     }
 
-    fun onHandleChange(value: String) = _state.update {
-        if (it.isLoading) return@update it
+    fun onDisplayNameChange(value: String) = edit {
+        it.copy(
+            displayName = value,
+            displayNameError = FieldError.InvalidDisplayName.takeIf { value.isNotEmpty() && !isValidDisplayName(value) },
+            error = null,
+        )
+    }
+
+    fun onHandleChange(value: String) = edit {
         val handle = normalizeHandle(value)
         it.copy(
             handle = handle,
@@ -47,52 +57,107 @@ class OnboardingViewModel(
         )
     }
 
-    fun onDisplayNameChange(value: String) = _state.update {
-        if (it.isLoading) return@update it
-        it.copy(
-            displayName = value,
-            displayNameError = FieldError.InvalidDisplayName.takeIf { value.isNotEmpty() && !isValidDisplayName(value) },
-            error = null,
-        )
+    /** Welcome -> display name; ignored unless the server address is valid. */
+    fun createAccount() = _state.update {
+        if (it.step != OnboardingStep.WELCOME || !it.canCreateAccount) it else it.copy(step = OnboardingStep.DISPLAY_NAME)
     }
 
-    /** Ignored while a submission is running or when a field is invalid. */
-    fun submit() {
+    /** Display name -> Welcome. Ignored while loading and on the recovery code (it must be acknowledged). */
+    fun back() = _state.update {
+        if (it.step != OnboardingStep.DISPLAY_NAME || it.isLoading) it else it.copy(step = OnboardingStep.WELCOME, error = null)
+    }
+
+    /** Connects to the server and creates the identity; on success shows the recovery code. */
+    fun submitDisplayName() {
         val current = _state.value
-        if (!current.canSubmit) return
+        if (current.step != OnboardingStep.DISPLAY_NAME || !current.canSubmitDisplayName) return
         _state.value = current.copy(isLoading = true, error = null)
         viewModelScope.launch {
-            val client: GimClient = try {
+            val connected = try {
                 manager.connect(current.serverUrl.trim())
             } catch (e: GimException) {
-                fail(e, step = Step.Connect)
+                fail(e) { loaded ->
+                    if (e is GimException.InvalidInput) {
+                        loaded.copy(step = OnboardingStep.WELCOME, serverUrlError = FieldError.InvalidServerUrl)
+                    } else {
+                        null
+                    }
+                }
                 return@launch
             }
+            client = connected
             try {
-                val session = client.register(current.handle, current.displayName.trim())
-                _state.update { it.copy(isLoading = false) }
-                _events.send(OnboardingEvent.Registered(session))
+                val code = connected.createIdentity(current.displayName.trim())
+                _state.update {
+                    it.copy(isLoading = false, step = OnboardingStep.RECOVERY_CODE, recoveryCode = code)
+                }
             } catch (e: GimException) {
-                fail(e, step = Step.Register)
+                fail(e) { loaded ->
+                    if (e is GimException.InvalidInput) loaded.copy(displayNameError = FieldError.InvalidDisplayName) else null
+                }
             }
         }
     }
 
-    private fun fail(e: GimException, step: Step) = _state.update {
-        val loaded = it.copy(isLoading = false)
-        when {
-            e is GimException.Network -> loaded.copy(error = OnboardingError.CannotReachServer)
-            e is GimException.Server && e.status == HTTP_CONFLICT -> loaded.copy(handleError = FieldError.HandleTaken)
-            e is GimException.InvalidInput && step == Step.Connect ->
-                loaded.copy(serverUrlError = FieldError.InvalidServerUrl)
-            e is GimException.InvalidInput && e.reason.startsWith("displayName") ->
-                loaded.copy(displayNameError = FieldError.InvalidDisplayName)
-            e is GimException.InvalidInput -> loaded.copy(handleError = FieldError.InvalidHandle)
-            else -> loaded.copy(error = OnboardingError.Generic)
+    fun onRecoveryCodeSavedChange(saved: Boolean) = _state.update {
+        if (it.step != OnboardingStep.RECOVERY_CODE) it else it.copy(recoveryCodeSaved = saved)
+    }
+
+    /** Recovery code -> handle, once saving is confirmed. The code is dropped from the state for good. */
+    fun acknowledgeRecoveryCode() = _state.update {
+        if (it.step != OnboardingStep.RECOVERY_CODE || !it.recoveryCodeSaved) {
+            it
+        } else {
+            it.copy(step = OnboardingStep.HANDLE, recoveryCode = null)
         }
     }
 
-    private enum class Step { Connect, Register }
+    /** Claims the handle and finishes; a taken handle (409) is reported on the field. */
+    fun claimHandle() {
+        val current = _state.value
+        val connected = client
+        if (current.step != OnboardingStep.HANDLE || !current.canClaimHandle || connected == null) return
+        _state.value = current.copy(isLoading = true, error = null)
+        viewModelScope.launch {
+            try {
+                connected.claimHandle(current.handle)
+                _state.update { it.copy(isLoading = false) }
+                _events.send(OnboardingEvent.Finished)
+            } catch (e: GimException) {
+                fail(e) { loaded ->
+                    when {
+                        e is GimException.Server && e.status == HTTP_CONFLICT -> loaded.copy(handleError = FieldError.HandleTaken)
+                        e is GimException.InvalidInput -> loaded.copy(handleError = FieldError.InvalidHandle)
+                        else -> null
+                    }
+                }
+            }
+        }
+    }
+
+    /** Finishes without a handle; one can be claimed later. */
+    fun skipHandle() {
+        val current = _state.value
+        if (current.step != OnboardingStep.HANDLE || current.isLoading) return
+        _events.trySend(OnboardingEvent.Finished)
+    }
+
+    /** Applies [transform] unless a call is running. */
+    private fun edit(transform: (OnboardingUiState) -> OnboardingUiState) = _state.update {
+        if (it.isLoading) it else transform(it)
+    }
+
+    /** Ends loading with [specific]'s field error, or a general error for [e]. */
+    private fun fail(e: GimException, specific: (OnboardingUiState) -> OnboardingUiState?) = _state.update {
+        val loaded = it.copy(isLoading = false)
+        specific(loaded) ?: loaded.copy(
+            error = when (e) {
+                is GimException.Network -> OnboardingError.CannotReachServer
+                is GimException.RetryLater -> OnboardingError.TryAgainLater(e.retryAfterSecs.coerceAtLeast(1))
+                else -> OnboardingError.Generic
+            },
+        )
+    }
 
     private companion object {
         const val HTTP_CONFLICT = 409

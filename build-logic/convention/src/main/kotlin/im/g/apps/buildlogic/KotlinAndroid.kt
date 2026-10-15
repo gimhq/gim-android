@@ -29,7 +29,7 @@ internal fun Project.configureKotlinAndroid(commonExtension: CommonExtension<*, 
         defaultConfig {
             minSdk = MIN_SDK
             testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-            // Device tests read the gim-server URL from this argument; override with
+            // Device tests read the gim-hub URL from this argument; override with
             // -Pandroid.testInstrumentationRunnerArguments.gimServerUrl=<url>. 10.0.2.2 is the emulator's host loopback.
             testInstrumentationRunnerArguments["gimServerUrl"] = "http://10.0.2.2:8080"
         }

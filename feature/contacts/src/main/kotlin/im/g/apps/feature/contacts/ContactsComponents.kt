@@ -87,7 +87,7 @@ private fun SearchNote(text: String) {
     Text(text = text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
-/** Avatar, display name (with an optional "You" marker) and handle, plus a trailing slot. */
+/** Avatar, display name (with an optional "You" marker) and handle if any, plus a trailing slot. */
 @Composable
 internal fun UserRow(
     user: UserProfile,
@@ -106,13 +106,16 @@ internal fun UserRow(
         Column(modifier = Modifier.weight(1f)) {
             val name = if (isSelf) "${user.displayName} (${stringResource(R.string.contacts_you)})" else user.displayName
             Text(text = name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                text = stringResource(R.string.contacts_handle, user.handle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            // Handles are optional (empty until claimed).
+            if (user.handle.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.contacts_handle, user.handle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         trailing()
     }

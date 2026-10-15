@@ -84,7 +84,23 @@ class AdaptersTest {
         assertSame(failure, error.cause)
     }
 
+    @Test
+    fun secureStoreGetMapsMirrorAndOtherErrors() {
+        val locked = GimException.Storage("keystore locked")
+        val mapped = runCatching { PlatformHooksAdapter(failingHooks(locked)).secureStoreGet("k") }.exceptionOrNull()
+        assertTrue(mapped is im.g.gimcore.GimException.Storage)
+        assertEquals("keystore locked", (mapped as im.g.gimcore.GimException.Storage).reason)
+        assertSame(locked, mapped.cause)
+
+        val other = IllegalStateException("io")
+        val wrapped = runCatching { PlatformHooksAdapter(failingHooks(other)).secureStoreGet("k") }.exceptionOrNull()
+        assertTrue(wrapped is im.g.gimcore.GimException.Storage)
+        assertSame(other, wrapped?.cause)
+    }
+
     private fun failingHooks(failure: Exception) = object : im.g.apps.core.bridge.PlatformHooks by FakePlatformHooks() {
+        override fun secureStoreGet(key: String): ByteArray? = throw failure
+
         override fun secureStoreSet(key: String, value: ByteArray) = throw failure
     }
 }

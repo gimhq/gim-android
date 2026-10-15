@@ -4,6 +4,7 @@ import im.g.apps.core.bridge.ChatListDiff
 import im.g.apps.core.bridge.ChatListListener
 import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.ConnectionState
+import im.g.apps.core.bridge.DeviceInfo
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.MembershipChangeKind
 import im.g.apps.core.bridge.MessageContent
@@ -12,9 +13,11 @@ import im.g.apps.core.bridge.MessagePreview
 import im.g.apps.core.bridge.ReactionGroup
 import im.g.apps.core.bridge.ReplyPreview
 import im.g.apps.core.bridge.SendState
+import im.g.apps.core.bridge.Session
 import im.g.apps.core.bridge.TimelineDiff
 import im.g.apps.core.bridge.TimelineItem
 import im.g.apps.core.bridge.TimelineListener
+import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.applyDiffs
 import im.g.apps.core.bridge.fake.DemoData.DIRECT_CHAT_ID
 import im.g.apps.core.bridge.fake.DemoData.GROUP_CHAT_ID
@@ -106,34 +109,149 @@ class FakeGimClientTest {
     }
 
     @Test
-    fun register_session_and_sign_out() = runTest {
+    fun create_identity_claim_handle_and_sign_out() = runTest {
         val client = FakeGimClient(backgroundScope, clock = { base }, zone = zone, outboxDelays = null)
         assertNull(client.session())
+        assertNull(client.userId())
+        assertFalse(client.localStateReset())
         assertGimError<GimException.NotRegistered> { client.findUser("lukas") }
-        assertGimError<GimException.InvalidInput> { client.register("x", "X") }
-        assertGimError<GimException.InvalidInput> { client.register("marta", " ") }
+        assertGimError<GimException.NotRegistered> { client.claimHandle("marta") }
+        assertGimError<GimException.InvalidInput> { client.createIdentity(" ") }
 
-        val session = client.register(" @Marta ", " Marta Rossi ")
-        assertEquals("marta", session.handle)
+        val code = client.createIdentity(" Marta Rossi ")
+        assertEquals(FakeGimClient.fakeRecoveryCode(1), code)
+        assertTrue(code.matches(Regex("([0-9A-HJKMNP-TV-Z]{4}-){9}[0-9A-HJKMNP-TV-Z]{3}")))
+        val session = client.session()!!
+        assertEquals("", session.handle)
         assertEquals("Marta Rossi", session.displayName)
-        assertEquals(session, client.session())
-        assertGimError<GimException.InvalidInput> { client.register("other", "Other") }
+        assertEquals(session.userId, client.userId())
+        assertEquals(listOf(DeviceInfo(session.deviceId, base, isCurrent = true, revoked = false)), client.devices())
+        assertGimError<GimException.InvalidInput> { client.createIdentity("Other") }
+        assertGimError<GimException.InvalidInput> { client.releaseHandle() }
+
+        assertGimError<GimException.InvalidInput> { client.claimHandle("x") }
+        client.addDirectoryUser(lukas)
+        val taken = assertGimError<GimException.Server> { client.claimHandle("lukas") }
+        assertEquals(409, taken.status)
+        client.claimHandle(" @Marta ")
+        assertEquals("marta", client.session()?.handle)
+        client.claimHandle("marta") // own handle again: no conflict
+        client.setDisplayName("Marta R.")
+        assertGimError<GimException.InvalidInput> { client.setDisplayName("  ") }
+        assertEquals(Session(session.userId, session.deviceId, "marta", "Marta R."), client.session())
 
         val chats = client.recordChats()
-        client.addDirectoryUser(lukas)
         val chatId = client.createDirectChat(lukas.userId)
         assertEquals(listOf(chatId), chats.ids)
+        client.stopTyping(chatId)
+        assertFalse(client.isTyping(chatId))
+
+        client.releaseHandle()
+        assertEquals("", client.session()?.handle)
 
         client.signOut()
         assertNull(client.session())
+        assertNull(client.userId())
         assertEquals(listOf<ChatListDiff>(ChatListDiff.Clear), chats.batches.last())
         assertTrue(chats.items.isEmpty())
         assertGimError<GimException.NotRegistered> { client.timeline(chatId) }
         assertGimError<GimException.NotRegistered> { client.signOut() }
+        assertGimError<GimException.NotRegistered> { client.devices() }
 
-        val taken = assertGimError<GimException.Server> { client.register("lukas", "Someone Else") }
-        assertEquals(409, taken.status)
-        assertEquals("sofia", client.register("sofia", "Sofia Costa").handle)
+        client.createIdentity("Sofia Costa")
+        client.claimHandle("sofia")
+        assertEquals("sofia", client.session()?.handle)
+    }
+
+    @Test
+    fun local_state_reset_reports_the_constructor_flag() {
+        assertTrue(FakeGimClient(TestScope(), discardedLocalState = true).localStateReset())
+    }
+
+    @Test
+    fun devices_revoke_and_user_devices() = runTest {
+        val client = FakeGimClient.withDemoData(backgroundScope, clock = { base }, zone = zone, outboxDelays = null)
+        val current = client.session()!!.deviceId
+        assertGimError<GimException.InvalidInput> { client.revokeDevice(current) }
+        assertGimError<GimException.NotFound> { client.revokeDevice("d-unknown") }
+
+        val approval = client.approveLink(peerLinkQr())
+        client.confirmApproval(approval, accepted = true)
+        assertEquals(
+            listOf(
+                DeviceInfo(current, base, isCurrent = true, revoked = false),
+                DeviceInfo(approval.deviceId(), base, isCurrent = false, revoked = false),
+            ),
+            client.devices(),
+        )
+        client.revokeDevice(approval.deviceId())
+        assertEquals(DeviceInfo(approval.deviceId(), 0, isCurrent = false, revoked = true), client.devices().last())
+
+        assertEquals(listOf(DeviceInfo("d-${lukas.userId}", 0, false, false)), client.userDevices(lukas.userId))
+        assertEquals(emptyList<DeviceInfo>(), client.userDevices("u-nobody"))
+    }
+
+    @Test
+    fun link_flow_new_device_signs_in_after_confirm() = runTest {
+        val client = FakeGimClient(backgroundScope, clock = { base }, zone = zone, outboxDelays = null)
+        client.linkedUser = UserProfile("u-marta", "marta", "Marta Rossi")
+        assertGimError<GimException.InvalidInput> { client.confirmLink(true) }
+
+        val link = client.startLink(listOf("https://hub.example.eu"))
+        assertTrue(link.qrString().isNotEmpty())
+        val sas = client.waitLink(link)
+        assertTrue(sas.matches(Regex("\\d{3} \\d{3}")))
+        assertEquals("u-marta", client.userId())
+        assertGimError<GimException.InvalidInput> { client.waitLink(link) }
+
+        // The old device sees the same SAS for the same QR code.
+        val old = FakeGimClient.withDemoData(backgroundScope, clock = { base }, zone = zone, outboxDelays = null)
+        val approval = old.approveLink(link.qrString())
+        assertEquals(sas, approval.sas())
+        assertGimError<GimException.InvalidInput> { old.approveLink("not a link") }
+        old.confirmApproval(approval, accepted = false)
+        assertTrue(old.devices().last().revoked)
+        assertGimError<GimException.InvalidInput> { old.confirmApproval(approval, accepted = true) }
+
+        client.confirmLink(true)
+        assertEquals("marta", client.session()?.handle)
+    }
+
+    @Test
+    fun rejected_link_wipes_the_new_device() = runTest {
+        val client = FakeGimClient(backgroundScope, clock = { base }, zone = zone, outboxDelays = null)
+        client.waitLink(client.startLink(emptyList()))
+        client.confirmLink(false)
+        assertNull(client.session())
+        assertGimError<GimException.InvalidInput> { client.confirmLink(false) }
+    }
+
+    @Test
+    fun restore_from_recovery_validates_code_and_revokes_others() = runTest {
+        val client = FakeGimClient(backgroundScope, clock = { base }, zone = zone, outboxDelays = null)
+        val marta = UserProfile("u-marta", "marta", "Marta Rossi")
+        val code = FakeGimClient.fakeRecoveryCode(7)
+        client.addRecoverableUser(marta, code, listOf(DeviceInfo("d-old", 1L, isCurrent = false, revoked = false)))
+
+        assertGimError<GimException.InvalidInput> { client.restoreFromRecovery(marta.userId, "ABC", true) }
+        assertGimError<GimException.NotFound> { client.restoreFromRecovery("u-nobody", code, true) }
+        assertGimError<GimException.Crypto> {
+            client.restoreFromRecovery(marta.userId, FakeGimClient.fakeRecoveryCode(8), true)
+        }
+
+        // Case, dashes and whitespace do not matter.
+        client.restoreFromRecovery(marta.userId, code.lowercase().replace("-", " "), revokeOthers = true)
+        val session = client.session()!!
+        assertEquals(marta.userId, session.userId)
+        assertEquals("marta", session.handle)
+        assertEquals(
+            listOf(
+                DeviceInfo("d-old", 0, isCurrent = false, revoked = true),
+                DeviceInfo(session.deviceId, base, isCurrent = true, revoked = false),
+            ),
+            client.devices(),
+        )
+        assertGimError<GimException.InvalidInput> { client.restoreFromRecovery(marta.userId, code, false) }
     }
 
     @Test
@@ -255,13 +373,16 @@ class FakeGimClientTest {
         assertGimError<GimException.InvalidInput> { client.react(DIRECT_CHAT_ID, own.messageId, "👍") }
     }
 
+    /** A QR string as another fake's [FakeGimClient.startLink] returns it. */
+    private fun peerLinkQr(): String = FakeGimClient(TestScope()).startLink(emptyList()).qrString()
+
     private fun List<TimelineItem>.message(index: Int) = (this[index] as TimelineItem.Message).item
 
     @Test
     fun date_separators_precede_the_first_item_of_each_local_day() = runTest {
         var now = ZonedDateTime.of(2026, 7, 11, 23, 50, 0, 0, zone).toInstant().toEpochMilli()
         val client = FakeGimClient(backgroundScope, clock = { now }, zone = zone, outboxDelays = null)
-        client.register("sofia", "Sofia Costa")
+        client.createIdentity("Sofia Costa")
         client.addDirectoryUser(lukas)
         val chatId = client.createDirectChat(lukas.userId)
         val timeline = client.record(chatId)
