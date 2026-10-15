@@ -87,7 +87,17 @@ comes from the `gimServerUrl` instrumentation argument, default `http://10.0.2.2
   publishes it on port 8080 and runs the same Gradle task on an API 35 `pixel_6` emulator. The hub log is
   uploaded on failure.
 
-`scripts/e2e-interop.sh` (CLI x Android) is disabled until it is ported to gim-hub; it exits with an error.
+### CLI x Android interop
+
+`scripts/e2e-interop.sh` runs two gim CLI users (alice, bob; `gim-cli` built from gim-core `GIM_CORE_REF`,
+default `3724543`) and the app (`app/src/androidTest/.../interop/InteropTest`, real UI and gim-core) against the
+pinned gim-hub on the same emulator setup as the device tests. alice and bob create identities and claim handles
+with `gim register`; the app goes through onboarding (create identity, acknowledge the recovery code, claim a
+handle). Steps: DM both ways with read receipts, bob's group of three, text and images both ways, reply,
+reaction, edit, delete, typing, rename from the app, bob removes alice (alice gets nothing new), and user ids
+resolved by handle on both sides (CLI JSON and the app's `findUser`). `leave_chat` is not exercised. Each run
+writes its logs to `LOG_DIR` (default `/tmp/gim-interop-<timestamp>`) and prints the passed steps; see `--help`.
+`InteropTest` is skipped in plain `connectedDebugAndroidTest` runs.
 
 ### Pinned gim-hub
 

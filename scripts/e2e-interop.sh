@@ -1,28 +1,25 @@
 #!/usr/bin/env bash
 # CLI x Android interop E2E: two gim CLI users (alice, bob) and the Android app (real UI, real gim-core) talk
-# through the mock delivery server that device tests used before gim-hub.
-#
-# DISABLED: pending switch to gim-hub. The mock server and its helper were removed when the device tests moved
-# to gim-hub; a follow-up task ports this script (gim-core CLI with identities and handles against gim-hub).
-# Until then it exits with an error instead of running against files that no longer exist.
+# through gim-hub at the commit pinned in e2e/GIM_HUB_VERSION.
 #
 # Usage: scripts/e2e-interop.sh
 #
 # Environment:
 #   GIM_CORE_REPO   gim-core checkout the CLI is built from (read only), default /srv/gimhq/im-client/core
-#   GIM_CORE_REF    gim-core commit of the CLI, default df3ee64 (last protocol the mock server spoke)
+#   GIM_CORE_REF    gim-core commit of the CLI, default 3724543 (the commit GIM_CORE_VERSION pins)
+#   GIM_HUB_SRC     gim-hub checkout the hub image is exported from, default /srv/gimhq/im-client/hub
 #   LOG_DIR         run log directory, default /tmp/gim-interop-<timestamp>
 #   GRADLE_CACHE    Gradle user home, default /srv/.tmp/cache/gradle
 #   CARGO_CACHE     CARGO_HOME, default /srv/.tmp/cache/cargo
 #   CARGO_TARGET    cargo target dir of gim-cli, default /srv/.tmp/cache/cargo-target/gim-cli
 #   REBUILD_IMAGE=1 rebuild the emulator image (see scripts/lib/device.sh)
 #
-# Outputs (in LOG_DIR, printed at start and end): script.log, server.log, gradle.log, cargo.log,
+# Outputs (in LOG_DIR, printed at start and end): script.log, hub.log, gradle.log, cargo.log,
 # emulator.log, logcat.txt, markers.log (test step markers), instrumentation.txt (am instrument -r),
 # cli-alice.log / cli-bob.log (every gim command, exit code and JSON output), bob-listen.jsonl.
 #
 # Flow:
-#   1. the mock server in oven/bun:1.4; the emulator (--device /dev/kvm, API 35 x86_64
+#   1. gim-hub (ai-agent/gim-hub:<sha12>, see scripts/lib/device.sh) with an in-memory /data; the emulator (--device /dev/kvm, API 35 x86_64
 #      google_apis, headless) and a rust:1 container running the CLI share its network namespace, so the
 #      app uses http://10.0.2.2:8080 and the CLI http://127.0.0.1:8080.
 #   2. gim-cli is built from `git archive GIM_CORE_REF` (exported to .tmp/gim-core-<sha>/, reused) in rust:1;
@@ -34,34 +31,32 @@
 # done its part of a step; the script waits for that marker, then asserts and acts with the CLI (`--json`,
 # `wait-for`). The test waits on UI state the CLI produces; where it needs an explicit go (the CLI listener
 # being up) the script sends `am broadcast -a im.g.apps.interop.GO --es step <name>`. Every wait is bounded
-# (<= 60 s); on failure both sides' logs are dumped. Containers carry --label ai-agent=true, are named
-# ai-agent-gim-interop-<run>-* and are removed on exit, as is the run's .tmp/e2e-interop-<run>/ directory.
+# (<= 60 s); on failure both sides' logs are dumped. Containers carry --label ai-agent=true and
+# --label ai-agent-run=gim-interop-<run>, are named ai-agent-gim-interop-<run>-* and are removed on exit, as is the
+# run's .tmp/e2e-interop-<run>/ directory.
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,38p' "$0"
+    sed -n '2,35p' "$0"
     exit 0
 fi
 
-echo "error: scripts/e2e-interop.sh is pending switch to gim-hub: the mock server it ran against was removed" >&2
-echo "       (device tests now use gim-hub, see scripts/run-device-tests.sh); a follow-up task ports this script." >&2
-exit 1
-
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+run=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+GIM_RUN_LABEL=gim-interop-$run
 # shellcheck source=lib/device.sh
 source "$repo_root/scripts/lib/device.sh"
 gim_check_host_paths "$repo_root"
 command -v jq >/dev/null || { echo "error: jq is required" >&2; exit 1; }
 
 core_repo=${GIM_CORE_REPO:-/srv/gimhq/im-client/core}
-core_ref=${GIM_CORE_REF:-df3ee64}
+core_ref=${GIM_CORE_REF:-3724543}
 gradle_cache=${GRADLE_CACHE:-/srv/.tmp/cache/gradle}
 cargo_cache=${CARGO_CACHE:-/srv/.tmp/cache/cargo}
 cargo_target=${CARGO_TARGET:-/srv/.tmp/cache/cargo-target/gim-cli}
 log_dir=${LOG_DIR:-/tmp/gim-interop-$(date +%Y%m%d-%H%M%S)}
-run=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
 prefix=ai-agent-gim-interop-$run
-server=$prefix-server
+hub=$prefix-hub
 emu=$prefix-emulator
 cli=$prefix-cli
 work=$repo_root/.tmp/e2e-interop-$run
@@ -93,15 +88,15 @@ dump_logs() {
     grep -E ' [EF]/|GimInterop|TestRunner' "$log_dir/logcat.txt" 2>/dev/null | tail -n 60 || true
     echo "---- CLI (tail) ----"
     tail -n 20 "$log_dir/cli-alice.log" "$log_dir/cli-bob.log" 2>/dev/null || true
-    echo "---- server (tail) ----"
-    docker logs --tail 40 "$server" 2>&1 || true
+    echo "---- hub (tail) ----"
+    docker logs --tail 40 "$hub" 2>&1 || true
 }
 
 cleanup() {
     local status=$?
     trap - EXIT INT TERM
     ((${#bg_pids[@]})) && kill "${bg_pids[@]}" 2>/dev/null || true
-    docker logs "$server" >"$log_dir/server.log" 2>&1 || true
+    docker logs "$hub" >"$log_dir/hub.log" 2>&1 || true
     docker exec "$emu" cat /tmp/emulator.log >"$log_dir/emulator.log" 2>/dev/null || true
     if ((status)); then
         echo "FAILED (exit $status) after ${SECONDS}s"
@@ -110,7 +105,7 @@ cleanup() {
     # Files in $work are written by root inside the CLI container; remove them from there.
     docker exec "$cli" rm -rf "$work" >/dev/null 2>&1 || true
     rm -rf "$work" 2>/dev/null || true
-    docker rm -f "$emu" "$cli" "$server" >/dev/null 2>&1 || true
+    docker rm -f "$emu" "$cli" "$hub" >/dev/null 2>&1 || true
     echo "run log: $log_dir"
     exit "$status"
 }
@@ -196,12 +191,12 @@ signal() {
 # --- Setup --------------------------------------------------------------------------------------------
 
 gim_ensure_emulator_image
-gim_start_server "$server" "$repo_root"
+gim_start_hub "$hub" "$repo_root"
 url=http://127.0.0.1:8080
 
 echo "starting emulator"
-docker run -d --label ai-agent=true --name "$emu" \
-    --device /dev/kvm --network "container:$server" \
+docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$emu" \
+    --device /dev/kvm --network "container:$hub" \
     -v "$repo_root:$repo_root:ro" \
     "$GIM_EMULATOR_IMAGE" sleep infinity >/dev/null
 docker exec "$emu" bash -c "$GIM_EMULATOR_BOOT" >"$log_dir/emulator-boot.log" 2>&1 &
@@ -218,20 +213,20 @@ if [[ ! -f $core_src/.exported ]]; then
     touch "$core_src/.exported"
 fi
 mkdir -p "$cargo_cache" "$cargo_target" "$work"
-docker run --rm --label ai-agent=true --name "$prefix-cargo" \
+docker run --rm --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$prefix-cargo" \
     -v "$core_src:$core_src" -w "$core_src" \
     -v "$cargo_cache:/cache/cargo" -e CARGO_HOME=/cache/cargo \
     -v "$cargo_target:/cache/target" -e CARGO_TARGET_DIR=/cache/target \
     rust:1 cargo build -p gim-cli \
     >"$log_dir/cargo.log" 2>&1 || { tail -n 30 "$log_dir/cargo.log"; fail "gim-cli build failed"; }
 cp "$cargo_target/debug/gim" "$work/gim"
-docker run -d --label ai-agent=true --name "$cli" --network "container:$server" \
+docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$cli" --network "container:$hub" \
     -v "$work:$work" -w "$work" rust:1 sleep infinity >/dev/null
 cp "$photo" "$work/bob-photo.png"
 
 echo "building APKs"
 mkdir -p "$gradle_cache"
-docker run --rm --label ai-agent=true --name "$prefix-gradle" \
+docker run --rm --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$prefix-gradle" \
     -v "$repo_root:$repo_root" -w "$repo_root" \
     -v "$gradle_cache:/cache/gradle" -e GRADLE_USER_HOME=/cache/gradle \
     ghcr.io/cirruslabs/android-sdk:35 ./gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest \
@@ -239,20 +234,17 @@ docker run --rm --label ai-agent=true --name "$prefix-gradle" \
 
 wait "$boot_pid" || { cat "$log_dir/emulator-boot.log"; fail "emulator did not boot"; }
 cat "$log_dir/emulator-boot.log"
-# boot_completed comes before Android has a default network; the app would treat the server as unreachable.
-has_network() {
-    adb_ shell dumpsys connectivity | grep -qE '^Active default network: [0-9]+'
-}
-poll "the emulator's default network" has_network
+# boot_completed comes before Android has a default network; InteropTest waits for the hub's /healthz itself.
 adb_ install -r -t "$repo_root/app/build/outputs/apk/debug/app-debug.apk" >/dev/null
 adb_ install -r -t "$repo_root/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk" >/dev/null
 echo "setup done after ${SECONDS}s"
 
 # --- Scenario -----------------------------------------------------------------------------------------
 
-# a. Register alice and bob (CLI), then start the test, which registers through onboarding.
+# a. alice and bob create identities and claim handles (CLI `register`), then the test does it through onboarding.
 cli_ok alice --server "$url" register "$alice" "$alice_name"
-expect ".handle == \"$alice\"" "alice registered"
+expect ".handle == \"$alice\" and (.user_id | length > 0) and (.recovery_code | length > 0)" "alice registered"
+alice_id=$(out .user_id)
 cli_ok bob --server "$url" register "$bob" "$bob_name"
 expect ".handle == \"$bob\"" "bob registered"
 
@@ -264,15 +256,24 @@ adb_ logcat -v brief -s GimInterop:I >"$log_dir/markers.log" 2>&1 &
 bg_pids+=($!)
 adb_ shell "am instrument -w -r -e class im.g.apps.interop.InteropTest \
     -e gimServerUrl $GIM_EMULATOR_SERVER_URL -e interopRun $run \
-    -e aliceName '$alice_name' -e bobName '$bob_name' -e androidHandle $droid -e androidName '$droid_name' \
+    -e aliceName '$alice_name' -e aliceHandle $alice -e aliceUserId $alice_id -e bobName '$bob_name' -e androidHandle $droid -e androidName '$droid_name' \
     im.g.apps.test/androidx.test.runner.AndroidJUnitRunner" >"$log_dir/instrumentation.txt" 2>&1 &
 instrument_pid=$!
 bg_pids+=("$instrument_pid")
 
 wait_marker registered
 cli_ok alice users search "$droid"
-expect "(.users | length == 1) and .users[0].display_name == \"$droid_name\"" "alice finds android"
-pass "a. register alice (CLI), bob (CLI), android (onboarding UI); alice finds android"
+# The hub directory knows handles only; display names travel in chats (findUser shows the handle).
+expect "(.users | length == 1) and .users[0].handle == \"$droid\"" "alice finds android"
+pass "a. identities + handles: alice (CLI), bob (CLI), android (onboarding UI); alice finds android"
+
+# h. User ids: android found alice by handle with the id from alice's register JSON (asserted in the test);
+# alice's lookup of android's handle returns the id android reports for itself.
+wait_marker user-ids
+droid_id=$(sed -nE 's/.*VALUE android-user-id ([^[:space:]]+).*/\1/p' "$log_dir/markers.log" | tail -n 1)
+[[ -n $droid_id ]] || fail "android did not report its user id"
+expect ".users[0].user_id == \"$droid_id\"" "alice's lookup of @$droid returns android's user id $droid_id"
+pass "h. user ids: android looks up @$alice -> $alice_id (alice's CLI JSON); alice looks up @$droid -> $droid_id (android's own)"
 
 # b. alice DMs android; android replies; alice gets the reply. Read receipts both ways.
 cli_ok alice dm "$droid"
