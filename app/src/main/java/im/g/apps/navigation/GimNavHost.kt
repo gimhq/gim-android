@@ -50,7 +50,9 @@ fun GimNavHost(
 
     NavHost(navController, startDestination, modifier) {
         composable(Routes.ONBOARDING) {
-            val vm: OnboardingViewModel = viewModel(factory = onboardingViewModelFactory(container.manager))
+            val vm: OnboardingViewModel = viewModel(
+                factory = onboardingViewModelFactory(container.manager, container.defaultHubUrl),
+            )
             OnboardingRoute(
                 viewModel = vm,
                 onRegistered = {
