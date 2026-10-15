@@ -231,6 +231,11 @@ docker run --rm --label ai-agent=true --name "$prefix-gradle" \
 
 wait "$boot_pid" || { cat "$log_dir/emulator-boot.log"; fail "emulator did not boot"; }
 cat "$log_dir/emulator-boot.log"
+# boot_completed comes before Android has a default network; the app would treat the server as unreachable.
+has_network() {
+    adb_ shell dumpsys connectivity | grep -qE '^Active default network: [0-9]+'
+}
+poll "the emulator's default network" has_network
 adb_ install -r -t "$repo_root/app/build/outputs/apk/debug/app-debug.apk" >/dev/null
 adb_ install -r -t "$repo_root/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk" >/dev/null
 echo "setup done after ${SECONDS}s"
