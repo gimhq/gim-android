@@ -16,6 +16,7 @@
     <string name="contacts_error_not_found">It no longer exists.</string>
     <string name="contacts_error_server">The server rejected the request. Try again later.</string>
     <string name="contacts_error_not_supported">This isn\'t supported yet.</string>
+    <string name="contacts_error_rename_not_supported">Renaming groups is not available yet.</string>
     <string name="contacts_error_unknown">Something went wrong. Try again.</string>
 
     <string name="contacts_new_chat_title">New chat</string>

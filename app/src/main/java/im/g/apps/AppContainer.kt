@@ -16,8 +16,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
 /**
- * Manual DI root: one instance per process, owned by [GimApplication]. Tests pass [clientFactory] and
- * [serverUrlStore] to run the app against a seeded [FakeGimClient].
+ * Manual DI root: one instance per process, owned by [GimApplication]. Tests must pass [clientFactory] and
+ * [serverUrlStore] to run the app against a seeded [FakeGimClient]; the default is the native gim-core client.
  */
 class AppContainer(
     context: Context,
@@ -33,8 +33,12 @@ class AppContainer(
     val mediaPaths = AndroidMediaPaths(appContext)
     val mediaPathProvider = AppMediaPathProvider(mediaPaths)
 
+    /** The client implementation; never invoked by JVM tests, which pass a fake factory. */
+    val clientFactory: GimClientFactory =
+        clientFactory ?: defaultClientFactory(useRealGimCore(appContext), serverUrlStore, appScope)
+
     val manager = GimClientManager(
-        factory = clientFactory ?: defaultClientFactory(useRealGimCore(appContext), serverUrlStore, appScope),
+        factory = this.clientFactory,
         hooks = hooks,
         serverUrlStore = serverUrlStore,
     )
@@ -42,21 +46,21 @@ class AppContainer(
     val sync = SyncController(manager, reachability.reachable, appScope)
 
     companion object {
-        /** Debug-only override of [BuildConfig.USE_REAL_GIM_CORE] (boolean in [DEBUG_PREFS]). */
-        const val PREF_USE_REAL_CORE = "debug_use_real_core"
+        /** Debug-only opt-in (boolean in [DEBUG_PREFS], default false) that replaces gim-core with demo data. */
+        const val PREF_DEMO_MODE = "debug_demo_mode"
         const val DEBUG_PREFS = "gim_debug"
 
-        fun useRealGimCore(context: Context): Boolean =
-            BuildConfig.USE_REAL_GIM_CORE ||
-                BuildConfig.DEBUG &&
-                context.getSharedPreferences(DEBUG_PREFS, Context.MODE_PRIVATE).getBoolean(PREF_USE_REAL_CORE, false)
+        fun isDemoMode(context: Context): Boolean =
+            BuildConfig.DEBUG &&
+                context.getSharedPreferences(DEBUG_PREFS, Context.MODE_PRIVATE).getBoolean(PREF_DEMO_MODE, false)
+
+        fun useRealGimCore(context: Context): Boolean = BuildConfig.USE_REAL_GIM_CORE && !isDemoMode(context)
 
         /**
-         * The single swap point for the client implementation. The fake is the default; debug builds seed
-         * it with demo data so a fresh install goes through onboarding into a populated chat list.
+         * The single swap point for the client implementation. gim-core is the default; debug demo mode seeds
+         * the fake with demo data so a fresh install goes through onboarding into a populated chat list.
          * [UniffiGimClientFactory] loads the native library only when it creates a client.
          */
-        // TODO(gim-core): make the UniFFI-backed client the default once gim-core implements the API.
         fun defaultClientFactory(
             useRealCore: Boolean,
             serverUrlStore: ServerUrlStore,

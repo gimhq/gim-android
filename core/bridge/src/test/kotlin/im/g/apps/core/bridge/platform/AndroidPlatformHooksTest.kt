@@ -17,6 +17,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.shadows.ShadowLog
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermissions
 
 @RunWith(RobolectricTestRunner::class)
 class AndroidPlatformHooksTest {
@@ -92,10 +94,17 @@ class AndroidPlatformHooksTest {
     }
 
     @Test
-    fun data_dir_is_created_under_files_dir() {
-        val dir = File(hooks.dataDir())
-        assertEquals(File(context.filesDir, "gim").absolutePath, dir.absolutePath)
+    fun data_dir_is_an_absolute_owner_only_dir_under_files_dir() {
+        File(context.filesDir, "gim").deleteRecursively()
+
+        val path = hooks.dataDir()
+        val dir = File(path)
+        assertTrue(dir.isAbsolute)
+        assertEquals(File(context.filesDir, "gim").absolutePath, path)
         assertTrue(dir.isDirectory)
+        assertEquals("rwx------", PosixFilePermissions.toString(Files.getPosixFilePermissions(dir.toPath())))
+        // Stable across launches: a new instance resolves the same existing directory.
+        assertEquals(path, AndroidPlatformHooks(context, FakeSecretCipher(), monitor).dataDir())
     }
 
     @Test

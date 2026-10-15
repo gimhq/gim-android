@@ -176,6 +176,21 @@ class GroupInfoViewModelTest {
     }
 
     @Test
+    fun rename_notImplemented_showsUnavailableAndKeepsOldName() = runTest {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        client.setGroupInfoError = GimException.NotImplemented()
+        vm.startRename()
+        vm.onRenameChange("Cyclades Crew")
+        vm.confirmRename()
+        advanceUntilIdle()
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.RENAME_NOT_SUPPORTED), vm.events.first())
+        assertEquals("Aegean Crew", vm.state.value.chat?.name)
+        assertNull(vm.state.value.renameDraft)
+        assertFalse(vm.state.value.busy)
+    }
+
+    @Test
     fun leave_requiresConfirmationAndEmitsLeftChat() = runTest {
         val vm = newViewModel()
         advanceUntilIdle()
