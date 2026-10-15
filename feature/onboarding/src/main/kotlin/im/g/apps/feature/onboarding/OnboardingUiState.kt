@@ -4,7 +4,7 @@ import androidx.compose.runtime.Immutable
 
 /** Screens of the new-account flow, in order. */
 enum class OnboardingStep {
-    /** Server address and the ways to start: create, link, restore (later). */
+    /** Server address and the ways to start: create, link, restore. */
     WELCOME,
     DISPLAY_NAME,
 
@@ -17,6 +17,9 @@ enum class OnboardingStep {
 
     /** Link to an existing device: the SAS from `waitLink`, compared with the other device. */
     LINK_SAS,
+
+    /** Restore after losing every device: user id and recovery code for `restoreFromRecovery`. */
+    RESTORE,
 }
 
 /** Inline error shown under a single text field. */
@@ -25,6 +28,14 @@ enum class FieldError {
     InvalidHandle,
     HandleTaken,
     InvalidDisplayName,
+    InvalidUserId,
+
+    /** The hub has no DeviceList of this user (`NotFound`). */
+    UnknownUser,
+    InvalidRecoveryCode,
+
+    /** The code does not open the user's backup (`Crypto`). */
+    WrongRecoveryCode,
 }
 
 /** Error that is not tied to a single field. */
@@ -59,6 +70,13 @@ data class OnboardingUiState(
     val linkQr: String? = null,
     /** The six-digit SAS ("123 456") while [step] is [OnboardingStep.LINK_SAS]. */
     val linkSas: String? = null,
+    val restoreUserId: String = "",
+    val restoreUserIdError: FieldError? = null,
+    /** The recovery code's normalized symbols, without separators; the field shows them grouped. */
+    val restoreCode: String = "",
+    val restoreCodeError: FieldError? = null,
+    /** `revokeOthers` of `restoreFromRecovery`: sign out every other device of the user. */
+    val revokeOtherDevices: Boolean = true,
     val error: OnboardingError? = null,
     val isLoading: Boolean = false,
 ) {
@@ -75,10 +93,14 @@ data class OnboardingUiState(
     val canRetryLink: Boolean
         get() = step == OnboardingStep.LINK_QR && !isLoading && linkQr == null
 
+    val canRestore: Boolean
+        get() = !isLoading && isValidUserId(restoreUserId) && restoreUserIdError == null &&
+            isValidRecoveryCode(restoreCode) && restoreCodeError == null
+
     /** Whether system back is handled by [OnboardingViewModel.back] rather than leaving the app. */
     val handlesBack: Boolean
         get() = step == OnboardingStep.DISPLAY_NAME || step == OnboardingStep.RECOVERY_CODE ||
-            step == OnboardingStep.LINK_QR || step == OnboardingStep.LINK_SAS
+            step == OnboardingStep.LINK_QR || step == OnboardingStep.LINK_SAS || step == OnboardingStep.RESTORE
 
     companion object {
         /** Initial state with [serverUrl] prefilled and flagged when invalid. */
@@ -92,6 +114,6 @@ internal fun serverUrlError(value: String): FieldError? =
     FieldError.InvalidServerUrl.takeIf { value.isNotBlank() && !isValidServerUrl(value) }
 
 sealed interface OnboardingEvent {
-    /** The account exists (with or without a handle) or this device is linked: continue to the chat list. */
+    /** The account exists (with or without a handle), or this device is linked or restored: go to the chat list. */
     data object Finished : OnboardingEvent
 }
