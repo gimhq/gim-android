@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -62,7 +61,7 @@ fun Composer(
     onAttachFile: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(modifier = modifier.fillMaxWidth().imePadding(), tonalElevation = 2.dp) {
+    Surface(modifier = modifier.fillMaxWidth(), tonalElevation = 2.dp) {
         Column {
             when (val mode = state.mode) {
                 is ComposerMode.Replying -> ReplyPreviewBar(
