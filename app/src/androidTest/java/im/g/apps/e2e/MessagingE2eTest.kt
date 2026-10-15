@@ -4,12 +4,15 @@ import android.app.Activity
 import android.app.Instrumentation.ActivityResult
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.annotation.StringRes
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
@@ -22,11 +25,13 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.printToLog
+import androidx.compose.ui.test.printToString
 import androidx.core.content.FileProvider
+import androidx.test.espresso.Espresso
 import androidx.test.espresso.intent.Intents
 import androidx.test.espresso.intent.Intents.intending
 import androidx.test.espresso.intent.matcher.IntentMatchers.isInternal
@@ -122,15 +127,24 @@ class MessagingE2eTest {
     @Test
     fun messagingFlowThenSignOut() {
         // The emulator may not have a default network yet right after boot; registering then hangs.
+        Log.i(LOG_TAG, "server URL $serverUrl")
         awaitServerReachable(instrumentation.targetContext, serverUrl)
+        Log.i(LOG_TAG, "$serverUrl/healthz returned 200")
 
-        // Onboarding -> chat list.
+        // Onboarding -> chat list. On small screens the soft keyboard covers the submit button, and an injected
+        // tap there goes to the keyboard: close it and scroll the button into view first.
         waitForText("onboarding shown", string(OnboardingR.string.onboarding_title))
-        compose.onNodeWithTag(TAG_SERVER_URL).performTextReplacement(serverUrl)
-        compose.onNodeWithTag(TAG_HANDLE).performTextInput(appHandle)
-        compose.onNodeWithTag(TAG_DISPLAY_NAME).performTextInput(appName)
-        compose.onNodeWithTag(TAG_SUBMIT).performClick()
-        waitForText("chat list after onboarding", string(ChatListR.string.chatlist_title))
+        enterText("server address", TAG_SERVER_URL, serverUrl)
+        enterText("handle", TAG_HANDLE, appHandle)
+        enterText("display name", TAG_DISPLAY_NAME, appName)
+        Espresso.closeSoftKeyboard()
+        compose.onNodeWithTag(TAG_SUBMIT).performScrollTo().assertIsDisplayed().assertIsEnabled().performClick()
+        Log.i(LOG_TAG, "submit clicked")
+        val chatList = hasText(string(ChatListR.string.chatlist_title))
+        val registering = hasContentDescription(string(OnboardingR.string.onboarding_submitting))
+        waitFor("onboarding submitted (loading or chat list)") { exists(chatList) || exists(registering) }
+        waitFor("chat list after onboarding", chatList)
+        Log.i(LOG_TAG, "chat list visible")
 
         // Peer registers and syncs.
         val peer = runBlocking {
@@ -265,26 +279,51 @@ class MessagingE2eTest {
         }
     }
 
-    private fun waitFor(step: String, matcher: SemanticsMatcher) =
-        waitFor(step) { compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty() }
+    private fun waitFor(step: String, matcher: SemanticsMatcher) = waitFor(step) { exists(matcher) }
+
+    private fun exists(matcher: SemanticsMatcher) = compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty()
+
+    /** Replaces the text of the field tagged [tag] and waits until the field holds exactly [value]. */
+    private fun enterText(field: String, tag: String, value: String) {
+        val node = compose.onNodeWithTag(tag)
+        node.performTextReplacement(value)
+        fun actual() = node.fetchSemanticsNode().config.getOrNull(SemanticsProperties.EditableText)?.text
+        try {
+            compose.waitUntil(timeoutMs) { actual() == value }
+        } catch (e: ComposeTimeoutException) {
+            failStep("$field field holds '${actual()}' instead of '$value'", e)
+        }
+    }
 
     private fun waitForText(step: String, text: String) = waitFor(step, hasText(text))
 
     /**
-     * Fails with [step] and the texts on screen (e.g. an onboarding error), after dumping the semantics tree of
-     * every window to logcat under [LOG_TAG].
+     * Fails with [step] and what is on screen (texts, field values, content descriptions such as the onboarding
+     * progress indicator, disabled / focused flags), after dumping the semantics tree of every window to logcat
+     * under [LOG_TAG], one line per entry because logcat truncates long entries.
      */
     private fun failStep(step: String, cause: Throwable): Nothing {
         val screen = runCatching {
             val roots = compose.onAllNodes(isRoot(), useUnmergedTree = true)
-            roots.printToLog(LOG_TAG)
-            roots.fetchSemanticsNodes().flatMap { it.texts() }.distinct().joinToString(" | ")
+            roots.printToString().lines().forEach { Log.d(LOG_TAG, it) }
+            roots.fetchSemanticsNodes().flatMap { it.describe() }.distinct().joinToString(" | ")
         }.getOrElse { "unavailable: $it" }
         throw AssertionError("step '$step' timed out after $timeoutMs ms; on screen: [$screen]", cause)
     }
 
-    private fun SemanticsNode.texts(): List<String> =
-        config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text } + children.flatMap { it.texts() }
+    private fun SemanticsNode.describe(): List<String> {
+        val parts = buildList {
+            config.getOrNull(SemanticsProperties.Text)?.forEach { add(it.text) }
+            config.getOrNull(SemanticsProperties.EditableText)?.let { add("field='${it.text}'") }
+            config.getOrNull(SemanticsProperties.ContentDescription)?.forEach { add("desc='$it'") }
+        }
+        val flags = buildList {
+            if (SemanticsProperties.Disabled in config) add("disabled")
+            if (config.getOrNull(SemanticsProperties.Focused) == true) add("focused")
+        }
+        val self = if (parts.isEmpty()) emptyList() else listOf(parts.joinToString(" ") + flags.joinToString("") { " [$it]" })
+        return self + children.flatMap { it.describe() }
+    }
 
     /** Peer [PlatformHooks]: secrets in memory, data in a per-run cache dir. */
     private class InMemoryHooks(private val dir: File) : PlatformHooks {
