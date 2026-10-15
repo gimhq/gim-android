@@ -65,6 +65,41 @@ class OnboardingViewModelTest {
     }
 
     @Test
+    fun valid_default_server_url_is_prefilled_trimmed_and_submittable() = runTest(dispatcher) {
+        val factory = fakeFactory()
+        val vm = OnboardingViewModel(manager(factory), defaultServerUrl = " $EMULATOR_URL ")
+        assertEquals(EMULATOR_URL, vm.state.value.serverUrl)
+        assertNull(vm.state.value.serverUrlError)
+        vm.onHandleChange("sofia")
+        vm.onDisplayNameChange("Sofia Costa")
+        assertTrue(vm.state.value.canSubmit)
+
+        vm.events.test {
+            vm.submit()
+            assertTrue(awaitItem() is OnboardingEvent.Registered)
+        }
+        assertEquals(EMULATOR_URL, store.get())
+    }
+
+    @Test
+    fun empty_default_server_url_keeps_field_empty() = runTest(dispatcher) {
+        val vm = OnboardingViewModel(manager(fakeFactory()), defaultServerUrl = "")
+        assertEquals(OnboardingUiState(), vm.state.value)
+    }
+
+    @Test
+    fun invalid_default_server_url_is_shown_and_flagged() = runTest(dispatcher) {
+        val vm = OnboardingViewModel(manager(fakeFactory()), defaultServerUrl = "gim.example.eu")
+        assertEquals("gim.example.eu", vm.state.value.serverUrl)
+        assertEquals(FieldError.InvalidServerUrl, vm.state.value.serverUrlError)
+        vm.onHandleChange("sofia")
+        vm.onDisplayNameChange("Sofia Costa")
+        assertFalse(vm.state.value.canSubmit)
+        vm.onServerUrlChange(SERVER_URL)
+        assertTrue(vm.state.value.canSubmit)
+    }
+
+    @Test
     fun server_url_validation_matrix() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager(fakeFactory()))
         val valid = listOf("https://gim.example.eu", "http://10.0.2.2:8080", "HTTPS://gim.example.eu/path", " https://gim.example.eu ")
@@ -270,5 +305,6 @@ class OnboardingViewModelTest {
 
     private companion object {
         const val SERVER_URL = "https://gim.example.eu"
+        const val EMULATOR_URL = "http://10.0.2.2:8080"
     }
 }

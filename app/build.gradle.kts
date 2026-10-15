@@ -12,6 +12,11 @@ android {
         // Select the gim-core UniFFI client instead of the fake (debug builds can opt into demo mode at
         // runtime, see AppContainer.PREF_DEMO_MODE).
         buildConfigField("boolean", "USE_REAL_GIM_CORE", "true")
+        // Prefilled onboarding server URL: -P/gradle.properties `gim.defaultHubUrl`, else env GIM_DEFAULT_HUB_URL.
+        val defaultHubUrl = providers.gradleProperty("gim.defaultHubUrl").orNull?.takeIf { it.isNotBlank() }
+            ?: providers.environmentVariable("GIM_DEFAULT_HUB_URL").orNull.orEmpty()
+        val hubUrlLiteral = defaultHubUrl.trim().replace("\\", "\\\\").replace("\"", "\\\"")
+        buildConfigField("String", "DEFAULT_HUB_URL", "\"$hubUrlLiteral\"")
         // libgim_core.so ships for these ABIs only; drops JNA's other ABIs from the APK.
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
@@ -23,6 +28,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            // Release keys and store publishing are out of scope for M2; sign with the debug key.
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

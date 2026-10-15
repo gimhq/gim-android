@@ -3,7 +3,9 @@ package im.g.apps
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimClientFactory
+import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.InMemoryServerUrlStore
 import im.g.apps.core.bridge.PlatformHooks
 import im.g.apps.core.bridge.fake.DemoData
@@ -24,6 +26,7 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class AppContainerTest {
@@ -109,5 +112,53 @@ class AppContainerTest {
         val client = AppContainer(context, scope, InMemoryServerUrlStore(DemoData.SERVER_URL)).manager.restore()
 
         assertEquals(DemoData.session, client?.session())
+    }
+
+    @Test
+    fun sign_out_wipes_local_state_is_idempotent_and_allows_registering_again() = runTest {
+        val store = InMemoryServerUrlStore(DemoData.SERVER_URL)
+        val factory = AppContainer.defaultClientFactory(useRealCore = false, serverUrlStore = store, scope = scope)
+        val container = AppContainer(context, scope, serverUrlStore = store, clientFactory = factory)
+        val restored = container.manager.restore()!!
+        val (secrets, data) = seedLocalState(container)
+
+        container.signOut()
+
+        assertNull(restored.session())
+        assertNull(store.get())
+        assertNull(container.manager.client.value)
+        assertFalse(secrets.exists())
+        assertFalse(data.exists())
+
+        container.signOut()
+
+        val client = container.manager.connect(DemoData.SERVER_URL)
+        assertEquals(DemoData.session, client.register("sofia", "Sofia Costa"))
+    }
+
+    @Test
+    fun sign_out_still_wipes_and_drops_the_client_when_core_fails() = runTest {
+        val store = InMemoryServerUrlStore(DemoData.SERVER_URL)
+        val failing = object : GimClient by FakeGimClient(scope) {
+            override suspend fun signOut() = throw GimException.Network("offline")
+        }
+        val container = AppContainer(context, scope, serverUrlStore = store, clientFactory = GimClientFactory { _, _ -> failing })
+        container.manager.restore()
+        val (secrets, data) = seedLocalState(container)
+
+        container.signOut()
+
+        assertNull(store.get())
+        assertNull(container.manager.client.value)
+        assertFalse(secrets.exists())
+        assertFalse(data.exists())
+    }
+
+    private fun seedLocalState(container: AppContainer): Pair<File, File> {
+        val secrets = File(context.noBackupFilesDir, "secrets").apply { mkdirs() }
+        File(secrets, "leftover").writeText("sealed")
+        val data = File(container.hooks.dataDir())
+        File(data, "gim.db").writeText("db")
+        return secrets to data
     }
 }
