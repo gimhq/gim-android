@@ -27,6 +27,8 @@ class AppContainer(
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     serverUrlStore: ServerUrlStore = SharedPrefsServerUrlStore(context),
     clientFactory: GimClientFactory? = null,
+    /** Build-time hub URL prefilled in onboarding; empty when not configured. */
+    val defaultHubUrl: String = BuildConfig.DEFAULT_HUB_URL,
 ) {
     private val appContext = context.applicationContext
 
