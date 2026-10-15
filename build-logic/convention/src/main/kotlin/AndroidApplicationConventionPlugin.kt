@@ -1,6 +1,7 @@
 import com.android.build.api.dsl.ApplicationExtension
 import im.g.apps.buildlogic.TARGET_SDK
 import im.g.apps.buildlogic.configureKotlinAndroid
+import im.g.apps.buildlogic.disableReleaseUnitTests
 import im.g.apps.buildlogic.lib
 import im.g.apps.buildlogic.libs
 import org.gradle.api.Plugin
@@ -18,6 +19,7 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
             configureKotlinAndroid(this)
             defaultConfig.targetSdk = TARGET_SDK
         }
+        disableReleaseUnitTests()
 
         dependencies {
             add("testImplementation", libs.lib("junit"))

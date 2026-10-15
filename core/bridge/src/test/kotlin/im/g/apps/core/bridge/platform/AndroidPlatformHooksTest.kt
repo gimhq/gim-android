@@ -24,13 +24,15 @@ import java.nio.file.attribute.PosixFilePermissions
 class AndroidPlatformHooksTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var monitor: AndroidReachabilityMonitor
+    private lateinit var cipher: FakeSecretCipher
     private lateinit var hooks: AndroidPlatformHooks
     private val secretsDir get() = File(context.noBackupFilesDir, "secrets")
 
     @Before
     fun setUp() {
         monitor = AndroidReachabilityMonitor(context)
-        hooks = AndroidPlatformHooks(context, FakeSecretCipher(), monitor)
+        cipher = FakeSecretCipher()
+        hooks = AndroidPlatformHooks(context, cipher, monitor)
     }
 
     @After
@@ -105,6 +107,29 @@ class AndroidPlatformHooksTest {
         assertEquals("rwx------", PosixFilePermissions.toString(Files.getPosixFilePermissions(dir.toPath())))
         // Stable across launches: a new instance resolves the same existing directory.
         assertEquals(path, AndroidPlatformHooks(context, FakeSecretCipher(), monitor).dataDir())
+    }
+
+    @Test
+    fun wipe_deletes_secrets_key_and_data_dir_and_is_idempotent() {
+        hooks.secureStoreSet("session", byteArrayOf(1, 2, 3))
+        hooks.secureStoreSet("identity/mls-key", byteArrayOf(4))
+        val dataDir = File(hooks.dataDir())
+        File(dataDir, "gim.db").writeText("db")
+
+        hooks.wipe()
+
+        assertFalse(secretsDir.exists())
+        assertFalse(dataDir.exists())
+        assertEquals(1, cipher.deletedKeys)
+        assertNull(hooks.secureStoreGet("session"))
+
+        hooks.wipe()
+        assertEquals(2, cipher.deletedKeys)
+
+        // The store and data dir work again after a wipe (a new account in the same process).
+        hooks.secureStoreSet("session", byteArrayOf(7))
+        assertArrayEquals(byteArrayOf(7), hooks.secureStoreGet("session"))
+        assertTrue(File(hooks.dataDir()).isDirectory)
     }
 
     @Test

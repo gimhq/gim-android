@@ -18,7 +18,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Lint, unit tests, assemble
-        run: ./gradlew lint testDebugUnitTest assembleDebug --no-daemon
+        run: ./gradlew lint testDebugUnitTest assembleDebug assembleRelease --no-daemon
 
       - name: Upload build reports
         if: failure()
@@ -26,3 +26,144 @@ jobs:
         with:
           name: build-reports
           path: "**/build/reports/**"
+
+  device-tests:
+    runs-on: ubuntu-latest
+    # Non-blocking until device tests are green twice in a row on CI (M2.0 decision 3hw80l71); a follow-up task removes this key.
+    continue-on-error: true
+    timeout-minutes: 60
+    env:
+      API_LEVEL: 35
+      AVD_DISK_SIZE: 4096M
+      AVD_RAM_SIZE: 3072M
+    steps:
+      - uses: actions/checkout@v4
+
+      # The default AVD userdata partition does not fit on a stock runner; drop toolchains this job never uses.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost /opt/hostedtoolcache/CodeQL
+          docker image prune -af
+          df -h /
+          echo "AVD_CORES=$(( $(nproc) < 4 ? $(nproc) : 4 ))" >> "$GITHUB_ENV"
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.x"
+
+      - name: Install gim-server dependencies
+        working-directory: e2e/gim-server
+        run: bun install --frozen-lockfile
+
+      - name: Start gim-server
+        working-directory: e2e/gim-server
+        run: |
+          mkdir -p "$RUNNER_TEMP/gim-server"
+          PORT=8080 HOST=0.0.0.0 \
+            DATABASE_PATH="$RUNNER_TEMP/gim-server/gim.db" DATA_DIR="$RUNNER_TEMP/gim-server" \
+            nohup bun src/index.ts >"$RUNNER_TEMP/gim-server.log" 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/healthz && exit 0
+            sleep 1
+          done
+          echo "gim-server did not become healthy" >&2
+          cat "$RUNNER_TEMP/gim-server.log" >&2
+          exit 1
+
+      - name: Cache AVD
+        id: avd-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ env.API_LEVEL }}-google_apis-x86_64-disk${{ env.AVD_DISK_SIZE }}-ram${{ env.AVD_RAM_SIZE }}-cores${{ env.AVD_CORES }}
+
+      # Boot/infra retry: the snapshot step runs no tests, so retrying it can never mask a test failure.
+      # Device tests below are never retried.
+      - name: Create AVD snapshot
+        id: avd-snapshot
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.API_LEVEL }}
+          arch: x86_64
+          target: google_apis
+          cores: ${{ env.AVD_CORES }}
+          ram-size: ${{ env.AVD_RAM_SIZE }}
+          disk-size: ${{ env.AVD_DISK_SIZE }}
+          emulator-boot-timeout: 300
+          force-avd-creation: false
+          emulator-options: -no-metrics -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated AVD snapshot for caching."
+
+      - name: Create AVD snapshot (retry)
+        if: steps.avd-snapshot.outcome == 'failure'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.API_LEVEL }}
+          arch: x86_64
+          target: google_apis
+          cores: ${{ env.AVD_CORES }}
+          ram-size: ${{ env.AVD_RAM_SIZE }}
+          disk-size: ${{ env.AVD_DISK_SIZE }}
+          emulator-boot-timeout: 300
+          force-avd-creation: false
+          emulator-options: -no-metrics -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated AVD snapshot for caching."
+
+      - name: Device tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.API_LEVEL }}
+          arch: x86_64
+          target: google_apis
+          cores: ${{ env.AVD_CORES }}
+          ram-size: ${{ env.AVD_RAM_SIZE }}
+          disk-size: ${{ env.AVD_DISK_SIZE }}
+          emulator-boot-timeout: 300
+          force-avd-creation: false
+          emulator-options: -no-metrics -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          # boot_completed comes before Android has a default network (mirrors scripts/e2e-interop.sh). Waits in
+          # the tests are doubled: the software-rendered emulator draws ~3 frames/s on these runners.
+          script: |
+            adb shell 'for i in $(seq 1 90); do dumpsys connectivity | grep -qE "^Active default network: [0-9]+" && exit 0; sleep 1; done; echo "no default network after 90 s" >&2; exit 1'
+            ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.gimServerUrl=http://10.0.2.2:8080 -Pandroid.testInstrumentationRunnerArguments.timeoutScale=2 --no-daemon
+
+      - name: Collect emulator diagnostics
+        if: failure()
+        run: |
+          mkdir -p "$RUNNER_TEMP/emulator-logs"
+          df -h / > "$RUNNER_TEMP/emulator-logs/df.txt"
+          cp -r /tmp/android-"$USER" "$RUNNER_TEMP/emulator-logs/tmp-android" 2>/dev/null || true
+          find ~/.android/avd -maxdepth 2 \( -name '*.ini' -o -name '*.log' -o -name '*.txt' \) \
+            -exec cp --parents {} "$RUNNER_TEMP/emulator-logs" \; 2>/dev/null || true
+
+      - name: Upload device test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: device-test-reports
+          path: |
+            **/build/reports/androidTests/**
+            **/build/outputs/androidTest-results/**
+            ${{ runner.temp }}/gim-server.log
+            ${{ runner.temp }}/emulator-logs/**
