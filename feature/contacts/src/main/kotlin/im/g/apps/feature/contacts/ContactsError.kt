@@ -12,6 +12,9 @@ enum class ContactsError {
     NOT_FOUND,
     SERVER,
     NOT_SUPPORTED,
+
+    /** gim-core cannot rename groups yet (`set_group_info` is NotImplemented until S17). */
+    RENAME_NOT_SUPPORTED,
     UNKNOWN,
 }
 
@@ -38,6 +41,7 @@ internal val ContactsError.messageRes: Int
         ContactsError.NOT_FOUND -> R.string.contacts_error_not_found
         ContactsError.SERVER -> R.string.contacts_error_server
         ContactsError.NOT_SUPPORTED -> R.string.contacts_error_not_supported
+        ContactsError.RENAME_NOT_SUPPORTED -> R.string.contacts_error_rename_not_supported
         ContactsError.UNKNOWN -> R.string.contacts_error_unknown
     }
 

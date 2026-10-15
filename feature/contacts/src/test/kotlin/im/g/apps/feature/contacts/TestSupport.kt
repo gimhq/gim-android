@@ -33,6 +33,7 @@ class TestClient(private val delegate: GimClient) : GimClient by delegate {
     var createGroupChatError: GimException? = null
     var chatMembersError: GimException? = null
     var removeMemberError: GimException? = null
+    var setGroupInfoError: GimException? = null
 
     override suspend fun findUser(handle: String): UserProfile? {
         lookups += handle
@@ -58,5 +59,10 @@ class TestClient(private val delegate: GimClient) : GimClient by delegate {
     override suspend fun removeMember(chatId: String, userId: String) {
         removeMemberError?.let { throw it }
         delegate.removeMember(chatId, userId)
+    }
+
+    override suspend fun setGroupInfo(chatId: String, name: String?, avatarFilePath: String?) {
+        setGroupInfoError?.let { throw it }
+        delegate.setGroupInfo(chatId, name, avatarFilePath)
     }
 }
