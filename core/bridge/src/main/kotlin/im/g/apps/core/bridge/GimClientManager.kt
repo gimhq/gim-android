@@ -57,12 +57,15 @@ class GimClientManager(
         create(url).also { serverUrlStore.set(url) }
     }
 
-    /** Signs the current client out, forgets the server URL and drops the client. */
+    /** Signs the current client out, forgets the server URL and drops the client, even when sign-out throws. */
     suspend fun signOut() = mutex.withLock {
-        _client.value?.signOut()
-        serverUrlStore.set(null)
-        clientUrl = null
-        _client.value = null
+        try {
+            _client.value?.signOut()
+        } finally {
+            serverUrlStore.set(null)
+            clientUrl = null
+            _client.value = null
+        }
     }
 
     private suspend fun create(url: String): GimClient =

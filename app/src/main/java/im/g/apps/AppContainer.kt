@@ -1,8 +1,10 @@
 package im.g.apps
 
 import android.content.Context
+import android.util.Log
 import im.g.apps.core.bridge.GimClientFactory
 import im.g.apps.core.bridge.GimClientManager
+import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.ServerUrlStore
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakeGimClientFactory
@@ -14,6 +16,7 @@ import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.withContext
 
 /**
  * Manual DI root: one instance per process, owned by [GimApplication]. Tests must pass [clientFactory] and
@@ -45,7 +48,24 @@ class AppContainer(
 
     val sync = SyncController(manager, reachability.reachable, appScope)
 
+    /**
+     * Stops sync, signs out of gim-core (which deletes its session, database and secure-store entries) and wipes
+     * the platform secret store, keystore key and data dir. Core failures are logged; the local wipe still runs
+     * and the client is dropped. Safe to call when signed out, and repeatedly.
+     */
+    suspend fun signOut() {
+        sync.onSignedOut()
+        try {
+            manager.signOut()
+        } catch (e: GimException) {
+            Log.w(TAG, "gim-core sign-out failed; wiping local state anyway", e)
+        }
+        withContext(Dispatchers.IO) { hooks.wipe() }
+    }
+
     companion object {
+        private const val TAG = "AppContainer"
+
         /** Debug-only opt-in (boolean in [DEBUG_PREFS], default false) that replaces gim-core with demo data. */
         const val PREF_DEMO_MODE = "debug_demo_mode"
         const val DEBUG_PREFS = "gim_debug"
