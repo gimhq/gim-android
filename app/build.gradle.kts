@@ -48,4 +48,6 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+
+    androidTestImplementation(libs.androidx.test.espresso.intents)
 }
