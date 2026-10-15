@@ -10,11 +10,16 @@ import im.g.apps.core.bridge.fake.DemoData.GROUP_CHAT_ID
 import im.g.apps.core.bridge.fake.FakeGimClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -28,6 +33,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.time.Clock
+import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Locale
@@ -58,7 +64,18 @@ class ChatListViewModelTest {
         outboxDelays = null,
     )
 
-    private fun TestScope.viewModel(client: GimClient): ChatListViewModel {
+    /** Clock whose instant tests move by hand. */
+    private class MutableClock(var instant: Instant, private val zone: ZoneId) : Clock() {
+        override fun instant(): Instant = instant
+        override fun getZone(): ZoneId = zone
+        override fun withZone(zone: ZoneId): Clock = MutableClock(instant, zone)
+    }
+
+    private fun TestScope.viewModel(
+        client: GimClient,
+        clock: Clock = this@ChatListViewModelTest.clock,
+        ticker: Flow<Unit> = flowOf(Unit),
+    ): ChatListViewModel {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val thumbDir = tmp.newFolder()
         val vm = ChatListViewModel(
@@ -67,6 +84,7 @@ class ChatListViewModelTest {
             thumbnailPath = { chatId, messageId -> File(thumbDir, "$chatId-$messageId.png").path },
             defaultDispatcher = dispatcher,
             locale = Locale.UK,
+            ticker = ticker,
         )
         backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
         return vm
@@ -211,5 +229,56 @@ class ChatListViewModelTest {
         val path = vm.row(GROUP_CHAT_ID).avatarPath
         assertTrue(path != null && File(path).isFile)
         assertNull(vm.row(DIRECT_CHAT_ID).avatarPath)
+    }
+
+    @Test
+    fun ticker_reformats_times_after_midnight_without_chat_changes() = runTest {
+        // Sunday 2026-07-12 23:32 in Athens; the demo group's last message is two minutes earlier.
+        val evening = ZonedDateTime.of(2026, 7, 12, 23, 32, 0, 0, zone).toInstant()
+        val mutableClock = MutableClock(evening, zone)
+        val ticker = MutableSharedFlow<Unit>(replay = 1).apply { tryEmit(Unit) }
+        val client = FakeGimClient.withDemoData(backgroundScope, clock = { evening.toEpochMilli() }, zone = zone, outboxDelays = null)
+        val vm = viewModel(client, clock = mutableClock, ticker = ticker)
+        advanceUntilIdle()
+        assertEquals("23:30", vm.row(GROUP_CHAT_ID).time)
+
+        mutableClock.instant = ZonedDateTime.of(2026, 7, 13, 0, 0, 1, 0, zone).toInstant()
+        advanceUntilIdle()
+        assertEquals("23:30", vm.row(GROUP_CHAT_ID).time)
+
+        ticker.emit(Unit)
+        advanceUntilIdle()
+        assertEquals("Sun", vm.row(GROUP_CHAT_ID).time)
+    }
+
+    @Test
+    fun midnight_ticker_fires_on_start_and_at_each_local_midnight() = runTest {
+        // Saturday 2026-10-24 23:30 in Athens; DST ends the next night, so that day lasts 25 hours.
+        val start = ZonedDateTime.of(2026, 10, 24, 23, 30, 0, 0, zone).toInstant()
+        val athens = zone
+        val virtualClock = object : Clock() {
+            override fun instant(): Instant = start.plusMillis(testScheduler.currentTime)
+            override fun getZone(): ZoneId = athens
+            override fun withZone(zone: ZoneId): Clock = throw UnsupportedOperationException()
+        }
+        val ticks = mutableListOf<Long>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            midnightTicker(virtualClock).collect { ticks += testScheduler.currentTime }
+        }
+        runCurrent()
+        assertEquals(listOf(0L), ticks)
+
+        val toMidnight = 30 * 60_000L
+        advanceTimeBy(toMidnight - 1)
+        runCurrent()
+        assertEquals(listOf(0L), ticks)
+        advanceTimeBy(1)
+        runCurrent()
+        assertEquals(listOf(0L, toMidnight), ticks)
+
+        val dstDay = 25 * 3_600_000L
+        advanceTimeBy(dstDay)
+        runCurrent()
+        assertEquals(listOf(0L, toMidnight, toMidnight + dstDay), ticks)
     }
 }

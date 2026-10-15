@@ -30,6 +30,10 @@ class AndroidComposeConventionPlugin : Plugin<Project> {
             add("testImplementation", libs.lib("androidx-compose-ui-test-junit4"))
             add("testImplementation", libs.lib("androidx-test-core-ktx"))
             add("testImplementation", libs.lib("androidx-test-ext-junit"))
+
+            add("androidTestImplementation", bom)
+            add("androidTestImplementation", libs.lib("androidx-compose-ui-test-junit4"))
+            add("androidTestImplementation", libs.lib("androidx-test-espresso-core"))
         }
     }
 }

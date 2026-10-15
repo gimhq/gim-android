@@ -13,6 +13,13 @@ class FakeSecretCipher : SecretCipher {
         return sealed.copyOfRange(MAGIC.size, sealed.size).map { (it.toInt() xor 0x5A).toByte() }.toByteArray()
     }
 
+    var deletedKeys = 0
+        private set
+
+    override fun deleteKey() {
+        deletedKeys++
+    }
+
     private companion object {
         val MAGIC = byteArrayOf(0x47, 0x49, 0x4D)
     }

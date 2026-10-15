@@ -45,6 +45,12 @@ class SyncController(
         signedIn.value = true
     }
 
+    /** Call before signing out: stops sync on the current client until the next [onSignedIn]. */
+    suspend fun onSignedOut() {
+        signedIn.value = false
+        manager.client.value?.setSyncing(false)
+    }
+
     private suspend fun GimClient.setSyncing(on: Boolean) {
         try {
             if (on) startSync() else stopSync()
