@@ -1,9 +1,12 @@
 package im.g.apps.core.bridge.platform
 
 import android.content.Context
+import android.util.Log
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.PlatformHooks
 import java.io.File
+import java.io.IOException
+import java.security.GeneralSecurityException
 
 /**
  * [PlatformHooks] backed by Android: secrets sealed by [cipher] under `noBackupFilesDir/secrets`,
@@ -11,11 +14,12 @@ import java.io.File
  */
 class AndroidPlatformHooks(
     context: Context,
-    cipher: SecretCipher = KeystoreSecretCipher(),
+    private val cipher: SecretCipher = KeystoreSecretCipher(),
     private val reachabilityMonitor: AndroidReachabilityMonitor = AndroidReachabilityMonitor(context),
 ) : PlatformHooks {
     private val appContext = context.applicationContext
     private val secrets = SecretFileStore(File(appContext.noBackupFilesDir, "secrets"), cipher)
+    private val dataDirFile get() = File(appContext.filesDir, "gim").absoluteFile
 
     override fun secureStoreGet(key: String): ByteArray? = secrets.get(key)
 
@@ -25,7 +29,7 @@ class AndroidPlatformHooks(
 
     /** Absolute app-private directory for gim-core's database and media, created on first use with mode 0700. */
     override fun dataDir(): String {
-        val dir = File(appContext.filesDir, "gim").absoluteFile
+        val dir = dataDirFile
         if (!dir.isDirectory) {
             if (!dir.mkdirs() && !dir.isDirectory) throw GimException.Storage("cannot create $dir")
             dir.setReadable(false, false)
@@ -39,4 +43,24 @@ class AndroidPlatformHooks(
     }
 
     override fun isNetworkReachable(): Boolean = reachabilityMonitor.reachable.value
+
+    /**
+     * Deletes the secrets directory, the [cipher] key and whatever gim-core left in [dataDir]. Idempotent;
+     * failures are logged and the remaining steps still run, so sign-out always completes.
+     */
+    fun wipe() {
+        if (!secrets.clear()) Log.w(TAG, "Cannot delete the secrets directory")
+        try {
+            cipher.deleteKey()
+        } catch (e: GeneralSecurityException) {
+            Log.w(TAG, "Cannot delete the secret store key", e)
+        } catch (e: IOException) {
+            Log.w(TAG, "Cannot delete the secret store key", e)
+        }
+        if (!dataDirFile.deleteRecursively()) Log.w(TAG, "Cannot delete the data directory")
+    }
+
+    private companion object {
+        const val TAG = "AndroidPlatformHooks"
+    }
 }

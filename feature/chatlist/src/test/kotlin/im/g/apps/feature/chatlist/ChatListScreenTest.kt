@@ -1,5 +1,8 @@
 package im.g.apps.feature.chatlist
 
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -27,9 +30,18 @@ class ChatListScreenTest {
         onOpenChat: (String) -> Unit = {},
         onNewChat: () -> Unit = {},
         onNewGroup: () -> Unit = {},
+        onSignOut: () -> Unit = {},
     ) = rule.setContent {
-        GimTheme { ChatListScreen(state, onOpenChat, onNewChat, onNewGroup) }
+        GimTheme { ChatListScreen(state, onOpenChat, onNewChat, onNewGroup, onSignOut) }
     }
+
+    private fun openSignOutDialog() {
+        rule.onNodeWithContentDescription("More options").performClick()
+        rule.onNodeWithText("Sign out").performClick()
+        rule.onNodeWithText("Sign out?").assertExists()
+    }
+
+    private val confirmButton = hasText("Sign out") and hasClickAction()
 
     @Test
     fun rows_render_title_preview_time_and_badge() {
@@ -82,5 +94,32 @@ class ChatListScreenTest {
         rule.onNodeWithText("New group").performClick()
 
         assertEquals(1, newGroup)
+    }
+
+    @Test
+    fun overflow_sign_out_confirms_before_signing_out() {
+        var signOut = 0
+        show(ChatListUiState(rows = rows), onSignOut = { signOut++ })
+
+        openSignOutDialog()
+        assertEquals(0, signOut)
+        rule.onNode(confirmButton).performClick()
+
+        assertEquals(1, signOut)
+        // The dialog stays up with its actions disabled until sign-out navigates away.
+        rule.onNode(confirmButton).assertIsNotEnabled()
+        rule.onNodeWithText("Cancel").assertIsNotEnabled()
+    }
+
+    @Test
+    fun cancelling_the_sign_out_dialog_does_not_sign_out() {
+        var signOut = 0
+        show(ChatListUiState(rows = rows), onSignOut = { signOut++ })
+
+        openSignOutDialog()
+        rule.onNodeWithText("Cancel").performClick()
+
+        rule.onNodeWithText("Sign out?").assertDoesNotExist()
+        assertEquals(0, signOut)
     }
 }
