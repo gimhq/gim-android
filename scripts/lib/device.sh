@@ -5,7 +5,16 @@
 #   gim_ensure_emulator_image     build ai-agent/gim-android-emulator once (REBUILD_IMAGE=1 forces it)
 #   gim_start_server NAME ROOT    run ROOT/e2e/gim-server in oven/bun:1.4 as NAME, wait for /healthz
 #   GIM_EMULATOR_BOOT             bash code, run inside the emulator image (with --device /dev/kvm): boots
-#                                 the AVD headless, waits for sys.boot_completed, disables animations
+#                                 the AVD headless, waits for sys.boot_completed, disables animations.
+#                                 Reads these container env vars (defaults match the image's pixel_6 AVD):
+#                                   DEVICE_PROFILE  avdmanager device, or "default" for no device (320x640
+#                                                   @160dpi, what android-emulator-runner creates without
+#                                                   a profile); default pixel_6
+#                                   GPU             emulator -gpu mode, default swiftshader_indirect
+#                                   CORES           emulator -cores; RAM_SIZE emulator -memory (MB);
+#                                                   DISK_SIZE data partition, e.g. 4096M (new AVDs only)
+#                                   SNAPSHOT_BOOT=1 boot once, save a snapshot, then boot from it with
+#                                                   -no-snapshot-save, like CI's cached-AVD flow
 #
 # The emulator shares the server container's network namespace (--network container:NAME), so
 # http://10.0.2.2:8080 (the emulator's host loopback) reaches the server.
@@ -69,20 +78,44 @@ gim_start_server() {
 # shellcheck disable=SC2016 # expanded inside the emulator container
 GIM_EMULATOR_BOOT='
 set -euo pipefail
-setsid emulator -avd device-tests -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect \
-    -camera-back none >/tmp/emulator.log 2>&1 &
-adb wait-for-device
-for _ in $(seq 1 180); do
-    [[ $(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r") == 1 ]] && break
-    sleep 2
-done
-if [[ $(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r") != 1 ]]; then
+avd=device-tests
+profile=${DEVICE_PROFILE:-pixel_6}
+if [[ $profile != pixel_6 ]]; then
+    avd=device-tests-$profile
+    if [[ ! -d ~/.android/avd/$avd.avd ]]; then
+        device_args=()
+        [[ $profile == default ]] || device_args=(-d "$profile")
+        echo no | avdmanager create avd -n "$avd" -k "'"$GIM_SYSTEM_IMAGE"'" "${device_args[@]}" >/dev/null
+        [[ -z ${DISK_SIZE:-} ]] || echo "disk.dataPartition.size=$DISK_SIZE" >>~/.android/avd/"$avd".avd/config.ini
+    fi
+fi
+emulator_args=(-avd "$avd" -no-window -no-audio -no-boot-anim -gpu "${GPU:-swiftshader_indirect}" -camera-back none)
+[[ -z ${CORES:-} ]] || emulator_args+=(-cores "$CORES")
+[[ -z ${RAM_SIZE:-} ]] || emulator_args+=(-memory "$RAM_SIZE")
+boot() {
+    setsid emulator "${emulator_args[@]}" "$@" >>/tmp/emulator.log 2>&1 &
+    adb wait-for-device
+    for _ in $(seq 1 180); do
+        [[ $(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r") == 1 ]] && return 0
+        sleep 2
+    done
     echo "error: emulator did not boot" >&2
     tail -n 50 /tmp/emulator.log >&2
     exit 1
+}
+if [[ ${SNAPSHOT_BOOT:-0} == 1 ]]; then
+    boot
+    echo "emulator booted; saving snapshot"
+    adb emu kill >/dev/null
+    while pgrep -f "^[^ ]*qemu-system" >/dev/null; do sleep 1; done
+    adb kill-server
+    boot -no-snapshot-save
+else
+    boot -no-snapshot
 fi
 for setting in window_animation_scale transition_animation_scale animator_duration_scale; do
     adb shell settings put global "$setting" 0
 done
-echo "emulator booted"
+adb logcat -G 16M
+echo "emulator booted ($avd, $(adb shell wm size | tr -d "\r"))"
 '

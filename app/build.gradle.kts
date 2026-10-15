@@ -50,4 +50,5 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     androidTestImplementation(libs.androidx.test.espresso.intents)
+    androidTestImplementation(libs.androidx.test.uiautomator)
 }
