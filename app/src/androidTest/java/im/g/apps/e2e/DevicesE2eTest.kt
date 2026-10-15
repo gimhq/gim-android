@@ -119,6 +119,7 @@ class DevicesE2eTest {
             assertEquals("SAS differs between the devices", approval.sas(), sas)
             peer.confirmLink(true)
             app.confirmApproval(approval, true)
+            peer.startSync()
             approval.deviceId()
         }
         Log.i(LOG_TAG, "peer linked")
@@ -146,7 +147,7 @@ class DevicesE2eTest {
                 .fetchSemanticsNodes().isEmpty()
         }
 
-        // The revoked peer is refused: its calls fail with NotRegistered.
+        // The hub refuses the revoked peer; gim-core then drops its session and its calls fail with NotRegistered.
         bounded("peer reports NotRegistered") {
             while (true) {
                 try {
