@@ -17,7 +17,10 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import im.g.apps.AppContainer
 import im.g.apps.DemoAccountClient
+import im.g.apps.core.bridge.DeviceInfo
+import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimClientFactory
+import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.InMemoryServerUrlStore
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.FakeGimClient
@@ -132,6 +135,49 @@ class GimNavHostTest {
 
         rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
         rule.runOnIdle { assertNull(nav.previousBackStackEntry) }
+    }
+
+    @Test
+    fun chat_list_menu_opens_devices_and_back_returns() {
+        launch(testContainer(scope = scope))
+
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+        rule.onNodeWithContentDescription("More options").performClick()
+        rule.onNodeWithText("Devices").performClick()
+
+        rule.waitUntilAtLeastOneExists(hasText("This device"), TIMEOUT)
+        rule.onNodeWithText("Your user ID").assertExists()
+        rule.runOnIdle { assertEquals(Routes.DEVICES, nav.currentDestination?.route) }
+        rule.onNodeWithContentDescription("Back").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+    }
+
+    @Test
+    fun device_revoked_elsewhere_signs_out_to_onboarding() {
+        val store = InMemoryServerUrlStore(DemoData.SERVER_URL)
+        val container = AppContainer(
+            context = ApplicationProvider.getApplicationContext(),
+            appScope = scope,
+            serverUrlStore = store,
+            clientFactory = GimClientFactory { _, _ ->
+                val demo = FakeGimClient.withDemoData(scope, outboxDelays = null)
+                object : GimClient by demo {
+                    override suspend fun devices(): List<DeviceInfo> = throw GimException.NotRegistered()
+                }
+            },
+        )
+        launch(container)
+
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+        rule.onNodeWithContentDescription("More options").performClick()
+        rule.onNodeWithText("Devices").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("This device was removed"), TIMEOUT)
+        rule.onNodeWithText("OK").performClick()
+
+        rule.waitUntilAtLeastOneExists(hasText("Welcome to gim"), TIMEOUT)
+        rule.runOnIdle { assertNull(nav.previousBackStackEntry) }
+        assertNull(store.get())
+        assertNull(container.manager.client.value)
     }
 
     @Test

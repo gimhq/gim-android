@@ -13,6 +13,7 @@ object Routes {
     const val CHAT_ID = "chatId"
     const val CHAT = "chat/{$CHAT_ID}"
     const val GROUP_INFO = "groupInfo/{$CHAT_ID}"
+    const val DEVICES = "devices"
 
     fun chat(chatId: String) = "chat/${Uri.encode(chatId)}"
 
