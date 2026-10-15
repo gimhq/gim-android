@@ -23,6 +23,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            // Release keys and store publishing are out of scope for M2; sign with the debug key.
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
