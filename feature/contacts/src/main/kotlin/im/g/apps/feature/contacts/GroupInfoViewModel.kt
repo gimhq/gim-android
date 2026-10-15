@@ -161,7 +161,13 @@ class GroupInfoViewModel(
         if (!current.canRename) return
         val name = current.renameDraft.orEmpty().trim()
         _state.update { it.copy(renameDraft = null) }
-        mutate(refreshMembers = false) { client.setGroupInfo(chatId, name, null) }
+        mutate(refreshMembers = false) {
+            try {
+                client.setGroupInfo(chatId, name, null)
+            } catch (e: GimException.NotImplemented) {
+                _events.send(GroupInfoEvent.ShowError(ContactsError.RENAME_NOT_SUPPORTED))
+            }
+        }
     }
 
     // endregion
