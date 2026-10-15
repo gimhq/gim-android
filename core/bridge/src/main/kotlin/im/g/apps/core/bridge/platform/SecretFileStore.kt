@@ -58,6 +58,10 @@ class SecretFileStore(private val dir: File, private val cipher: SecretCipher) {
         if (file.exists() && !file.delete()) throw GimException.Storage("secure store delete failed")
     }
 
+    /** Deletes every secret and [dir] itself; false when something could not be deleted. */
+    @Synchronized
+    fun clear(): Boolean = dir.deleteRecursively()
+
     internal fun fileFor(key: String): File = File(dir, sha256Hex(key))
 
     private companion object {

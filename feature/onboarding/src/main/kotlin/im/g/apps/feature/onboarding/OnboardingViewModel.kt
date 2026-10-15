@@ -20,9 +20,13 @@ import kotlinx.coroutines.launch
 /**
  * Registration: connects to the server URL through [manager], then registers handle and display name.
  * Field errors are computed as the user types; server-side rejections replace them until the field changes.
+ * The server field starts with [defaultServerUrl] (trimmed), validated like typed input.
  */
-class OnboardingViewModel(private val manager: GimClientManager) : ViewModel() {
-    private val _state = MutableStateFlow(OnboardingUiState())
+class OnboardingViewModel(
+    private val manager: GimClientManager,
+    defaultServerUrl: String = "",
+) : ViewModel() {
+    private val _state = MutableStateFlow(OnboardingUiState.withServerUrl(defaultServerUrl.trim()))
     val state: StateFlow<OnboardingUiState> = _state.asStateFlow()
 
     private val _events = Channel<OnboardingEvent>(Channel.BUFFERED)
@@ -30,11 +34,7 @@ class OnboardingViewModel(private val manager: GimClientManager) : ViewModel() {
 
     fun onServerUrlChange(value: String) = _state.update {
         if (it.isLoading) return@update it
-        it.copy(
-            serverUrl = value,
-            serverUrlError = FieldError.InvalidServerUrl.takeIf { value.isNotBlank() && !isValidServerUrl(value) },
-            error = null,
-        )
+        it.copy(serverUrl = value, serverUrlError = serverUrlError(value), error = null)
     }
 
     fun onHandleChange(value: String) = _state.update {
@@ -99,6 +99,7 @@ class OnboardingViewModel(private val manager: GimClientManager) : ViewModel() {
     }
 }
 
-fun onboardingViewModelFactory(manager: GimClientManager): ViewModelProvider.Factory = viewModelFactory {
-    initializer { OnboardingViewModel(manager) }
-}
+fun onboardingViewModelFactory(manager: GimClientManager, defaultServerUrl: String = ""): ViewModelProvider.Factory =
+    viewModelFactory {
+        initializer { OnboardingViewModel(manager, defaultServerUrl) }
+    }

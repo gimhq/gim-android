@@ -16,16 +16,21 @@ import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Clock
+import java.time.Duration
+import java.time.ZonedDateTime
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
@@ -35,6 +40,7 @@ typealias ThumbnailPathProvider = (chatId: String, messageId: String) -> String
 /**
  * Chat list screen state from gim-core's chat list and connection state. Rows are shown as delivered by
  * the client (offline included); avatar thumbnails are fetched once per avatar and patched in when ready.
+ * Row times are re-formatted on every [ticker] emission so day-relative labels follow the clock.
  */
 class ChatListViewModel(
     private val client: GimClient,
@@ -42,6 +48,7 @@ class ChatListViewModel(
     private val thumbnailPath: ThumbnailPathProvider,
     private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
     locale: Locale = Locale.getDefault(),
+    ticker: Flow<Unit> = midnightTicker(clock),
 ) : ViewModel() {
     private data class MediaKey(val chatId: String, val messageId: String)
 
@@ -53,7 +60,8 @@ class ChatListViewModel(
         client.chatListFlow().onEach(::requestThumbnails),
         client.connectionStateFlow(),
         thumbnails,
-    ) { chats, connection, thumbs ->
+        ticker,
+    ) { chats, connection, thumbs, _ ->
         ChatListUiState(
             rows = chats.sortedByDescending { it.updatedAtMs }.map { it.toRow(thumbs) }.toImmutableList(),
             connection = connection.toBanner(),
@@ -110,6 +118,20 @@ class ChatListViewModel(
             ConnectionState.CONNECTED -> null
         }
     }
+}
+
+/** Emits on collection and then at every local midnight in [clock]'s zone. */
+internal fun midnightTicker(clock: Clock): Flow<Unit> = flow {
+    while (true) {
+        emit(Unit)
+        delay(millisUntilNextMidnight(clock))
+    }
+}
+
+internal fun millisUntilNextMidnight(clock: Clock): Long {
+    val now = ZonedDateTime.now(clock)
+    val midnight = now.toLocalDate().plusDays(1).atStartOfDay(clock.zone)
+    return Duration.between(now, midnight).toMillis().coerceAtLeast(1)
 }
 
 fun chatListViewModelFactory(

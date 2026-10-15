@@ -59,4 +59,19 @@ class SyncControllerTest {
 
             assertEquals(listOf("reachable=true", "start", "stop", "reachable=false"), client.calls)
         }
+
+    @Test
+    fun signed_out_stops_sync_until_the_next_sign_in() =
+        runTest(UnconfinedTestDispatcher()) {
+            val (controller, manager, _) = setUp()
+            val client = manager.restore() as RecordingClient
+            controller.onSignedIn()
+            controller.setForeground(true)
+
+            controller.onSignedOut()
+            controller.setForeground(false)
+            controller.setForeground(true)
+
+            assertEquals(listOf("reachable=true", "stop", "start", "stop"), client.calls)
+        }
 }
