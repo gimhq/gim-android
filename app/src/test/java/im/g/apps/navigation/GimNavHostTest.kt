@@ -53,13 +53,24 @@ class GimNavHostTest {
         }
     }
 
-    private fun register() {
-        rule.onNodeWithText("Create your account").assertExists()
-        val fields = rule.onAllNodes(hasSetTextAction())
-        fields[0].performTextInput(DemoData.SERVER_URL)
-        fields[1].performTextInput("sofia")
-        fields[2].performTextInput("Sofia Costa")
+    /** Runs the new-account onboarding; claims "sofia" or skips the handle step. */
+    private fun register(claimHandle: Boolean) {
+        rule.onNodeWithText("Welcome to gim").assertExists()
+        rule.onNode(hasSetTextAction()).performTextInput(DemoData.SERVER_URL)
+        rule.onNodeWithText("Create new account").performClick()
+        rule.onNode(hasSetTextAction()).performTextInput("Sofia Costa")
         rule.onNodeWithText("Create account").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("Save your recovery code"), TIMEOUT)
+        rule.onNodeWithText(FakeGimClient.fakeRecoveryCode(1)).assertExists()
+        rule.onNodeWithText("I have saved my recovery code").performClick()
+        rule.onNodeWithText("Continue").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("Choose a handle"), TIMEOUT)
+        if (claimHandle) {
+            rule.onNode(hasSetTextAction()).performTextInput("sofia")
+            rule.onNodeWithText("Claim handle").performClick()
+        } else {
+            rule.onNodeWithText("Skip for now").performClick()
+        }
     }
 
     @Test
@@ -84,10 +95,10 @@ class GimNavHostTest {
             ),
         )
 
-        register()
+        register(claimHandle = true)
 
         rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
-        rule.onNodeWithText("Create your account").assertDoesNotExist()
+        rule.onNodeWithText("Choose a handle").assertDoesNotExist()
     }
 
     @Test
@@ -109,7 +120,7 @@ class GimNavHostTest {
         rule.onNodeWithText("Sign out").performClick()
         rule.onNode(hasText("Sign out") and hasClickAction()).performClick()
 
-        rule.waitUntilAtLeastOneExists(hasText("Create your account"), TIMEOUT)
+        rule.waitUntilAtLeastOneExists(hasText("Welcome to gim"), TIMEOUT)
         rule.runOnIdle {
             assertEquals(Routes.ONBOARDING, nav.currentDestination?.route)
             assertNull(nav.previousBackStackEntry)
@@ -117,7 +128,7 @@ class GimNavHostTest {
         assertNull(store.get())
         assertNull(container.manager.client.value)
 
-        register()
+        register(claimHandle = false)
 
         rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
         rule.runOnIdle { assertNull(nav.previousBackStackEntry) }

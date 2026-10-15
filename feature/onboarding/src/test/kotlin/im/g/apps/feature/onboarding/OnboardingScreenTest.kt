@@ -2,6 +2,7 @@ package im.g.apps.feature.onboarding
 
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -38,45 +39,50 @@ class OnboardingScreenTest {
         InMemoryServerUrlStore(),
     )
     private val viewModel = OnboardingViewModel(manager)
-    private var registered = 0
+    private var finished = 0
 
     @After
     fun tearDown() = fakeScope.cancel()
 
     private fun setContent() = rule.setContent {
-        GimTheme { OnboardingRoute(viewModel = viewModel, onRegistered = { registered++ }) }
-    }
-
-    private fun fill(serverUrl: String) {
-        rule.onNodeWithTag(OnboardingTestTags.SERVER_URL).performTextInput(serverUrl)
-        rule.onNodeWithTag(OnboardingTestTags.HANDLE).performTextInput("sofia")
-        rule.onNodeWithTag(OnboardingTestTags.DISPLAY_NAME).performTextInput("Sofia Costa")
+        GimTheme { OnboardingRoute(viewModel = viewModel, onFinished = { finished++ }) }
     }
 
     @Test
-    fun entering_valid_fields_enables_the_button() {
+    fun welcome_enables_create_for_a_valid_url_and_shows_link_and_restore_as_unavailable() {
         setContent()
-        rule.onNodeWithTag(OnboardingTestTags.SUBMIT).assertIsNotEnabled()
-        fill("https://gim.example.eu")
-        rule.onNodeWithTag(OnboardingTestTags.SUBMIT).assertIsEnabled()
-    }
-
-    @Test
-    fun invalid_url_shows_error_and_keeps_button_disabled() {
-        setContent()
-        fill("gim.example.eu")
+        rule.onNodeWithTag(OnboardingTestTags.CREATE_ACCOUNT).assertIsNotEnabled()
+        rule.onNodeWithTag(OnboardingTestTags.SERVER_URL).performTextInput("gim.example.eu")
         rule.onNodeWithText("Enter an http:// or https:// address with a host name").assertExists()
-        rule.onNodeWithTag(OnboardingTestTags.SUBMIT).assertIsNotEnabled()
+        rule.onNodeWithTag(OnboardingTestTags.CREATE_ACCOUNT).assertIsNotEnabled()
+        rule.onNodeWithTag(OnboardingTestTags.LINK_DEVICE).assertIsNotEnabled()
+        rule.onNodeWithTag(OnboardingTestTags.RESTORE).assertIsNotEnabled()
+        assertEquals(2, rule.onAllNodes(hasText("Available soon")).fetchSemanticsNodes().size)
     }
 
     @Test
-    fun submit_invokes_callback_on_success() {
+    fun create_account_flow_shows_the_recovery_code_and_finishes_with_a_handle() {
         setContent()
-        fill("https://gim.example.eu")
+        rule.onNodeWithTag(OnboardingTestTags.SERVER_URL).performTextInput("https://gim.example.eu")
+        rule.onNodeWithTag(OnboardingTestTags.CREATE_ACCOUNT).assertIsEnabled().performClick()
+        rule.onNodeWithTag(OnboardingTestTags.SUBMIT).assertIsNotEnabled()
+        rule.onNodeWithTag(OnboardingTestTags.DISPLAY_NAME).performTextInput("Sofia Costa")
         rule.onNodeWithTag(OnboardingTestTags.SUBMIT).performScrollTo().performClick()
-        rule.waitUntil(timeoutMillis = 5_000) { registered == 1 }
+
+        rule.waitUntil(timeoutMillis = 5_000) { viewModel.state.value.step == OnboardingStep.RECOVERY_CODE }
+        rule.onNodeWithText(FakeGimClient.fakeRecoveryCode(1)).assertExists()
+        rule.onNodeWithTag(OnboardingTestTags.COPY_CODE).performClick()
+        rule.onNodeWithText("Copied").assertExists()
+        rule.onNodeWithTag(OnboardingTestTags.CODE_CONTINUE).assertIsNotEnabled()
+        rule.onNodeWithTag(OnboardingTestTags.CODE_SAVED).performClick()
+        rule.onNodeWithTag(OnboardingTestTags.CODE_CONTINUE).assertIsEnabled().performClick()
+
+        rule.onNodeWithTag(OnboardingTestTags.CLAIM_HANDLE).assertIsNotEnabled()
+        rule.onNodeWithTag(OnboardingTestTags.HANDLE).performTextInput("sofia")
+        rule.onNodeWithTag(OnboardingTestTags.CLAIM_HANDLE).performScrollTo().performClick()
+        rule.waitUntil(timeoutMillis = 5_000) { finished == 1 }
         rule.waitForIdle()
-        assertEquals(1, registered)
+        assertEquals(1, finished)
         assertEquals("sofia", runBlocking { manager.client.value?.session()?.handle })
     }
 }
