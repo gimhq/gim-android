@@ -70,8 +70,12 @@ Instrumented tests (`core/bridge/src/androidTest`) run against a real gim-server
   `scripts/run-device-tests.sh :core:bridge:connectedDebugAndroidTest`. `REBUILD_IMAGE=1` rebuilds
   the emulator image; `GRADLE_CACHE` sets the host Gradle user home (default
   `/srv/.tmp/cache/gradle`). The worktree must be on a host-visible path. See `--help`.
+  `CI_LIKE=1` reproduces a small CI runner: the emulator's default 320x640 device, 2 cores, 3 GB RAM,
+  boot from a freshly saved snapshot and doubled test timeouts (each knob can be overridden, e.g.
+  `DEVICE_PROFILE`, `CORES`, `GPU`). On failure the full device logcat is written to
+  `.tmp/device-tests/`.
 - **CI:** job `device-tests` in `.github/workflows/ci.yml` starts gim-server with Bun on port 8080 and
-  runs the same Gradle task on an API 35 emulator.
+  runs the same Gradle task on an API 35 `pixel_6` emulator.
 
 ### Vendored gim-server
 
