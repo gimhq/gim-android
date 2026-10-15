@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">GIM</string>
+    <string name="open_file_no_app">No app can open this file</string>
 </resources>

@@ -4,42 +4,43 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import im.g.apps.core.designsystem.theme.GimTheme
+import im.g.apps.navigation.GimNavHost
+import im.g.apps.navigation.Routes
+import im.g.apps.navigation.resolveStartDestination
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val container = (application as GimApplication).container
         setContent {
-            MaterialTheme {
-                App()
+            GimTheme {
+                GimApp(container)
             }
         }
     }
 }
 
+/** Shows an empty surface while the stored client is restored, then the navigation graph. */
 @Composable
-fun App() {
-    Scaffold { padding ->
-        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-            Text("GIM", style = MaterialTheme.typography.headlineMedium)
-        }
+fun GimApp(container: AppContainer) {
+    var start by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(container) {
+        val route = resolveStartDestination(container.manager)
+        if (route == Routes.CHAT_LIST) container.sync.onSignedIn()
+        start = route
     }
-}
-
-@Preview
-@Composable
-private fun AppPreview() {
-    MaterialTheme {
-        App()
+    Surface(Modifier.fillMaxSize()) {
+        start?.let { GimNavHost(container, it) }
     }
 }
