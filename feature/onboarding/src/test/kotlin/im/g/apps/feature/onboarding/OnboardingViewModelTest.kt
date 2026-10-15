@@ -58,6 +58,36 @@ class OnboardingViewModelTest {
         }
     }
 
+    /**
+     * Models gim-core's local state, shared by every client (one data dir): `createIdentity` stores the identity
+     * before its first hub call, so a hub in [down] fails it with `Network` and leaves an identity behind that fails
+     * every later attempt (`Crypto`, "identity already exists") until `signOut` wipes it.
+     */
+    private class CoreLocalState(val down: MutableSet<String>) {
+        var leftoverIdentity = false
+        val clients = mutableListOf<String>()
+    }
+
+    private fun TestScope.coreFactory(local: CoreLocalState) = GimClientFactory { config, _ ->
+        val fake = FakeGimClient(backgroundScope, outboxDelays = null)
+        local.clients += config.serverUrl
+        object : GimClient by fake {
+            override suspend fun createIdentity(displayName: String): String {
+                if (local.leftoverIdentity) throw GimException.Crypto("identity already exists")
+                if (config.serverUrl in local.down) {
+                    local.leftoverIdentity = true
+                    throw GimException.Network("connection refused")
+                }
+                return fake.createIdentity(displayName)
+            }
+
+            override suspend fun signOut() {
+                local.leftoverIdentity = false
+                fake.signOut()
+            }
+        }
+    }
+
     /** Welcome -> display name -> recovery code; returns once the code is shown. */
     private fun TestScope.toRecoveryCode(vm: OnboardingViewModel) {
         vm.onServerUrlChange(SERVER_URL)
@@ -287,6 +317,47 @@ class OnboardingViewModelTest {
     }
 
     @Test
+    fun retry_after_network_error_on_create_shows_the_recovery_code() = runTest(dispatcher) {
+        val local = CoreLocalState(mutableSetOf(SERVER_URL))
+        val vm = OnboardingViewModel(manager(coreFactory(local)), SERVER_URL)
+        vm.createAccount()
+        vm.onDisplayNameChange("Sofia")
+        vm.submitDisplayName()
+        advanceUntilIdle()
+        assertEquals(OnboardingError.CannotReachServer, vm.state.value.error)
+        assertFalse(local.leftoverIdentity)
+
+        local.down.clear()
+        vm.submitDisplayName()
+        advanceUntilIdle()
+        assertNull(vm.state.value.error)
+        assertEquals(OnboardingStep.RECOVERY_CODE, vm.state.value.step)
+        assertEquals(listOf(SERVER_URL, SERVER_URL), local.clients)
+    }
+
+    @Test
+    fun retry_with_another_server_url_after_network_error_shows_the_recovery_code() = runTest(dispatcher) {
+        val local = CoreLocalState(mutableSetOf(UNREACHABLE_URL))
+        val vm = OnboardingViewModel(manager(coreFactory(local)), UNREACHABLE_URL)
+        vm.createAccount()
+        vm.onDisplayNameChange("Sofia")
+        vm.submitDisplayName()
+        advanceUntilIdle()
+        assertEquals(OnboardingError.CannotReachServer, vm.state.value.error)
+
+        vm.back()
+        vm.onServerUrlChange(SERVER_URL)
+        vm.createAccount()
+        assertEquals("Sofia", vm.state.value.displayName)
+        vm.submitDisplayName()
+        advanceUntilIdle()
+        assertNull(vm.state.value.error)
+        assertEquals(OnboardingStep.RECOVERY_CODE, vm.state.value.step)
+        assertEquals(listOf(UNREACHABLE_URL, SERVER_URL), local.clients)
+        assertEquals(SERVER_URL, store.get())
+    }
+
+    @Test
     fun network_error_while_connecting_maps_to_cannot_reach_server() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager { _, _ -> throw GimException.Network("unreachable") }, SERVER_URL)
         vm.createAccount()
@@ -397,5 +468,6 @@ class OnboardingViewModelTest {
     private companion object {
         const val SERVER_URL = "https://gim.example.eu"
         const val EMULATOR_URL = "http://10.0.2.2:8080"
+        const val UNREACHABLE_URL = "http://10.0.2.2:1"
     }
 }

@@ -33,6 +33,9 @@ import kotlin.time.Duration.Companion.minutes
  *
  * Restore after losing every device: Welcome -> user id + recovery code -> `restoreFromRecovery` (optionally
  * revoking every other device) -> [OnboardingEvent.Finished]. The code is kept as normalized symbols while typing.
+ *
+ * A failed `createIdentity` or `restoreFromRecovery` discards the client and its partial local state, so a retry
+ * (also with another server address) is idempotent.
  */
 class OnboardingViewModel(
     private val manager: GimClientManager,
@@ -142,6 +145,7 @@ class OnboardingViewModel(
                     it.copy(isLoading = false, step = OnboardingStep.RECOVERY_CODE, recoveryCode = code)
                 }
             } catch (e: GimException) {
+                discardFailedEnrollment()
                 fail(e) { loaded ->
                     if (e is GimException.InvalidInput) loaded.copy(displayNameError = FieldError.InvalidDisplayName) else null
                 }
@@ -180,6 +184,7 @@ class OnboardingViewModel(
                 _state.update { it.copy(isLoading = false, restoreCode = "") }
                 _events.send(OnboardingEvent.Finished)
             } catch (e: GimException) {
+                discardFailedEnrollment()
                 fail(e) { loaded ->
                     when (e) {
                         is GimException.NotFound -> loaded.copy(restoreUserIdError = FieldError.UnknownUser)
@@ -340,6 +345,17 @@ class OnboardingViewModel(
             discardClient()
             _state.update { OnboardingUiState.withServerUrl(it.serverUrl) }
         }
+    }
+
+    /**
+     * After a failed `createIdentity` or `restoreFromRecovery`: gim-core may already have stored this device's keys
+     * and MLS identity (they are written before the first hub call), and a retry on the same local state fails
+     * ("identity already exists"). Drops the client and wipes that state so the next attempt, on any server
+     * address, starts from a fresh client. Nothing usable is lost: no recovery code was shown and nothing finished.
+     */
+    private suspend fun discardFailedEnrollment() {
+        client = null
+        discardClient()
     }
 
     /** Applies [transform] unless a call is running. */
