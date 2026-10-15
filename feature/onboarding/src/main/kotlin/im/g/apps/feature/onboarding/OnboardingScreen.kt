@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -55,6 +56,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -81,6 +83,11 @@ class OnboardingCallbacks(
     val onCopyLinkCode: (String) -> Unit,
     val onConfirmLink: () -> Unit,
     val onRejectLink: () -> Unit,
+    val onStartRestore: () -> Unit,
+    val onRestoreUserIdChange: (String) -> Unit,
+    val onRestoreCodeChange: (String) -> Unit,
+    val onRevokeOtherDevicesChange: (Boolean) -> Unit,
+    val onRestore: () -> Unit,
 )
 
 /** Hosts [OnboardingScreen]; [onFinished] runs once the account exists. System back goes to [OnboardingViewModel.back]. */
@@ -119,6 +126,11 @@ fun OnboardingRoute(
             onCopyLinkCode = { copySensitive(context, it) },
             onConfirmLink = viewModel::confirmLink,
             onRejectLink = viewModel::rejectLink,
+            onStartRestore = viewModel::startRestore,
+            onRestoreUserIdChange = viewModel::onRestoreUserIdChange,
+            onRestoreCodeChange = viewModel::onRestoreCodeChange,
+            onRevokeOtherDevicesChange = viewModel::onRevokeOtherDevicesChange,
+            onRestore = viewModel::restore,
         )
     }
     OnboardingScreen(state = state, callbacks = callbacks, modifier = modifier)
@@ -157,6 +169,7 @@ fun OnboardingScreen(
                 OnboardingStep.HANDLE -> HandleStep(state, callbacks)
                 OnboardingStep.LINK_QR -> LinkQrStep(state, callbacks)
                 OnboardingStep.LINK_SAS -> LinkSasStep(state, callbacks)
+                OnboardingStep.RESTORE -> RestoreStep(state, callbacks)
             }
             state.error?.let { error ->
                 Text(
@@ -214,30 +227,17 @@ private fun ColumnScope.WelcomeStep(state: OnboardingUiState, callbacks: Onboard
     ) {
         Text(stringResource(R.string.onboarding_link_device))
     }
-    // Provided by the restore flow; disabled until it ships.
-    UnavailableOption(R.string.onboarding_restore, OnboardingTestTags.RESTORE)
-}
-
-@Composable
-private fun UnavailableOption(@StringRes label: Int, tag: String) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        OutlinedButton(
-            onClick = {},
-            enabled = false,
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag(tag),
-        ) {
-            Text(stringResource(label))
-        }
-        Text(
-            text = stringResource(R.string.onboarding_available_soon),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(top = 4.dp),
-        )
+    TextButton(
+        onClick = {
+            focusManager.clearFocus()
+            callbacks.onStartRestore()
+        },
+        enabled = state.canCreateAccount,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(OnboardingTestTags.RESTORE),
+    ) {
+        Text(stringResource(R.string.onboarding_restore))
     }
 }
 
@@ -487,6 +487,87 @@ private fun ColumnScope.LinkSasStep(state: OnboardingUiState, callbacks: Onboard
 }
 
 @Composable
+private fun ColumnScope.RestoreStep(state: OnboardingUiState, callbacks: OnboardingCallbacks) {
+    val focusManager = LocalFocusManager.current
+    TextButton(
+        onClick = callbacks.onBack,
+        enabled = !state.isLoading,
+        modifier = Modifier.testTag(OnboardingTestTags.BACK),
+    ) {
+        Text(stringResource(R.string.onboarding_back))
+    }
+    StepHeader(R.string.onboarding_restore_title, R.string.onboarding_restore_explanation)
+    OnboardingField(
+        value = state.restoreUserId,
+        onValueChange = callbacks.onRestoreUserIdChange,
+        label = R.string.onboarding_user_id_label,
+        supporting = R.string.onboarding_user_id_supporting,
+        error = state.restoreUserIdError,
+        enabled = !state.isLoading,
+        keyboardOptions = KeyboardOptions(
+            capitalization = KeyboardCapitalization.None,
+            autoCorrectEnabled = false,
+            keyboardType = KeyboardType.Ascii,
+            imeAction = ImeAction.Next,
+        ),
+        tag = OnboardingTestTags.RESTORE_USER_ID,
+    )
+    OnboardingField(
+        value = state.restoreCode,
+        onValueChange = callbacks.onRestoreCodeChange,
+        label = R.string.onboarding_restore_code_label,
+        supporting = R.string.onboarding_restore_code_supporting,
+        error = state.restoreCodeError,
+        enabled = !state.isLoading,
+        keyboardOptions = KeyboardOptions(
+            capitalization = KeyboardCapitalization.Characters,
+            autoCorrectEnabled = false,
+            keyboardType = KeyboardType.Password,
+            imeAction = ImeAction.Done,
+        ),
+        keyboardActions = KeyboardActions(
+            onDone = {
+                focusManager.clearFocus()
+                callbacks.onRestore()
+            },
+        ),
+        visualTransformation = RecoveryCodeTransformation,
+        monospace = true,
+        tag = OnboardingTestTags.RESTORE_CODE,
+    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(
+                value = state.revokeOtherDevices,
+                enabled = !state.isLoading,
+                role = Role.Checkbox,
+                onValueChange = callbacks.onRevokeOtherDevicesChange,
+            )
+            .testTag(OnboardingTestTags.RESTORE_REVOKE_OTHERS),
+    ) {
+        Checkbox(checked = state.revokeOtherDevices, onCheckedChange = null, enabled = !state.isLoading)
+        Text(
+            text = stringResource(R.string.onboarding_restore_revoke_others),
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(start = 12.dp),
+        )
+    }
+    ProgressButton(
+        label = R.string.onboarding_restore_submit,
+        progressDescription = R.string.onboarding_restoring,
+        isLoading = state.isLoading,
+        enabled = state.canRestore,
+        tag = OnboardingTestTags.RESTORE_SUBMIT,
+        onClick = {
+            focusManager.clearFocus()
+            callbacks.onRestore()
+        },
+    )
+}
+
+@Composable
 private fun StepHeader(@StringRes title: Int, @StringRes explanation: Int) {
     Text(
         text = stringResource(title),
@@ -511,6 +592,8 @@ private fun OnboardingField(
     @StringRes placeholder: Int? = null,
     @StringRes supporting: Int? = null,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    monospace: Boolean = false,
 ) {
     val supportingText = error?.messageRes() ?: supporting
     OutlinedTextField(
@@ -524,6 +607,8 @@ private fun OnboardingField(
         singleLine = true,
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
+        visualTransformation = visualTransformation,
+        textStyle = if (monospace) LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace) else LocalTextStyle.current,
         modifier = Modifier
             .fillMaxWidth()
             .testTag(tag),
@@ -568,6 +653,10 @@ private fun FieldError.messageRes(): Int = when (this) {
     FieldError.InvalidHandle -> R.string.onboarding_error_handle
     FieldError.HandleTaken -> R.string.onboarding_error_handle_taken
     FieldError.InvalidDisplayName -> R.string.onboarding_error_display_name
+    FieldError.InvalidUserId -> R.string.onboarding_error_user_id
+    FieldError.UnknownUser -> R.string.onboarding_error_unknown_user
+    FieldError.InvalidRecoveryCode -> R.string.onboarding_error_recovery_code
+    FieldError.WrongRecoveryCode -> R.string.onboarding_error_wrong_recovery_code
 }
 
 @Composable
@@ -602,9 +691,14 @@ internal object OnboardingTestTags {
     const val LINK_SAS = "onboarding_link_sas"
     const val LINK_CONFIRM = "onboarding_link_confirm"
     const val LINK_REJECT = "onboarding_link_reject"
+    const val RESTORE_USER_ID = "onboarding_restore_user_id"
+    const val RESTORE_CODE = "onboarding_restore_code"
+    const val RESTORE_REVOKE_OTHERS = "onboarding_restore_revoke_others"
+    const val RESTORE_SUBMIT = "onboarding_restore_submit"
 }
 
-private val previewCallbacks = OnboardingCallbacks({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
+private val previewCallbacks =
+    OnboardingCallbacks({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
 
 @GimPreviews
 @Composable
@@ -669,5 +763,21 @@ private fun OnboardingLinkQrPreview() {
 private fun OnboardingLinkSasPreview() {
     GimTheme {
         OnboardingScreen(OnboardingUiState(step = OnboardingStep.LINK_SAS, linkSas = "482 913"), previewCallbacks)
+    }
+}
+
+@GimPreviews
+@Composable
+private fun OnboardingRestorePreview() {
+    GimTheme {
+        OnboardingScreen(
+            OnboardingUiState(
+                step = OnboardingStep.RESTORE,
+                restoreUserId = "ubiqcairaqfhdbnfqlq3ue7rfxpgtzwdmh7ghtghhkzdkyxbbg2ikmxwgy",
+                restoreCode = "7BQ2K9MX4TVA0HZRPC63W8NE",
+                error = OnboardingError.TryAgainLater(12),
+            ),
+            previewCallbacks,
+        )
     }
 }

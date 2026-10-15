@@ -1,9 +1,10 @@
 package im.g.apps.feature.onboarding
 
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -17,6 +18,7 @@ import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimClientManager
 import im.g.apps.core.bridge.InMemoryServerUrlStore
 import im.g.apps.core.bridge.LinkSession
+import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakeGimClientFactory
 import im.g.apps.core.bridge.fake.FakePlatformHooks
@@ -71,7 +73,7 @@ class OnboardingScreenTest {
     }
 
     @Test
-    fun welcome_enables_create_and_link_for_a_valid_url_and_shows_restore_as_unavailable() {
+    fun welcome_enables_create_link_and_restore_for_a_valid_url() {
         setContent()
         rule.onNodeWithTag(OnboardingTestTags.CREATE_ACCOUNT).assertIsNotEnabled()
         rule.onNodeWithTag(OnboardingTestTags.LINK_DEVICE).assertIsNotEnabled()
@@ -80,9 +82,9 @@ class OnboardingScreenTest {
         rule.onNodeWithTag(OnboardingTestTags.CREATE_ACCOUNT).assertIsNotEnabled()
         rule.onNodeWithTag(OnboardingTestTags.LINK_DEVICE).assertIsNotEnabled()
         rule.onNodeWithTag(OnboardingTestTags.RESTORE).assertIsNotEnabled()
-        assertEquals(1, rule.onAllNodes(hasText("Available soon")).fetchSemanticsNodes().size)
         rule.onNodeWithTag(OnboardingTestTags.SERVER_URL).performTextReplacement("https://gim.example.eu")
         rule.onNodeWithTag(OnboardingTestTags.LINK_DEVICE).assertIsEnabled()
+        rule.onNodeWithTag(OnboardingTestTags.RESTORE).assertIsEnabled()
     }
 
     @Test
@@ -131,7 +133,9 @@ class OnboardingScreenTest {
             GimTheme {
                 OnboardingScreen(
                     OnboardingUiState(step = OnboardingStep.LINK_QR, error = OnboardingError.LinkTimedOut),
-                    OnboardingCallbacks({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, { finished++ }, {}, {}, {}),
+                    OnboardingCallbacks(
+                        {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, { finished++ }, {}, {}, {}, {}, {}, {}, {}, {},
+                    ),
                 )
             }
         }
@@ -165,5 +169,38 @@ class OnboardingScreenTest {
         rule.waitForIdle()
         assertEquals(1, finished)
         assertEquals("sofia", runBlocking { manager.client.value?.session()?.handle })
+    }
+
+    @Test
+    fun restore_flow_groups_the_pasted_code_and_finishes() {
+        val manager = GimClientManager(
+            FakeGimClientFactory { _, _ ->
+                FakeGimClient(fakeScope, outboxDelays = null).apply {
+                    addRecoverableUser(UserProfile(USER_ID, "", "Sofia Costa"), RECOVERY_CODE)
+                }
+            },
+            FakePlatformHooks(),
+            InMemoryServerUrlStore(),
+        )
+        val vm = OnboardingViewModel(manager)
+        rule.setContent { GimTheme { OnboardingRoute(viewModel = vm, onFinished = { finished++ }) } }
+
+        rule.onNodeWithTag(OnboardingTestTags.SERVER_URL).performTextInput("https://gim.example.eu")
+        rule.onNodeWithTag(OnboardingTestTags.RESTORE).performScrollTo().performClick()
+        rule.onNodeWithTag(OnboardingTestTags.RESTORE_SUBMIT).assertIsNotEnabled()
+        rule.onNodeWithTag(OnboardingTestTags.RESTORE_USER_ID).performTextInput(" $USER_ID")
+        rule.onNodeWithTag(OnboardingTestTags.RESTORE_CODE).performTextInput("7bq2 k9mx")
+        rule.onNodeWithTag(OnboardingTestTags.RESTORE_CODE).assertTextContains("7BQ2-K9MX")
+        rule.onNodeWithTag(OnboardingTestTags.RESTORE_CODE).performTextReplacement(RECOVERY_CODE.lowercase())
+        rule.onNodeWithTag(OnboardingTestTags.RESTORE_CODE).assertTextContains(RECOVERY_CODE)
+        rule.onNodeWithTag(OnboardingTestTags.RESTORE_REVOKE_OTHERS).assertIsOn()
+        rule.onNodeWithTag(OnboardingTestTags.RESTORE_SUBMIT).performScrollTo().assertIsEnabled().performClick()
+        rule.waitUntil(timeoutMillis = 5_000) { finished == 1 }
+        assertEquals(USER_ID, manager.client.value?.userId())
+    }
+
+    private companion object {
+        const val USER_ID = "u" + "abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuv" + "q"
+        const val RECOVERY_CODE = "7BQ2-K9MX-4TVA-0HZR-PC63-W8NE-1SJD-5GFY-QK2M-V7R"
     }
 }

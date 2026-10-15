@@ -30,6 +30,9 @@ import kotlin.time.Duration.Companion.minutes
  * Link to an existing device: Welcome -> `startLink` QR code while `waitLink` runs (at most [LINK_TIMEOUT]) -> SAS
  * -> `confirmLink(true)` -> [OnboardingEvent.Finished]. Rejecting the SAS or cancelling the wait drops the client
  * through [discardClient] (gim-core requires a new client) and returns to Welcome.
+ *
+ * Restore after losing every device: Welcome -> user id + recovery code -> `restoreFromRecovery` (optionally
+ * revoking every other device) -> [OnboardingEvent.Finished]. The code is kept as normalized symbols while typing.
  */
 class OnboardingViewModel(
     private val manager: GimClientManager,
@@ -69,14 +72,39 @@ class OnboardingViewModel(
         )
     }
 
+    fun onRestoreUserIdChange(value: String) = edit {
+        val userId = normalizeUserId(value)
+        it.copy(
+            restoreUserId = userId,
+            restoreUserIdError = FieldError.InvalidUserId.takeIf { userId.isNotEmpty() && !isValidUserId(userId) },
+            error = null,
+        )
+    }
+
+    fun onRestoreCodeChange(value: String) = edit {
+        val symbols = normalizeRecoveryCode(value)
+        it.copy(
+            restoreCode = symbols,
+            restoreCodeError = FieldError.InvalidRecoveryCode.takeIf { isBrokenRecoveryCode(symbols) },
+            error = null,
+        )
+    }
+
+    fun onRevokeOtherDevicesChange(revoke: Boolean) = edit { it.copy(revokeOtherDevices = revoke) }
+
     /** Welcome -> display name; ignored unless the server address is valid. */
     fun createAccount() = _state.update {
         if (it.step != OnboardingStep.WELCOME || !it.canCreateAccount) it else it.copy(step = OnboardingStep.DISPLAY_NAME)
     }
 
+    /** Welcome -> restore form; ignored unless the server address is valid. */
+    fun startRestore() = _state.update {
+        if (it.step != OnboardingStep.WELCOME || !it.canCreateAccount) it else it.copy(step = OnboardingStep.RESTORE)
+    }
+
     /**
-     * Display name -> Welcome; on the link QR code cancels the link like [cancelLink]. Ignored while loading, on the
-     * recovery code (it must be acknowledged) and on the SAS (it must be confirmed or rejected).
+     * Display name or restore form -> Welcome; on the link QR code cancels the link like [cancelLink]. Ignored while
+     * loading, on the recovery code (it must be acknowledged) and on the SAS (it must be confirmed or rejected).
      */
     fun back() {
         if (_state.value.step == OnboardingStep.LINK_QR) {
@@ -84,7 +112,8 @@ class OnboardingViewModel(
             return
         }
         _state.update {
-            if (it.step != OnboardingStep.DISPLAY_NAME || it.isLoading) it else it.copy(step = OnboardingStep.WELCOME, error = null)
+            val leaves = it.step == OnboardingStep.DISPLAY_NAME || it.step == OnboardingStep.RESTORE
+            if (!leaves || it.isLoading) it else it.copy(step = OnboardingStep.WELCOME, error = null)
         }
     }
 
@@ -115,6 +144,49 @@ class OnboardingViewModel(
             } catch (e: GimException) {
                 fail(e) { loaded ->
                     if (e is GimException.InvalidInput) loaded.copy(displayNameError = FieldError.InvalidDisplayName) else null
+                }
+            }
+        }
+    }
+
+    /**
+     * Connects to the server and restores the account; on success finishes. Unknown user (`NotFound`), malformed
+     * (`InvalidInput`) and wrong (`Crypto`) codes are reported on their fields.
+     */
+    fun restore() {
+        val current = _state.value
+        if (current.step != OnboardingStep.RESTORE || !current.canRestore) return
+        _state.value = current.copy(isLoading = true, error = null)
+        viewModelScope.launch {
+            val connected = try {
+                manager.connect(current.serverUrl.trim())
+            } catch (e: GimException) {
+                fail(e) { loaded ->
+                    if (e is GimException.InvalidInput) {
+                        loaded.copy(step = OnboardingStep.WELCOME, serverUrlError = FieldError.InvalidServerUrl)
+                    } else {
+                        null
+                    }
+                }
+                return@launch
+            }
+            client = connected
+            try {
+                connected.restoreFromRecovery(
+                    current.restoreUserId,
+                    formatRecoveryCode(current.restoreCode),
+                    current.revokeOtherDevices,
+                )
+                _state.update { it.copy(isLoading = false, restoreCode = "") }
+                _events.send(OnboardingEvent.Finished)
+            } catch (e: GimException) {
+                fail(e) { loaded ->
+                    when (e) {
+                        is GimException.NotFound -> loaded.copy(restoreUserIdError = FieldError.UnknownUser)
+                        is GimException.InvalidInput -> loaded.copy(restoreCodeError = FieldError.InvalidRecoveryCode)
+                        is GimException.Crypto -> loaded.copy(restoreCodeError = FieldError.WrongRecoveryCode)
+                        else -> null
+                    }
                 }
             }
         }
