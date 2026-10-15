@@ -1,0 +1,389 @@
+package im.g.apps.feature.chat
+
+import im.g.apps.core.bridge.GimClient
+import im.g.apps.core.bridge.MediaRef
+import im.g.apps.core.bridge.Timeline
+import im.g.apps.core.bridge.UserProfile
+import im.g.apps.core.bridge.fake.DemoData
+import im.g.apps.core.bridge.fake.FakeGimClient
+import im.g.apps.core.designsystem.component.TickState
+import im.g.apps.feature.chat.timeline.ChatEvent
+import im.g.apps.feature.chat.timeline.DateSeparatorRow
+import im.g.apps.feature.chat.timeline.MediaPathProvider
+import im.g.apps.feature.chat.timeline.MessageRow
+import im.g.apps.feature.chat.timeline.SystemRow
+import im.g.apps.feature.chat.timeline.TimelineRowUi
+import im.g.apps.feature.chat.timeline.UiText
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class ChatViewModelTest {
+
+    @get:Rule
+    val tmp = TemporaryFolder()
+
+    private val dispatcher = StandardTestDispatcher()
+    private val zone = ZoneId.of("Europe/Athens")
+    private var now = ZonedDateTime.of(2026, 10, 14, 12, 0, 0, 0, zone).toInstant().toEpochMilli()
+    private val clock = { now }
+
+    @Before
+    fun setUp() = Dispatchers.setMain(dispatcher)
+
+    @After
+    fun tearDown() = Dispatchers.resetMain()
+
+    private fun test(body: suspend TestScope.() -> Unit) = runTest(dispatcher) { body() }
+
+    private fun TestScope.demoClient(pageSize: Int = FakeGimClient.DEFAULT_PAGE_SIZE) =
+        FakeGimClient.withDemoData(backgroundScope, clock, zone, outboxDelays = null, pageSize = pageSize)
+
+    private fun TestScope.viewModel(client: GimClient, chatId: String): ChatViewModel {
+        val mediaDir = tmp.newFolder()
+        val paths = object : MediaPathProvider {
+            override fun thumbnailPath(media: MediaRef) = File(mediaDir, "${media.messageId}.thumb").path
+            override fun mediaPath(media: MediaRef, fileName: String?) =
+                File(mediaDir, fileName ?: media.messageId).path
+        }
+        return ChatViewModel(client, chatId, paths, clock, zone, dispatcher, Locale.UK).also { runCurrent() }
+    }
+
+    private val ChatViewModel.rows get() = uiState.value.items
+    private val ChatViewModel.messages get() = rows.filterIsInstance<MessageRow>()
+    private fun ChatViewModel.message(body: String) = messages.single { it.body == body }
+
+    @Test
+    fun dateSeparators_labelDaysAboveTheirMessages() = test {
+        val vm = viewModel(demoClient(), DemoData.DIRECT_CHAT_ID)
+
+        val separators = vm.rows.withIndex().filter { it.value is DateSeparatorRow }
+        val labels = separators.map { (it.value as DateSeparatorRow).label }
+        val olderDay = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.UK)
+            .format(LocalDate.of(2026, 10, 12))
+        assertEquals(
+            listOf(UiText.Res(R.string.chat_today), UiText.Res(R.string.chat_yesterday), UiText.Raw(olderDay)),
+            labels,
+        )
+        // Newest first: every row before the "Today" separator is a message from today.
+        val todayIndex = separators.first().index
+        assertTrue(todayIndex > 0)
+        assertTrue(vm.rows.take(todayIndex).all { it is MessageRow })
+        assertTrue(separators.all { it.value.key.startsWith("date-") })
+        assertTrue(vm.rows.last() is DateSeparatorRow)
+    }
+
+    @Test
+    fun grouping_showsSenderOnlyOnFirstOfRunInGroups() = test {
+        val client = FakeGimClient(backgroundScope, clock, zone, outboxDelays = null)
+        client.register("sofia", "Sofia Costa")
+        val ana = UserProfile("u-ana", "ana", "Ana Kovač")
+        client.addDirectoryUser(ana)
+        val chatId = client.createGroupChat("Crew", listOf(ana.userId))
+        client.simulateIncoming(chatId, "first", ana.userId)
+        now += 60_000
+        client.simulateIncoming(chatId, "second", ana.userId)
+        now += 10 * 60_000
+        client.simulateIncoming(chatId, "third", ana.userId)
+        client.sendText(chatId, "mine", null)
+
+        val vm = viewModel(client, chatId)
+
+        val first = vm.message("first")
+        val second = vm.message("second")
+        val third = vm.message("third")
+        val mine = vm.message("mine")
+        assertEquals("Ana Kovač", first.senderName)
+        assertTrue(first.groupedWithNext)
+        assertFalse(first.groupedWithPrevious)
+        assertNull(second.senderName)
+        assertTrue(second.groupedWithPrevious)
+        assertFalse(second.groupedWithNext)
+        assertEquals("Ana Kovač", third.senderName)
+        assertFalse(third.groupedWithPrevious)
+        assertNull(mine.senderName)
+        assertTrue(mine.outgoing)
+        assertEquals("12:11", third.time)
+        assertTrue(vm.rows.any { it is SystemRow && it.text == UiText.Res(R.string.chat_member_added, persistentListOf("Ana Kovač")) })
+        assertEquals(mine, vm.rows.first())
+    }
+
+    @Test
+    fun directChat_hasNoSenderNames() = test {
+        val vm = viewModel(demoClient(), DemoData.DIRECT_CHAT_ID)
+
+        assertTrue(vm.messages.all { it.senderName == null })
+        assertEquals("Lukas Berger", vm.uiState.value.header.title)
+        assertFalse(vm.uiState.value.header.isGroup)
+        assertNull(vm.uiState.value.header.subtitle)
+    }
+
+    @Test
+    fun update_keepsKeysStableAndReusesUnchangedRows() = test {
+        val client = demoClient()
+        val vm = viewModel(client, DemoData.GROUP_CHAT_ID)
+        val before = vm.rows
+
+        // A different sender than the newest message, so no existing run changes.
+        client.simulateIncoming(DemoData.GROUP_CHAT_ID, "Ahoy!", DemoData.lukas.userId)
+        runCurrent()
+
+        val after = vm.rows
+        assertEquals(before.size + 1, after.size)
+        assertEquals("Ahoy!", (after.first() as MessageRow).body)
+        assertEquals(before.map(TimelineRowUi::key), after.drop(1).map(TimelineRowUi::key))
+        before.zip(after.drop(1)).forEach { (old, new) -> assertSame(old, new) }
+    }
+
+    @Test
+    fun loadOlder_isSingleFlightAndStopsAtStart() = test {
+        val gate = CompletableDeferred<Unit>()
+        val client = CountingClient(demoClient(), gate)
+        val vm = viewModel(client, DemoData.GROUP_CHAT_ID)
+        val initial = vm.rows.size
+
+        vm.loadOlder()
+        vm.loadOlder()
+        runCurrent()
+        assertTrue(vm.uiState.value.isLoadingOlder)
+        assertEquals(1, client.paginateCalls)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.isLoadingOlder)
+        assertFalse(vm.uiState.value.hasMoreOlder)
+        assertTrue(vm.rows.size > initial)
+        assertEquals(ChatViewModel.PAGE_SIZE, client.lastPageSize)
+
+        vm.loadOlder()
+        runCurrent()
+        assertEquals(1, client.paginateCalls)
+    }
+
+    @Test
+    fun onVisible_debouncesMarkReadToNewestInbound() = test {
+        val client = CountingClient(demoClient())
+        val vm = viewModel(client, DemoData.GROUP_CHAT_ID)
+        val inbound = vm.messages.filter { !it.outgoing }.map { it.key }
+
+        vm.onVisible(inbound[2])
+        advanceTimeBy(200)
+        vm.onVisible(inbound[1])
+        advanceTimeBy(200)
+        vm.onVisible(inbound[0])
+        advanceTimeBy(ChatViewModel.MARK_READ_DEBOUNCE_MS - 1)
+        assertEquals(emptyList<String>(), client.markReads)
+
+        advanceTimeBy(2)
+        assertEquals(listOf(inbound[0]), client.markReads)
+        runCurrent()
+        assertEquals(0, vm.uiState.value.unreadCount)
+
+        // Nothing is unread any more.
+        vm.onVisible(inbound[0])
+        advanceUntilIdle()
+        assertEquals(1, client.markReads.size)
+    }
+
+    @Test
+    fun onVisible_skipsChatsWithoutUnread() = test {
+        val client = CountingClient(demoClient())
+        val vm = viewModel(client, DemoData.DIRECT_CHAT_ID)
+
+        vm.onVisible(vm.messages.first().key)
+        advanceUntilIdle()
+
+        assertEquals(emptyList<String>(), client.markReads)
+    }
+
+    @Test
+    fun typing_updatesLabelAndSubtitle() = test {
+        val client = demoClient()
+        val vm = viewModel(client, DemoData.GROUP_CHAT_ID)
+        assertEquals(UiText.Plural(R.plurals.chat_members, 4), vm.uiState.value.header.subtitle)
+
+        client.simulateTyping(DemoData.GROUP_CHAT_ID, DemoData.ana.userId, true)
+        runCurrent()
+        val one = UiText.Res(R.string.chat_typing_one, persistentListOf("Ana Kovač"))
+        assertEquals(one, vm.uiState.value.typingLabel)
+        assertEquals(one, vm.uiState.value.header.subtitle)
+
+        client.simulateTyping(DemoData.GROUP_CHAT_ID, DemoData.nikos.userId, true)
+        runCurrent()
+        assertEquals(
+            UiText.Res(R.string.chat_typing_two, persistentListOf("Ana Kovač", "Nikos Papadakis")),
+            vm.uiState.value.typingLabel,
+        )
+
+        client.simulateTyping(DemoData.GROUP_CHAT_ID, DemoData.ana.userId, false)
+        client.simulateTyping(DemoData.GROUP_CHAT_ID, DemoData.nikos.userId, false)
+        runCurrent()
+        assertNull(vm.uiState.value.typingLabel)
+        assertEquals(UiText.Plural(R.plurals.chat_members, 4), vm.uiState.value.header.subtitle)
+    }
+
+    @Test
+    fun typing_inDirectChatShowsTypingSubtitle() = test {
+        val client = demoClient()
+        val vm = viewModel(client, DemoData.DIRECT_CHAT_ID)
+
+        client.simulateTyping(DemoData.DIRECT_CHAT_ID, DemoData.lukas.userId, true)
+        runCurrent()
+
+        assertEquals(UiText.Res(R.string.chat_typing), vm.uiState.value.header.subtitle)
+    }
+
+    @Test
+    fun ticks_progressFromPendingToRead() = test {
+        val client = demoClient()
+        val vm = viewModel(client, DemoData.DIRECT_CHAT_ID)
+
+        client.sendText(DemoData.DIRECT_CHAT_ID, "On my way", null)
+        runCurrent()
+        assertEquals(TickState.PENDING, vm.message("On my way").tick)
+        val seen = mutableListOf<TickState?>()
+        repeat(3) {
+            client.advanceOutbox()
+            runCurrent()
+            seen += vm.message("On my way").tick
+        }
+        assertEquals(listOf(TickState.SENT, TickState.DELIVERED, TickState.READ), seen)
+    }
+
+    @Test
+    fun failedMessage_retryRequeues() = test {
+        val client = demoClient()
+        val vm = viewModel(client, DemoData.DIRECT_CHAT_ID)
+        client.failNextSend()
+        client.sendText(DemoData.DIRECT_CHAT_ID, "Lost", null)
+        client.advanceOutbox()
+        runCurrent()
+        val failed = vm.message("Lost")
+        assertTrue(failed.failed)
+
+        vm.retry(failed.key)
+        runCurrent()
+
+        assertEquals(TickState.PENDING, vm.message("Lost").tick)
+    }
+
+    @Test
+    fun deletedAndEdited_mapToRenderModels() = test {
+        val vm = viewModel(demoClient(), DemoData.DIRECT_CHAT_ID)
+
+        val edited = vm.message("Thanks, reading it tonight.")
+        assertTrue(edited.edited)
+        assertFalse(edited.deleted)
+        assertEquals("Lukas Berger", edited.replyPreview?.senderName)
+        assertEquals("File: survey-2026.pdf", edited.replyPreview?.text)
+
+        val deleted = vm.messages.single { it.deleted }
+        assertNull(deleted.body)
+        assertFalse(deleted.edited)
+        assertEquals("message-deleted", deleted.contentType)
+
+        val reacted = vm.message("Great, he knows the Ionian well.")
+        assertEquals("👍", reacted.reactions.single().emoji)
+        assertEquals(TickState.READ, reacted.tick)
+    }
+
+    @Test
+    fun images_resolvePathLazily() = test {
+        val vm = viewModel(demoClient(), DemoData.DIRECT_CHAT_ID)
+        val image = vm.messages.single { it.image != null }
+        assertNull(image.image?.path)
+        assertEquals(1600f / 1200f, image.image!!.aspectRatio, 0.001f)
+        assertEquals("The boat at Porto Antico", image.body)
+
+        vm.onImageNeeded(image.key)
+        advanceUntilIdle()
+
+        val path = vm.messages.single { it.key == image.key }.image?.path
+        assertNotNull(path)
+        assertTrue(path!!.endsWith(image.key))
+        assertTrue(File(path).isFile)
+    }
+
+    @Test
+    fun openFile_emitsPathAndMime() = test {
+        val vm = viewModel(demoClient(), DemoData.DIRECT_CHAT_ID)
+        val file = vm.messages.single { it.file != null }
+        assertEquals("survey-2026.pdf", file.file?.name)
+        assertEquals("PDF", file.file?.typeLabel)
+        assertEquals("471 KB", file.file?.sizeLabel)
+
+        vm.onOpenFile(file.key)
+        val event = vm.events.first() as ChatEvent.OpenFile
+
+        assertEquals("application/pdf", event.mime)
+        assertTrue(event.path.endsWith("survey-2026.pdf"))
+        assertTrue(File(event.path).isFile)
+    }
+
+    @Test
+    fun retryFailure_emitsErrorEvent() = test {
+        val client = demoClient()
+        val vm = viewModel(client, DemoData.DIRECT_CHAT_ID)
+
+        // Not in Failed state, so the client rejects the retry.
+        vm.retry(vm.message("See you then!").key)
+
+        assertEquals(ChatEvent.Error(UiText.Res(R.string.composer_error_retry)), vm.events.first())
+    }
+
+    /** Records markRead and pagination calls; pagination waits for [gate] when given. */
+    private class CountingClient(
+        private val delegate: FakeGimClient,
+        private val gate: CompletableDeferred<Unit>? = null,
+    ) : GimClient by delegate {
+        val markReads = mutableListOf<String>()
+        var paginateCalls = 0
+        var lastPageSize = 0
+
+        override suspend fun markRead(chatId: String, upToMessageId: String) {
+            markReads += upToMessageId
+            delegate.markRead(chatId, upToMessageId)
+        }
+
+        override suspend fun timeline(chatId: String): Timeline {
+            val timeline = delegate.timeline(chatId)
+            return object : Timeline by timeline {
+                override suspend fun paginateBackwards(count: Int): Boolean {
+                    paginateCalls++
+                    lastPageSize = count
+                    gate?.await()
+                    return timeline.paginateBackwards(count)
+                }
+            }
+        }
+    }
+}
