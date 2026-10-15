@@ -19,6 +19,7 @@ import org.robolectric.shadows.ShadowLog
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.attribute.PosixFilePermissions
+import java.security.KeyStoreException
 
 @RunWith(RobolectricTestRunner::class)
 class AndroidPlatformHooksTest {
@@ -80,6 +81,36 @@ class AndroidPlatformHooksTest {
 
         assertNull(hooks.secureStoreGet("session"))
         assertTrue(ShadowLog.getLogsForTag("SecretFileStore").any { it.type == Log.WARN })
+    }
+
+    @Test
+    fun unavailable_keystore_throws_storage_error_instead_of_null() {
+        hooks.secureStoreSet("session", byteArrayOf(1, 2, 3))
+        cipher.openFailure = KeyStoreException("keystore locked")
+        try {
+            hooks.secureStoreGet("session")
+            fail("expected GimException.Storage")
+        } catch (e: GimException.Storage) {
+            assertTrue(e.reason.contains("keystore locked"))
+        }
+        // A missing key still reads as null without touching the keystore.
+        assertNull(hooks.secureStoreGet("absent"))
+
+        cipher.openFailure = null
+        assertArrayEquals(byteArrayOf(1, 2, 3), hooks.secureStoreGet("session"))
+    }
+
+    @Test
+    fun unreadable_file_throws_storage_error() {
+        val file = File(secretsDir, sha256Hex("session"))
+        file.mkdirs() // a directory where the secret file should be: exists() but readBytes() fails
+        try {
+            hooks.secureStoreGet("session")
+            fail("expected GimException.Storage")
+        } catch (_: GimException.Storage) {
+        } finally {
+            file.delete()
+        }
     }
 
     @Test

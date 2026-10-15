@@ -54,7 +54,9 @@ fun ChatListRoute(
     onNewChat: () -> Unit,
     onNewGroup: () -> Unit,
     onSignOut: () -> Unit,
+    onLinkDevice: () -> Unit,
     modifier: Modifier = Modifier,
+    onDevices: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     ChatListScreen(
@@ -63,7 +65,9 @@ fun ChatListRoute(
         onNewChat = onNewChat,
         onNewGroup = onNewGroup,
         onSignOut = onSignOut,
+        onLinkDevice = onLinkDevice,
         modifier = modifier,
+        onDevices = onDevices,
     )
 }
 
@@ -75,7 +79,9 @@ fun ChatListScreen(
     onNewChat: () -> Unit,
     onNewGroup: () -> Unit,
     onSignOut: () -> Unit,
+    onLinkDevice: () -> Unit,
     modifier: Modifier = Modifier,
+    onDevices: () -> Unit = {},
 ) {
     var confirmSignOut by remember { mutableStateOf(false) }
     // Sign-out leaves this screen when done; until then the dialog stays up with its actions disabled.
@@ -95,7 +101,9 @@ fun ChatListScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.chatlist_title)) },
-                actions = { OverflowMenu(onSignOut = { confirmSignOut = true }) },
+                actions = {
+                    OverflowMenu(onDevices = onDevices, onLinkDevice = onLinkDevice, onSignOut = { confirmSignOut = true })
+                },
             )
         },
         floatingActionButton = { NewChatFab(onNewChat = onNewChat, onNewGroup = onNewGroup) },
@@ -128,13 +136,27 @@ fun ChatListScreen(
 }
 
 @Composable
-private fun OverflowMenu(onSignOut: () -> Unit) {
+private fun OverflowMenu(onDevices: () -> Unit, onLinkDevice: () -> Unit, onSignOut: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }) {
             Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.chatlist_more_options))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chatlist_devices)) },
+                onClick = {
+                    expanded = false
+                    onDevices()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chatlist_link_device)) },
+                onClick = {
+                    expanded = false
+                    onLinkDevice()
+                },
+            )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.chatlist_sign_out)) },
                 onClick = {
@@ -262,6 +284,7 @@ private fun ChatListScreenPreview() {
             onNewChat = {},
             onNewGroup = {},
             onSignOut = {},
+            onLinkDevice = {},
         )
     }
 }

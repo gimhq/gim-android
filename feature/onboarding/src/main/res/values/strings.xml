@@ -1,18 +1,60 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="onboarding_title">Create your account</string>
-    <string name="onboarding_explanation">Enter the address of your server, pick a handle other people can find you by, and choose the name they will see.</string>
-    <string name="onboarding_server_url_label">Server address</string>
+    <string name="onboarding_welcome_title">Welcome to gim</string>
+    <string name="onboarding_welcome_explanation">Enter the address of your hub, then create a new account or use one you already have.</string>
+    <string name="onboarding_server_url_label">Hub address</string>
     <string name="onboarding_server_url_placeholder">https://</string>
-    <string name="onboarding_handle_label">Handle</string>
-    <string name="onboarding_handle_supporting">3–32 characters: a–z, 0–9, dot and underscore</string>
+    <string name="onboarding_create_account">Create new account</string>
+    <string name="onboarding_link_device">Link to existing device</string>
+    <string name="onboarding_restore">Restore with recovery code</string>
+    <string name="onboarding_available_soon">Available soon</string>
+    <string name="onboarding_back">Back</string>
+    <string name="onboarding_cancel">Cancel</string>
+
+    <string name="onboarding_display_name_title">Choose your name</string>
+    <string name="onboarding_display_name_explanation">People see this name in your chats. You can change it later.</string>
     <string name="onboarding_display_name_label">Display name</string>
     <string name="onboarding_submit">Create account</string>
     <string name="onboarding_submitting">Creating account</string>
+
+    <string name="onboarding_recovery_title">Save your recovery code</string>
+    <string name="onboarding_recovery_explanation">This code is the only way to get your account back if you lose all your devices. It is shown only this once: write it down and keep it somewhere safe.</string>
+    <string name="onboarding_recovery_code_description">Recovery code %1$s</string>
+    <string name="onboarding_copy_code">Copy code</string>
+    <string name="onboarding_code_copied">Copied</string>
+    <string name="onboarding_code_saved">I have saved my recovery code</string>
+    <string name="onboarding_continue">Continue</string>
+
+    <string name="onboarding_handle_title">Choose a handle</string>
+    <string name="onboarding_handle_explanation">Other people can find you by your handle. You can also claim one later.</string>
+    <string name="onboarding_handle_label">Handle</string>
+    <string name="onboarding_handle_supporting">3–32 characters: a–z, 0–9 and underscore</string>
+    <string name="onboarding_claim_handle">Claim handle</string>
+    <string name="onboarding_claiming_handle">Claiming handle</string>
+    <string name="onboarding_skip">Skip for now</string>
+
+    <string name="onboarding_link_qr_title">Scan with your other device</string>
+    <string name="onboarding_link_qr_explanation">On a device where you are signed in, open the menu in Chats, choose “Link a new device” and scan this code.</string>
+    <string name="onboarding_link_qr_description">Link code</string>
+    <string name="onboarding_link_waiting">Waiting for your other device…</string>
+    <string name="onboarding_link_copy">Copy code instead</string>
+    <string name="onboarding_link_retry">Show a new code</string>
+    <string name="onboarding_link_sas_title">Compare the codes</string>
+    <string name="onboarding_link_sas_explanation">Your other device shows a code too. Confirm only if both codes are the same.</string>
+    <string name="onboarding_link_confirm">The codes match</string>
+    <string name="onboarding_link_confirming">Linking device</string>
+    <string name="onboarding_link_reject">They don’t match</string>
+
     <string name="onboarding_error_server_url">Enter an http:// or https:// address with a host name</string>
-    <string name="onboarding_error_handle">Use 3–32 characters: a–z, 0–9, dot and underscore</string>
+    <string name="onboarding_error_handle">Use 3–32 characters: a–z, 0–9 and underscore</string>
     <string name="onboarding_error_handle_taken">This handle is already taken</string>
     <string name="onboarding_error_display_name">Enter 1–64 characters</string>
-    <string name="onboarding_error_cannot_reach_server">Cannot reach the server. Check the address and your connection.</string>
+    <string name="onboarding_error_cannot_reach_server">Cannot reach the hub. Check the address and your connection.</string>
+    <plurals name="onboarding_error_try_again_later">
+        <item quantity="one">The hub is busy. Try again in %d second.</item>
+        <item quantity="other">The hub is busy. Try again in %d seconds.</item>
+    </plurals>
+    <string name="onboarding_error_link_timed_out">No device approved the link in time. Show a new code to try again.</string>
+    <string name="onboarding_error_link_failed">Linking failed. Show a new code to try again.</string>
     <string name="onboarding_error_generic">Something went wrong. Please try again.</string>
 </resources>

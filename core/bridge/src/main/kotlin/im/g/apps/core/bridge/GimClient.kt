@@ -2,7 +2,7 @@ package im.g.apps.core.bridge
 
 /**
  * Kotlin mirror of gim-core's UniFFI `GimClient` (gim-core `bindings/gim-ffi`, contract in
- * `docs/API.md` at gim-core commit b810805).
+ * `docs/API.md` at gim-core commit 3724543).
  *
  * gim-core (Rust) owns storage, networking, sync, outbox, MLS and media crypto; this interface is the only
  * surface the UI layer sees. Features never import `im.g.gimcore`: the real adapter maps the generated
@@ -21,21 +21,76 @@ package im.g.apps.core.bridge
  * | `Timeline` / `TimelineInterface` | [Timeline] | `paginateBackwards(count: UShort)` -> `Int` |
  * | `TaskHandle` | [TaskHandle] | Kotlin interface; `close()` cancels like `destroy()` |
  * | `PlatformHooks` | [PlatformHooks] | |
+ * | `LinkSession`, `PendingApproval` | [LinkSession], [PendingApproval] | Kotlin interfaces wrapping the native objects |
+ * | `DeviceInfo` | [DeviceInfo] | `createdAtMs: ULong` -> `Long` |
  * | `ChatListListener`, `TimelineListener`, `ConnectionStateListener`, `TypingListener` | same names | `fun interface` |
  * | `ChatListDiff`, `TimelineDiff` | [ChatListDiff], [TimelineDiff] | `index`/`length: UInt` -> `Int` |
  * | `Session`, `UserProfile`, `ChatKind`, `ChatSummary`, `MessagePreview` | same names | `UInt` -> `Int`, `ULong` -> `Long` |
  * | `TimelineItem`, `MembershipChangeKind`, `MessageItem`, `MessageContent` | same names | `ULong` -> `Long`, `UInt?` -> `Int?` |
  * | `MediaRef`, `ReplyPreview`, `ReactionGroup`, `SendState`, `ConnectionState`, `ClientConfig` | same names | `size: ULong` -> `Long`, `count: UInt` -> `Int` |
- * | `GimException.<Variant>` | [GimException]`.<Variant>` | `Server.status: UShort` -> `Int` |
+ * | `GimException.<Variant>` | [GimException]`.<Variant>` | `status: UShort` -> `Int`, `retryAfterSecs: ULong` -> `Long` |
  *
  * Enum constants keep UniFFI's Kotlin spelling (`ChatKind.DIRECT`, `ConnectionState.CONNECTED`, ...).
  */
 interface GimClient {
-    /** The persisted session, or null before [register]. */
+    /** The persisted session, or null before [createIdentity], [waitLink] or [restoreFromRecovery]. */
     suspend fun session(): Session?
 
-    /** Creates the account and this device on the server and persists the session. */
-    suspend fun register(handle: String, displayName: String): Session
+    /** The signed-in user's id; null without a session. Synchronous. */
+    fun userId(): String?
+
+    /**
+     * Whether opening this client discarded an existing local database (its key was lost or it is incompatible).
+     * When true, show onboarding and tell the user that local history is gone. Synchronous.
+     */
+    fun localStateReset(): Boolean
+
+    /**
+     * Creates a new user with this device as its first one and signs in. Returns the recovery code: it is stored
+     * nowhere, so show it once. [Session.handle] stays empty until [claimHandle].
+     */
+    suspend fun createIdentity(displayName: String): String
+
+    /**
+     * Restores the user [userId] on this (fresh) client from its recovery code and adds this device to its
+     * DeviceList; [revokeOthers] revokes every previously listed device. Throws [GimException.InvalidInput] for a
+     * malformed code, [GimException.Crypto] for a wrong one, [GimException.NotFound] for an unknown user and
+     * [GimException.RetryLater] while the hub throttles the read.
+     */
+    suspend fun restoreFromRecovery(userId: String, recoveryCode: String, revokeOthers: Boolean)
+
+    /** New device: starts linking to an existing device; show [LinkSession.qrString] as a QR code. Synchronous. */
+    fun startLink(hubs: List<String>): LinkSession
+
+    /** New device: waits (up to 10 minutes) for the old device's bundle, signs in and returns the SAS ("123 456"). */
+    suspend fun waitLink(link: LinkSession): String
+
+    /** New device: confirms the compared SAS; false wipes local state like [signOut] (create a new client). */
+    suspend fun confirmLink(accepted: Boolean)
+
+    /** Old device: approves the scanned QR code; show [PendingApproval.sas]. */
+    suspend fun approveLink(qrString: String): PendingApproval
+
+    /** Old device: true adds the new device to every chat, false revokes it. */
+    suspend fun confirmApproval(approval: PendingApproval, accepted: Boolean)
+
+    /** The signed-in user's devices, including revoked ones. */
+    suspend fun devices(): List<DeviceInfo>
+
+    /** Another user's devices; empty for an unknown user. */
+    suspend fun userDevices(userId: String): List<DeviceInfo>
+
+    /** Revokes another own device; [GimException.InvalidInput] for the current device. */
+    suspend fun revokeDevice(deviceId: String)
+
+    /** Changes the display name; [GimException.InvalidInput] if empty. */
+    suspend fun setDisplayName(name: String)
+
+    /** Claims a handle in the hub directory; [GimException.Server] with status 409 if it is taken. */
+    suspend fun claimHandle(handle: String)
+
+    /** Releases the claimed handle; [GimException.InvalidInput] if none is claimed. */
+    suspend fun releaseHandle()
 
     /** Stops sync and deletes the session, local data and keystore secrets. Create a new client afterwards. */
     suspend fun signOut()
@@ -110,6 +165,9 @@ interface GimClient {
     suspend fun markRead(chatId: String, upToMessageId: String)
 
     suspend fun setTyping(chatId: String, active: Boolean)
+
+    /** Same as `setTyping(chatId, false)`; does nothing unless typing was reported. */
+    suspend fun stopTyping(chatId: String)
 
     /** Downloads and decrypts an attachment to [destPath] and returns the path of the decrypted file. */
     suspend fun fetchMedia(chatId: String, messageId: String, destPath: String): String

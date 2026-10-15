@@ -31,7 +31,8 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.printToString
 import androidx.core.content.FileProvider
-import androidx.test.espresso.Espresso
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.espresso.intent.Intents
 import androidx.test.espresso.intent.Intents.intending
 import androidx.test.espresso.intent.matcher.IntentMatchers.isInternal
@@ -50,6 +51,7 @@ import im.g.apps.core.bridge.flow.itemsFlow
 import im.g.apps.core.bridge.platform.KeystoreSecretCipher
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
 import im.g.apps.testing.awaitServerReachable
+import im.g.apps.testing.dismissSystemDialogs
 import java.io.File
 import java.security.KeyStore
 import java.util.UUID
@@ -81,7 +83,7 @@ import im.g.apps.feature.contacts.R as ContactsR
 import im.g.apps.feature.onboarding.R as OnboardingR
 
 /**
- * Device-level messaging flow against a live gim-server (instrumentation argument `gimServerUrl`): the app user
+ * Device-level messaging flow against a live gim-hub (instrumentation argument `gimServerUrl`): the app user
  * drives the real UI with the real gim-core client, a scripted peer is a second gim-core client in this process.
  */
 @RunWith(AndroidJUnit4::class)
@@ -130,28 +132,46 @@ class MessagingE2eTest {
         Log.i(LOG_TAG, "server URL $serverUrl")
         awaitServerReachable(instrumentation.targetContext, serverUrl)
         Log.i(LOG_TAG, "$serverUrl/healthz returned 200")
+        // A system "isn't responding" dialog right after boot keeps the app window from getting focus.
+        if (!dismissSystemDialogs(instrumentation, timeoutMs) { appHasFocus() }) {
+            Log.w(LOG_TAG, "app window still has no focus; continuing")
+        }
 
-        // Onboarding -> chat list. On small screens the soft keyboard covers the submit button, and an injected
-        // tap there goes to the keyboard: close it and scroll the button into view first.
-        waitForText("onboarding shown", string(OnboardingR.string.onboarding_title))
-        enterText("server address", TAG_SERVER_URL, serverUrl)
-        enterText("handle", TAG_HANDLE, appHandle)
+        // Onboarding (create identity, acknowledge the recovery code, claim a handle) -> chat list. Input goes
+        // through Compose semantics only (no Espresso root lookups, which wait for window focus); hide the soft
+        // keyboard and scroll each button into view in case the keyboard covers it.
+        waitForText("onboarding shown", string(OnboardingR.string.onboarding_welcome_title))
+        enterText("hub address", TAG_SERVER_URL, serverUrl)
+        click("create new account", TAG_CREATE_ACCOUNT)
+        waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))
         enterText("display name", TAG_DISPLAY_NAME, appName)
-        Espresso.closeSoftKeyboard()
-        compose.onNodeWithTag(TAG_SUBMIT).performScrollTo().assertIsDisplayed().assertIsEnabled().performClick()
-        Log.i(LOG_TAG, "submit clicked")
+        click("create account", TAG_SUBMIT)
+        Log.i(LOG_TAG, "create account clicked")
+        val creating = hasContentDescription(string(OnboardingR.string.onboarding_submitting))
+        val recoveryCode = hasTestTag(TAG_RECOVERY_CODE)
+        waitFor("identity creation started (loading or recovery code)") { exists(creating) || exists(recoveryCode) }
+        waitFor("recovery code shown", recoveryCode)
+        val code = compose.onNode(recoveryCode).fetchSemanticsNode().config.getOrNull(SemanticsProperties.Text)
+            ?.joinToString("") { it.text }.orEmpty()
+        // Never log the code itself.
+        assertTrue("recovery code (${code.length} chars) is not 39 symbols in groups of four", RECOVERY_CODE.matches(code))
+        compose.onNodeWithTag(TAG_CODE_SAVED).performScrollTo().performClick()
+        click("recovery code continue", TAG_CODE_CONTINUE)
+        waitFor("handle step", hasTestTag(TAG_HANDLE))
+        enterText("handle", TAG_HANDLE, appHandle)
+        click("claim handle", TAG_CLAIM_HANDLE)
+        Log.i(LOG_TAG, "claim handle clicked")
         val chatList = hasText(string(ChatListR.string.chatlist_title))
-        val registering = hasContentDescription(string(OnboardingR.string.onboarding_submitting))
-        waitFor("onboarding submitted (loading or chat list)") { exists(chatList) || exists(registering) }
         waitFor("chat list after onboarding", chatList)
         Log.i(LOG_TAG, "chat list visible")
 
-        // Peer registers and syncs.
+        // Peer creates its identity, claims a handle and syncs.
         val peer = runBlocking {
             UniffiGimClientFactory().create(ClientConfig(serverUrl), InMemoryHooks(peerDir)).also { peerClient = it }
         }
         runBlocking {
-            peer.register(peerHandle, peerName)
+            peer.createIdentity(peerName)
+            peer.claimHandle(peerHandle)
             peer.startSync()
         }
 
@@ -235,7 +255,7 @@ class MessagingE2eTest {
         val signOut = hasText(string(ChatListR.string.chatlist_sign_out))
         waitFor("overflow menu closed") { compose.onAllNodes(signOut).fetchSemanticsNodes().size == 1 }
         compose.onNode(signOut).performClick()
-        waitForText("onboarding after sign-out", string(OnboardingR.string.onboarding_title))
+        waitForText("onboarding after sign-out", string(OnboardingR.string.onboarding_welcome_title))
         assertFalse(keystoreHasAlias())
     }
 
@@ -297,6 +317,27 @@ class MessagingE2eTest {
 
     private fun waitForText(step: String, text: String) = waitFor(step, hasText(text))
 
+    /** Hides the soft keyboard, then clicks the enabled, displayed button tagged [tag]. */
+    private fun click(button: String, tag: String) {
+        hideSoftKeyboard()
+        Log.i(LOG_TAG, "clicking $button")
+        compose.onNodeWithTag(tag).performScrollTo().assertIsDisplayed().assertIsEnabled().performClick()
+    }
+
+    private fun appHasFocus(): Boolean {
+        var focused = false
+        instrumentation.runOnMainSync { focused = compose.activity.hasWindowFocus() }
+        return focused
+    }
+
+    private fun hideSoftKeyboard() {
+        instrumentation.runOnMainSync {
+            val window = compose.activity.window
+            WindowCompat.getInsetsController(window, window.decorView).hide(WindowInsetsCompat.Type.ime())
+        }
+        compose.waitForIdle()
+    }
+
     /**
      * Fails with [step] and what is on screen (texts, field values, content descriptions such as the onboarding
      * progress indicator, disabled / focused flags), after dumping the semantics tree of every window to logcat
@@ -308,7 +349,8 @@ class MessagingE2eTest {
             roots.printToString().lines().forEach { Log.d(LOG_TAG, it) }
             roots.fetchSemanticsNodes().flatMap { it.describe() }.distinct().joinToString(" | ")
         }.getOrElse { "unavailable: $it" }
-        throw AssertionError("step '$step' timed out after $timeoutMs ms; on screen: [$screen]", cause)
+        val focus = runCatching { appHasFocus() }.getOrElse { "unknown" }
+        throw AssertionError("step '$step' timed out after $timeoutMs ms; app focused: $focus; on screen: [$screen]", cause)
     }
 
     private fun SemanticsNode.describe(): List<String> {
@@ -352,11 +394,19 @@ class MessagingE2eTest {
         const val PHOTO_ASSET = "e2e-photo.png"
         const val PNG_MIME = "image/png"
 
+        /** gim-core's display form: 39 Crockford base32 symbols in blocks of four separated by '-'. */
+        val RECOVERY_CODE = Regex("([0-9A-HJKMNP-TV-Z]{4}-){9}[0-9A-HJKMNP-TV-Z]{3}")
+
         // Tags of internal constants in the feature modules (OnboardingTestTags, COMPOSER_INPUT_TEST_TAG).
         const val TAG_SERVER_URL = "onboarding_server_url"
-        const val TAG_HANDLE = "onboarding_handle"
+        const val TAG_CREATE_ACCOUNT = "onboarding_create_account"
         const val TAG_DISPLAY_NAME = "onboarding_display_name"
         const val TAG_SUBMIT = "onboarding_submit"
+        const val TAG_RECOVERY_CODE = "onboarding_recovery_code"
+        const val TAG_CODE_SAVED = "onboarding_code_saved"
+        const val TAG_CODE_CONTINUE = "onboarding_code_continue"
+        const val TAG_HANDLE = "onboarding_handle"
+        const val TAG_CLAIM_HANDLE = "onboarding_claim_handle"
         const val TAG_COMPOSER = "composer-input"
     }
 }

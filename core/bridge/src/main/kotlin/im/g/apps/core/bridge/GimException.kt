@@ -8,10 +8,10 @@ sealed class GimException(message: String) : Exception(message) {
     /** The server could not be reached or the connection broke. */
     class Network(val reason: String) : GimException("network error: $reason")
 
-    /** The call needs a session; call [GimClient.register] first. */
+    /** No session, signed out, or this device was revoked: go to onboarding. */
     class NotRegistered : GimException("not registered")
 
-    /** An argument was rejected before anything was sent. */
+    /** An argument was rejected, the call does not fit the state, or the payload is too large for the hub. */
     class InvalidInput(val reason: String) : GimException("invalid input: $reason")
 
     /** The chat, message, user or media does not exist locally or on the server. */
@@ -23,8 +23,12 @@ sealed class GimException(message: String) : Exception(message) {
     /** The local database or file system failed. */
     class Storage(val reason: String) : GimException("storage error: $reason")
 
-    /** gim-server answered with a non-success HTTP status (`u16` in gim-core). */
+    /** gim-hub answered with a non-success HTTP status (`u16` in gim-core). */
     class Server(val status: Int, val reason: String) : GimException("server error $status: $reason")
+
+    /** The hub throttles (429) or a remote hub is unavailable (503) after gim-core's own retries; retry later. */
+    class RetryLater(val status: Int, val retryAfterSecs: Long, val reason: String) :
+        GimException("retry after $retryAfterSecs s (status $status): $reason")
 
     /** The operation was cancelled (sign-out, `stopSync`, `cancelSend`). */
     class Cancelled : GimException("cancelled")

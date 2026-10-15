@@ -7,6 +7,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.security.GeneralSecurityException
 import java.security.MessageDigest
+import javax.crypto.AEADBadTagException
 
 /**
  * One file per secret under [dir], named by the SHA-256 hex of the key so keys never reach the
@@ -14,19 +15,24 @@ import java.security.MessageDigest
  */
 class SecretFileStore(private val dir: File, private val cipher: SecretCipher) {
 
-    /** Null when the key is missing or its file cannot be read or opened (the failure is logged). */
+    /**
+     * Null when the key is missing or its sealed value is corrupted (logged; the value cannot be recovered).
+     * Throws [GimException.Storage] when the file cannot be read or the keystore cannot open it right now, so
+     * gim-core never mistakes a locked keystore for a missing secret.
+     */
     @Synchronized
     fun get(key: String): ByteArray? {
         val file = fileFor(key)
         if (!file.exists()) return null
         return try {
             cipher.open(file.readBytes())
-        } catch (e: IOException) {
-            Log.w(TAG, "Unreadable secret file ${file.name}", e)
-            null
-        } catch (e: GeneralSecurityException) {
+        } catch (e: AEADBadTagException) {
             Log.w(TAG, "Corrupted secret file ${file.name}", e)
             null
+        } catch (e: IOException) {
+            throw GimException.Storage("secure store read failed: ${e.message}").apply { initCause(e) }
+        } catch (e: GeneralSecurityException) {
+            throw GimException.Storage("secure store unavailable: ${e.message}").apply { initCause(e) }
         }
     }
 
