@@ -18,7 +18,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Lint, unit tests, assemble
-        run: ./gradlew lint testDebugUnitTest assembleDebug --no-daemon
+        run: ./gradlew lint testDebugUnitTest assembleDebug assembleRelease --no-daemon
 
       - name: Upload build reports
         if: failure()

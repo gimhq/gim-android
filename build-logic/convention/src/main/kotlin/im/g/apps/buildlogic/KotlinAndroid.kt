@@ -1,6 +1,8 @@
 package im.g.apps.buildlogic
 
 import com.android.build.api.dsl.CommonExtension
+import com.android.build.api.variant.AndroidComponentsExtension
+import com.android.build.api.variant.HasUnitTestBuilder
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.artifacts.VersionCatalog
@@ -46,5 +48,14 @@ internal fun Project.configureKotlinAndroid(commonExtension: CommonExtension<*, 
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_17)
         }
+    }
+}
+
+// Unit tests target the debug variant (test manifest, demo mode); skip them for release so `check`
+// can run alongside assembleRelease.
+internal fun Project.disableReleaseUnitTests() {
+    val androidComponents = extensions.getByName("androidComponents") as AndroidComponentsExtension<*, *, *>
+    androidComponents.beforeVariants(androidComponents.selector().withBuildType("release")) { variant ->
+        (variant as? HasUnitTestBuilder)?.enableUnitTest = false
     }
 }
