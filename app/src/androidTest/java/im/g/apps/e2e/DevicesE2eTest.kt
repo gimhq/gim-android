@@ -35,6 +35,7 @@ import im.g.apps.core.bridge.PlatformHooks
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
 import im.g.apps.testing.awaitServerReachable
 import im.g.apps.testing.dismissSystemDialogs
+import im.g.apps.testing.saveFailureScreenshot
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -208,6 +209,7 @@ class DevicesE2eTest {
 
     /** Fails with [step] after dumping the semantics tree to logcat under [LOG_TAG]. */
     private fun failStep(step: String, cause: Throwable): Nothing {
+        saveFailureScreenshot(instrumentation, "$LOG_TAG-$step")
         runCatching {
             compose.onAllNodes(isRoot(), useUnmergedTree = true).printToString().lines().forEach { Log.d(LOG_TAG, it) }
         }

@@ -13,6 +13,13 @@
 #   CARGO_CACHE     CARGO_HOME, default /srv/.tmp/cache/cargo
 #   CARGO_TARGET    cargo target dir of gim-cli, default /srv/.tmp/cache/cargo-target/gim-cli
 #   REBUILD_IMAGE=1 rebuild the emulator image (see scripts/lib/device.sh)
+#   GIM_DEVICE=real run on the test phone attached to the ai-agent-adb container instead of an emulator (see
+#                   scripts/lib/real-device.sh for GIM_REAL_SERIAL, GIM_REAL_NET=lan|reverse, GIM_REAL_LAN_HOST and the
+#                   package rules): builds first (pinned debug keystore), then takes the device lock, starts gim-hub
+#                   (published on the host in lan mode, in ai-agent-adb's network namespace in reverse mode) with the
+#                   CLI container in the hub's namespace, updates im.g.apps and im.g.apps.test in place and
+#                   `pm clear`s im.g.apps before and after the run (never uninstalls). logcat is limited to the
+#                   app's UID; a failure saves screenshot.png.
 #
 # Outputs (in LOG_DIR, printed at start and end): script.log, hub.log, gradle.log, cargo.log,
 # emulator.log, logcat.txt, markers.log (test step markers), instrumentation.txt (am instrument -r),
@@ -37,7 +44,7 @@
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,35p' "$0"
+    sed -n '2,41p' "$0"
     exit 0
 fi
 
@@ -46,6 +53,10 @@ run=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
 GIM_RUN_LABEL=gim-interop-$run
 # shellcheck source=lib/device.sh
 source "$repo_root/scripts/lib/device.sh"
+device=${GIM_DEVICE:-emulator}
+[[ $device == emulator || $device == real ]] || { echo "error: GIM_DEVICE must be emulator or real" >&2; exit 1; }
+# shellcheck source=lib/real-device.sh
+[[ $device == emulator ]] || source "$repo_root/scripts/lib/real-device.sh"
 gim_check_host_paths "$repo_root"
 command -v jq >/dev/null || { echo "error: jq is required" >&2; exit 1; }
 
@@ -73,7 +84,7 @@ droid_name="Android $run"
 mkdir -p "$log_dir"
 exec > >(tee -a "$log_dir/script.log") 2>&1
 echo "run log: $log_dir"
-echo "run id: $run, gim-core ref: $core_ref"
+echo "run id: $run, gim-core ref: $core_ref, device: $device"
 
 passed=()
 bg_pids=()
@@ -90,6 +101,10 @@ dump_logs() {
     tail -n 20 "$log_dir/cli-alice.log" "$log_dir/cli-bob.log" 2>/dev/null || true
     echo "---- hub (tail) ----"
     docker logs --tail 40 "$hub" 2>&1 || true
+    if [[ $device == real ]] && ((gim_real_locked)); then
+        gim_real_screenshot "$log_dir/screenshot.png"
+        echo "screenshot: $log_dir/screenshot.png"
+    fi
 }
 
 cleanup() {
@@ -105,6 +120,12 @@ cleanup() {
     # Files in $work are written by root inside the CLI container; remove them from there.
     docker exec "$cli" rm -rf "$work" >/dev/null 2>&1 || true
     rm -rf "$work" 2>/dev/null || true
+    if [[ $device == real ]] && ((gim_real_locked)); then
+        gim_real_kill_bg
+        gim_real_reset
+        gim_real_stop_hub "$hub"
+        gim_real_unlock
+    fi
     docker rm -f "$emu" "$cli" "$hub" >/dev/null 2>&1 || true
     echo "run log: $log_dir"
     exit "$status"
@@ -162,7 +183,21 @@ poll() {
 # --- Android helpers ----------------------------------------------------------------------------------
 
 adb_() {
-    docker exec "$emu" adb "$@"
+    if [[ $device == real ]]; then
+        gim_real_adb "$@"
+    else
+        docker exec "$emu" adb "$@"
+    fi
+}
+
+# adb_bg NAME ARGS...: a long-running adb command (logcat, am instrument) the caller puts in the background; on the
+# phone its container-side process is tracked so cleanup can stop it.
+adb_bg() {
+    if [[ $device == real ]]; then
+        gim_real_bg "$@"
+    else
+        adb_ "${@:2}"
+    fi
 }
 
 has_marker() {
@@ -194,18 +229,22 @@ signal() {
 
 # --- Setup --------------------------------------------------------------------------------------------
 
-gim_ensure_emulator_image
-gim_start_hub "$hub" "$repo_root"
-url=http://127.0.0.1:8080
+if [[ $device == emulator ]]; then
+    gim_ensure_emulator_image
+    gim_start_hub "$hub" "$repo_root"
+    url=http://127.0.0.1:8080
+    app_url=$GIM_EMULATOR_SERVER_URL
+    cli_network=container:$hub
 
-echo "starting emulator"
-docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$emu" \
-    --device /dev/kvm --network "container:$hub" \
-    -v "$repo_root:$repo_root:ro" \
-    "$GIM_EMULATOR_IMAGE" sleep infinity >/dev/null
-docker exec "$emu" bash -c "$GIM_EMULATOR_BOOT" >"$log_dir/emulator-boot.log" 2>&1 &
-boot_pid=$!
-bg_pids+=("$boot_pid")
+    echo "starting emulator"
+    docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$emu" \
+        --device /dev/kvm --network "container:$hub" \
+        -v "$repo_root:$repo_root:ro" \
+        "$GIM_EMULATOR_IMAGE" sleep infinity >/dev/null
+    docker exec "$emu" bash -c "$GIM_EMULATOR_BOOT" >"$log_dir/emulator-boot.log" 2>&1 &
+    boot_pid=$!
+    bg_pids+=("$boot_pid")
+fi
 
 echo "building gim-cli at $core_ref"
 core_sha=$(git -C "$core_repo" rev-parse --short=12 "$core_ref^{commit}")
@@ -224,23 +263,50 @@ docker run --rm --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --na
     rust:1 cargo build -p gim-cli \
     >"$log_dir/cargo.log" 2>&1 || { tail -n 30 "$log_dir/cargo.log"; fail "gim-cli build failed"; }
 cp "$cargo_target/debug/gim" "$work/gim"
-docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$cli" --network "container:$hub" \
-    -v "$work:$work" -w "$work" rust:1 sleep infinity >/dev/null
+start_cli() {
+    docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$cli" --network "$cli_network" \
+        -v "$work:$work" -w "$work" rust:1 sleep infinity >/dev/null
+}
+# On the phone the hub starts once the builds are done and the device lock is held; the CLI follows it.
+[[ $device == real ]] || start_cli
 cp "$photo" "$work/bob-photo.png"
 
 echo "building APKs"
 mkdir -p "$gradle_cache"
+signing=()
+if [[ $device == real ]]; then
+    gim_real_gradle_env
+    signing=("${GIM_REAL_GRADLE_ENV[@]}")
+fi
 docker run --rm --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$prefix-gradle" \
     -v "$repo_root:$repo_root" -w "$repo_root" \
-    -v "$gradle_cache:/cache/gradle" -e GRADLE_USER_HOME=/cache/gradle \
+    -v "$gradle_cache:/cache/gradle" -e GRADLE_USER_HOME=/cache/gradle "${signing[@]}" \
     ghcr.io/cirruslabs/android-sdk:35 ./gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest \
     >"$log_dir/gradle.log" 2>&1 || { tail -n 40 "$log_dir/gradle.log"; fail "gradle build failed"; }
 
-wait "$boot_pid" || { cat "$log_dir/emulator-boot.log"; fail "emulator did not boot"; }
-cat "$log_dir/emulator-boot.log"
-# boot_completed comes before Android has a default network; InteropTest waits for the hub's /healthz itself.
-adb_ install -r -t "$repo_root/app/build/outputs/apk/debug/app-debug.apk" >/dev/null
-adb_ install -r -t "$repo_root/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk" >/dev/null
+if [[ $device == emulator ]]; then
+    wait "$boot_pid" || { cat "$log_dir/emulator-boot.log"; fail "emulator did not boot"; }
+    cat "$log_dir/emulator-boot.log"
+    # boot_completed comes before Android has a default network; InteropTest waits for the hub's /healthz itself.
+    adb_ install -r -t "$repo_root/app/build/outputs/apk/debug/app-debug.apk" >/dev/null
+    adb_ install -r -t "$repo_root/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk" >/dev/null
+else
+    gim_real_lock
+    gim_real_start_hub "$hub" "$repo_root"
+    app_url=$GIM_REAL_HUB_URL
+    if [[ $GIM_REAL_NET == reverse ]]; then
+        cli_network=container:$GIM_REAL_ADB_CONTAINER
+        url=$GIM_REAL_HUB_URL
+    else
+        cli_network=container:$hub
+        url=http://127.0.0.1:8080
+    fi
+    start_cli
+    echo "device: $(adb_ shell getprop ro.product.model | tr -d '\r'), app hub URL $app_url, CLI hub URL $url"
+    gim_real_install "$repo_root/app/build/outputs/apk/debug/app-debug.apk" \
+        "$repo_root/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+    adb_ shell pm clear im.g.apps >/dev/null
+fi
 echo "setup done after ${SECONDS}s"
 
 # --- Scenario -----------------------------------------------------------------------------------------
@@ -252,14 +318,22 @@ alice_id=$(out .user_id)
 cli_ok bob --server "$url" register "$bob" "$bob_name"
 expect ".handle == \"$bob\"" "bob registered"
 
-adb_ logcat -c
-adb_ logcat -v time >"$log_dir/logcat.txt" 2>&1 &
+if [[ $device == real ]]; then
+    # Never clear the phone's log buffer: read from now on, and only the app's UID.
+    since=$(adb_ shell date "'+%m-%d %H:%M:%S.000'" | tr -d '\r')
+    app_uid=$(adb_ shell pm list packages -U im.g.apps | tr -d '\r' | sed -nE 's/^package:im\.g\.apps uid:([0-9]+)$/\1/p')
+    logcat_args=(-T "$since" --uid="$app_uid")
+else
+    adb_ logcat -c
+    logcat_args=()
+fi
+adb_bg logcat logcat -v time "${logcat_args[@]}" >"$log_dir/logcat.txt" 2>&1 &
 bg_pids+=($!)
 : >"$log_dir/markers.log"
-adb_ logcat -v brief -s GimInterop:I >"$log_dir/markers.log" 2>&1 &
+adb_bg markers logcat -v brief "${logcat_args[@]}" -s GimInterop:I >"$log_dir/markers.log" 2>&1 &
 bg_pids+=($!)
-adb_ shell "am instrument -w -r -e class im.g.apps.interop.InteropTest \
-    -e gimServerUrl $GIM_EMULATOR_SERVER_URL -e interopRun $run \
+adb_bg instrument shell "am instrument -w -r -e class im.g.apps.interop.InteropTest \
+    -e gimServerUrl $app_url -e interopRun $run \
     -e aliceName '$alice_name' -e aliceHandle $alice -e aliceUserId $alice_id -e bobName '$bob_name' -e androidHandle $droid -e androidName '$droid_name' \
     im.g.apps.test/androidx.test.runner.AndroidJUnitRunner" >"$log_dir/instrumentation.txt" 2>&1 &
 instrument_pid=$!
