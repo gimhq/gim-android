@@ -14,6 +14,7 @@
     <string name="chatlist_new_group">New group</string>
     <string name="chatlist_more_options">More options</string>
     <string name="chatlist_devices">Devices</string>
+    <string name="chatlist_link_device">Link a new device</string>
     <string name="chatlist_sign_out">Sign out</string>
     <string name="chatlist_sign_out_title">Sign out?</string>
     <string name="chatlist_sign_out_body">Your messages and encryption keys on this device will be deleted. You will need to create an account again to use this device.</string>

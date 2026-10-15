@@ -8,6 +8,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimClientManager
 import im.g.apps.core.bridge.GimException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,16 +18,23 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * New account: Welcome (server address) -> display name -> `createIdentity` -> recovery code (shown once, saving
  * must be confirmed) -> optional `claimHandle` -> [OnboardingEvent.Finished]. The server field starts with
  * [defaultServerUrl] (trimmed), validated like typed input. Field errors are computed as the user types; server-side
  * rejections replace them until the field changes.
+ *
+ * Link to an existing device: Welcome -> `startLink` QR code while `waitLink` runs (at most [LINK_TIMEOUT]) -> SAS
+ * -> `confirmLink(true)` -> [OnboardingEvent.Finished]. Rejecting the SAS or cancelling the wait drops the client
+ * through [discardClient] (gim-core requires a new client) and returns to Welcome.
  */
 class OnboardingViewModel(
     private val manager: GimClientManager,
     defaultServerUrl: String = "",
+    private val discardClient: suspend () -> Unit = { manager.signOutQuietly() },
 ) : ViewModel() {
     private val _state = MutableStateFlow(OnboardingUiState.withServerUrl(defaultServerUrl.trim()))
     val state: StateFlow<OnboardingUiState> = _state.asStateFlow()
@@ -33,8 +42,11 @@ class OnboardingViewModel(
     private val _events = Channel<OnboardingEvent>(Channel.BUFFERED)
     val events: Flow<OnboardingEvent> = _events.receiveAsFlow()
 
-    /** Set by [submitDisplayName]; [claimHandle] uses the same client. */
+    /** Set by [submitDisplayName] or [linkDevice]; later steps use the same client. */
     private var client: GimClient? = null
+
+    /** The running `waitLink`. */
+    private var linkJob: Job? = null
 
     fun onServerUrlChange(value: String) = edit {
         it.copy(serverUrl = value, serverUrlError = serverUrlError(value), error = null)
@@ -62,9 +74,18 @@ class OnboardingViewModel(
         if (it.step != OnboardingStep.WELCOME || !it.canCreateAccount) it else it.copy(step = OnboardingStep.DISPLAY_NAME)
     }
 
-    /** Display name -> Welcome. Ignored while loading and on the recovery code (it must be acknowledged). */
-    fun back() = _state.update {
-        if (it.step != OnboardingStep.DISPLAY_NAME || it.isLoading) it else it.copy(step = OnboardingStep.WELCOME, error = null)
+    /**
+     * Display name -> Welcome; on the link QR code cancels the link like [cancelLink]. Ignored while loading, on the
+     * recovery code (it must be acknowledged) and on the SAS (it must be confirmed or rejected).
+     */
+    fun back() {
+        if (_state.value.step == OnboardingStep.LINK_QR) {
+            cancelLink()
+            return
+        }
+        _state.update {
+            if (it.step != OnboardingStep.DISPLAY_NAME || it.isLoading) it else it.copy(step = OnboardingStep.WELCOME, error = null)
+        }
     }
 
     /** Connects to the server and creates the identity; on success shows the recovery code. */
@@ -142,6 +163,113 @@ class OnboardingViewModel(
         _events.trySend(OnboardingEvent.Finished)
     }
 
+    /** Welcome -> link QR code: connects to the server and starts a link through it. */
+    fun linkDevice() {
+        val current = _state.value
+        if (current.step != OnboardingStep.WELCOME || !current.canCreateAccount) return
+        _state.value = current.copy(isLoading = true, error = null)
+        viewModelScope.launch {
+            val connected = try {
+                manager.connect(current.serverUrl.trim())
+            } catch (e: GimException) {
+                fail(e) { loaded ->
+                    if (e is GimException.InvalidInput) loaded.copy(serverUrlError = FieldError.InvalidServerUrl) else null
+                }
+                return@launch
+            }
+            client = connected
+            startLink(connected, current.serverUrl.trim())
+        }
+    }
+
+    /** After the wait failed or timed out: shows a new QR code (a link session accepts one bundle). */
+    fun retryLink() {
+        val current = _state.value
+        val connected = client
+        if (!current.canRetryLink || connected == null) return
+        startLink(connected, current.serverUrl.trim())
+    }
+
+    /** Link QR code -> Welcome: stops waiting and drops the client. */
+    fun cancelLink() {
+        val current = _state.value
+        if (current.step != OnboardingStep.LINK_QR || current.isLoading) return
+        linkJob?.cancel()
+        linkJob = null
+        resetToWelcome()
+    }
+
+    /** The SAS matches: completes the link and finishes. */
+    fun confirmLink() {
+        val current = _state.value
+        val connected = client
+        if (current.step != OnboardingStep.LINK_SAS || current.isLoading || connected == null) return
+        _state.value = current.copy(isLoading = true, error = null)
+        viewModelScope.launch {
+            try {
+                connected.confirmLink(true)
+                _state.update { it.copy(isLoading = false) }
+                _events.send(OnboardingEvent.Finished)
+            } catch (e: GimException) {
+                fail(e) { null }
+            }
+        }
+    }
+
+    /** The SAS does not match: gim-core wipes this device; returns to Welcome with a new client. */
+    fun rejectLink() {
+        val current = _state.value
+        val connected = client
+        if (current.step != OnboardingStep.LINK_SAS || current.isLoading || connected == null) return
+        _state.value = current.copy(isLoading = true, error = null)
+        viewModelScope.launch {
+            try {
+                connected.confirmLink(false)
+            } catch (_: GimException) {
+                // The client is discarded below either way.
+            }
+            resetToWelcome()
+        }
+    }
+
+    private fun startLink(connected: GimClient, hub: String) {
+        val link = try {
+            connected.startLink(listOf(hub))
+        } catch (e: GimException) {
+            fail(e) { null }
+            return
+        }
+        _state.update {
+            it.copy(step = OnboardingStep.LINK_QR, linkQr = link.qrString(), isLoading = false, error = null)
+        }
+        linkJob = viewModelScope.launch {
+            val result = try {
+                Result.success(withTimeout(LINK_TIMEOUT) { connected.waitLink(link) })
+            } catch (e: TimeoutCancellationException) {
+                Result.failure(e)
+            } catch (e: GimException) {
+                Result.failure(e)
+            }
+            _state.update { state ->
+                if (state.step != OnboardingStep.LINK_QR) return@update state
+                result.fold(
+                    onSuccess = { sas -> state.copy(step = OnboardingStep.LINK_SAS, linkQr = null, linkSas = sas) },
+                    onFailure = { e -> state.copy(linkQr = null, error = linkError(e)) },
+                )
+            }
+        }
+    }
+
+    /** Drops the client and shows Welcome again, keeping the server address. */
+    private fun resetToWelcome() {
+        _state.update { it.copy(isLoading = true, error = null) }
+        client = null
+        viewModelScope.launch {
+            discardClient()
+            _state.update { OnboardingUiState.withServerUrl(it.serverUrl) }
+        }
+    }
+
     /** Applies [transform] unless a call is running. */
     private fun edit(transform: (OnboardingUiState) -> OnboardingUiState) = _state.update {
         if (it.isLoading) it else transform(it)
@@ -159,12 +287,42 @@ class OnboardingViewModel(
         )
     }
 
-    private companion object {
-        const val HTTP_CONFLICT = 409
+    companion object {
+        private const val HTTP_CONFLICT = 409
+
+        /** gim-core's own `waitLink` limit. */
+        val LINK_TIMEOUT = 10.minutes
+
+        private fun linkError(e: Throwable): OnboardingError = when (e) {
+            is TimeoutCancellationException -> OnboardingError.LinkTimedOut
+            is GimException.Network -> OnboardingError.CannotReachServer
+            is GimException.RetryLater -> OnboardingError.TryAgainLater(e.retryAfterSecs.coerceAtLeast(1))
+            else -> OnboardingError.LinkFailed
+        }
     }
 }
 
-fun onboardingViewModelFactory(manager: GimClientManager, defaultServerUrl: String = ""): ViewModelProvider.Factory =
+/** Signs out and drops the client; the client may hold no session, so failures are ignored. */
+private suspend fun GimClientManager.signOutQuietly() {
+    try {
+        signOut()
+    } catch (_: GimException) {
+        // The manager drops the client even when sign-out throws.
+    }
+}
+
+/** [discardClient] replaces the default sign-out when a dropped link must also wipe platform state. */
+fun onboardingViewModelFactory(
+    manager: GimClientManager,
+    defaultServerUrl: String = "",
+    discardClient: (suspend () -> Unit)? = null,
+): ViewModelProvider.Factory =
     viewModelFactory {
-        initializer { OnboardingViewModel(manager, defaultServerUrl) }
+        initializer {
+            if (discardClient == null) {
+                OnboardingViewModel(manager, defaultServerUrl)
+            } else {
+                OnboardingViewModel(manager, defaultServerUrl, discardClient)
+            }
+        }
     }

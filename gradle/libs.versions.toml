@@ -19,6 +19,8 @@ androidxTestRules = "1.6.1"
 espresso = "3.6.1"
 uiautomator = "2.3.0"
 turbine = "1.2.0"
+camerax = "1.4.1"
+zxing = "3.5.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -52,6 +54,12 @@ androidx-test-espresso-core = { group = "androidx.test.espresso", name = "espres
 androidx-test-espresso-intents = { group = "androidx.test.espresso", name = "espresso-intents", version.ref = "espresso" }
 androidx-test-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
+androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
+androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
+androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
+androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
+# QR encode/decode only (Apache-2.0); no ML Kit or Play Services.
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 
 # build-logic dependencies
 android-gradlePlugin = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }

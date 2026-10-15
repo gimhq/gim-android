@@ -31,8 +31,9 @@ class ChatListScreenTest {
         onNewChat: () -> Unit = {},
         onNewGroup: () -> Unit = {},
         onSignOut: () -> Unit = {},
+        onLinkDevice: () -> Unit = {},
     ) = rule.setContent {
-        GimTheme { ChatListScreen(state, onOpenChat, onNewChat, onNewGroup, onSignOut) }
+        GimTheme { ChatListScreen(state, onOpenChat, onNewChat, onNewGroup, onSignOut, onLinkDevice) }
     }
 
     private fun openSignOutDialog() {
@@ -94,6 +95,18 @@ class ChatListScreenTest {
         rule.onNodeWithText("New group").performClick()
 
         assertEquals(1, newGroup)
+    }
+
+    @Test
+    fun overflow_link_device_runs_the_callback() {
+        var linkDevice = 0
+        show(ChatListUiState(rows = rows), onLinkDevice = { linkDevice++ })
+
+        rule.onNodeWithContentDescription("More options").performClick()
+        rule.onNodeWithText("Link a new device").performClick()
+
+        assertEquals(1, linkDevice)
+        rule.onNodeWithText("Link a new device").assertDoesNotExist()
     }
 
     @Test

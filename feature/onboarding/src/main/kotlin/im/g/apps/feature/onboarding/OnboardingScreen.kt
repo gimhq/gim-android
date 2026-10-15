@@ -40,6 +40,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
@@ -54,6 +55,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -73,6 +75,12 @@ class OnboardingCallbacks(
     val onHandleChange: (String) -> Unit,
     val onClaimHandle: () -> Unit,
     val onSkipHandle: () -> Unit,
+    val onLinkDevice: () -> Unit,
+    val onCancelLink: () -> Unit,
+    val onRetryLink: () -> Unit,
+    val onCopyLinkCode: (String) -> Unit,
+    val onConfirmLink: () -> Unit,
+    val onRejectLink: () -> Unit,
 )
 
 /** Hosts [OnboardingScreen]; [onFinished] runs once the account exists. System back goes to [OnboardingViewModel.back]. */
@@ -105,6 +113,12 @@ fun OnboardingRoute(
             onHandleChange = viewModel::onHandleChange,
             onClaimHandle = viewModel::claimHandle,
             onSkipHandle = viewModel::skipHandle,
+            onLinkDevice = viewModel::linkDevice,
+            onCancelLink = viewModel::cancelLink,
+            onRetryLink = viewModel::retryLink,
+            onCopyLinkCode = { copySensitive(context, it) },
+            onConfirmLink = viewModel::confirmLink,
+            onRejectLink = viewModel::rejectLink,
         )
     }
     OnboardingScreen(state = state, callbacks = callbacks, modifier = modifier)
@@ -141,6 +155,8 @@ fun OnboardingScreen(
                 OnboardingStep.DISPLAY_NAME -> DisplayNameStep(state, callbacks)
                 OnboardingStep.RECOVERY_CODE -> RecoveryCodeStep(state, callbacks)
                 OnboardingStep.HANDLE -> HandleStep(state, callbacks)
+                OnboardingStep.LINK_QR -> LinkQrStep(state, callbacks)
+                OnboardingStep.LINK_SAS -> LinkSasStep(state, callbacks)
             }
             state.error?.let { error ->
                 Text(
@@ -186,8 +202,19 @@ private fun ColumnScope.WelcomeStep(state: OnboardingUiState, callbacks: Onboard
     ) {
         Text(stringResource(R.string.onboarding_create_account))
     }
-    // Provided by the link and restore flows; disabled until they ship.
-    UnavailableOption(R.string.onboarding_link_device, OnboardingTestTags.LINK_DEVICE)
+    OutlinedButton(
+        onClick = {
+            focusManager.clearFocus()
+            callbacks.onLinkDevice()
+        },
+        enabled = state.canCreateAccount,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(OnboardingTestTags.LINK_DEVICE),
+    ) {
+        Text(stringResource(R.string.onboarding_link_device))
+    }
+    // Provided by the restore flow; disabled until it ships.
     UnavailableOption(R.string.onboarding_restore, OnboardingTestTags.RESTORE)
 }
 
@@ -367,6 +394,99 @@ private fun ColumnScope.HandleStep(state: OnboardingUiState, callbacks: Onboardi
 }
 
 @Composable
+private fun ColumnScope.LinkQrStep(state: OnboardingUiState, callbacks: OnboardingCallbacks) {
+    TextButton(
+        onClick = callbacks.onCancelLink,
+        enabled = !state.isLoading,
+        modifier = Modifier.testTag(OnboardingTestTags.LINK_CANCEL),
+    ) {
+        Text(stringResource(R.string.onboarding_cancel))
+    }
+    StepHeader(R.string.onboarding_link_qr_title, R.string.onboarding_link_qr_explanation)
+    val qr = state.linkQr
+    if (qr != null) {
+        // Quiet zone and contrast must survive dark theme: always black on white.
+        Surface(
+            color = Color.White,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+        ) {
+            QrCode(
+                text = qr,
+                contentDescription = stringResource(R.string.onboarding_link_qr_description),
+                modifier = Modifier
+                    .padding(8.dp)
+                    .size(240.dp)
+                    .testTag(OnboardingTestTags.LINK_QR),
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.semantics(mergeDescendants = true) {}) {
+            CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+            Text(
+                text = stringResource(R.string.onboarding_link_waiting),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(start = 12.dp),
+            )
+        }
+        OutlinedButton(
+            onClick = { callbacks.onCopyLinkCode(qr) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(OnboardingTestTags.LINK_COPY),
+        ) {
+            Text(stringResource(R.string.onboarding_link_copy))
+        }
+    } else {
+        Button(
+            onClick = callbacks.onRetryLink,
+            enabled = state.canRetryLink,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(OnboardingTestTags.LINK_RETRY),
+        ) {
+            Text(stringResource(R.string.onboarding_link_retry))
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.LinkSasStep(state: OnboardingUiState, callbacks: OnboardingCallbacks) {
+    StepHeader(R.string.onboarding_link_sas_title, R.string.onboarding_link_sas_explanation)
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = state.linkSas.orEmpty(),
+            style = MaterialTheme.typography.displaySmall,
+            fontFamily = FontFamily.Monospace,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .padding(16.dp)
+                .testTag(OnboardingTestTags.LINK_SAS),
+        )
+    }
+    ProgressButton(
+        label = R.string.onboarding_link_confirm,
+        progressDescription = R.string.onboarding_link_confirming,
+        isLoading = state.isLoading,
+        enabled = !state.isLoading,
+        tag = OnboardingTestTags.LINK_CONFIRM,
+        onClick = callbacks.onConfirmLink,
+    )
+    OutlinedButton(
+        onClick = callbacks.onRejectLink,
+        enabled = !state.isLoading,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(OnboardingTestTags.LINK_REJECT),
+    ) {
+        Text(stringResource(R.string.onboarding_link_reject))
+    }
+}
+
+@Composable
 private fun StepHeader(@StringRes title: Int, @StringRes explanation: Int) {
     Text(
         text = stringResource(title),
@@ -455,6 +575,8 @@ private fun OnboardingError.message(): String = when (this) {
     OnboardingError.CannotReachServer -> stringResource(R.string.onboarding_error_cannot_reach_server)
     is OnboardingError.TryAgainLater ->
         pluralStringResource(R.plurals.onboarding_error_try_again_later, seconds.toInt(), seconds)
+    OnboardingError.LinkTimedOut -> stringResource(R.string.onboarding_error_link_timed_out)
+    OnboardingError.LinkFailed -> stringResource(R.string.onboarding_error_link_failed)
     OnboardingError.Generic -> stringResource(R.string.onboarding_error_generic)
 }
 
@@ -473,9 +595,16 @@ internal object OnboardingTestTags {
     const val HANDLE = "onboarding_handle"
     const val CLAIM_HANDLE = "onboarding_claim_handle"
     const val SKIP_HANDLE = "onboarding_skip_handle"
+    const val LINK_CANCEL = "onboarding_link_cancel"
+    const val LINK_QR = "onboarding_link_qr"
+    const val LINK_COPY = "onboarding_link_copy"
+    const val LINK_RETRY = "onboarding_link_retry"
+    const val LINK_SAS = "onboarding_link_sas"
+    const val LINK_CONFIRM = "onboarding_link_confirm"
+    const val LINK_REJECT = "onboarding_link_reject"
 }
 
-private val previewCallbacks = OnboardingCallbacks({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
+private val previewCallbacks = OnboardingCallbacks({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
 
 @GimPreviews
 @Composable
@@ -521,5 +650,24 @@ private fun OnboardingHandleErrorPreview() {
             ),
             previewCallbacks,
         )
+    }
+}
+
+@GimPreviews
+@Composable
+private fun OnboardingLinkQrPreview() {
+    GimTheme {
+        OnboardingScreen(
+            OnboardingUiState(step = OnboardingStep.LINK_QR, linkQr = "gimlink:preview:hub.example.eu"),
+            previewCallbacks,
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun OnboardingLinkSasPreview() {
+    GimTheme {
+        OnboardingScreen(OnboardingUiState(step = OnboardingStep.LINK_SAS, linkSas = "482 913"), previewCallbacks)
     }
 }
