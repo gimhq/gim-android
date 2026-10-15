@@ -45,7 +45,9 @@ interface Timeline {
 
     /**
      * Loads up to [count] older items (delivered through the listeners as diffs). Returns whether more
-     * history exists. gim-core takes a `u16`; the adapter converts.
+     * history exists. Pages through locally stored history first, then server history; messages this device
+     * cannot decrypt are skipped, and it returns false once nothing older is readable. gim-core takes a `u16`;
+     * the adapter converts.
      */
     suspend fun paginateBackwards(count: Int): Boolean
 }

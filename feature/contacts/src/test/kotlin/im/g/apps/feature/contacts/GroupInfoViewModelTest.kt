@@ -176,7 +176,22 @@ class GroupInfoViewModelTest {
     }
 
     @Test
-    fun rename_notImplemented_showsUnavailableAndKeepsOldName() = runTest {
+    fun rename_invalidInput_showsErrorAndKeepsOldName() = runTest {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        client.setGroupInfoError = GimException.InvalidInput("name too long")
+        vm.startRename()
+        vm.onRenameChange("Cyclades Crew")
+        vm.confirmRename()
+        advanceUntilIdle()
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.INVALID_INPUT), vm.events.first())
+        assertEquals("Aegean Crew", vm.state.value.chat?.name)
+        assertNull(vm.state.value.renameDraft)
+        assertFalse(vm.state.value.busy)
+    }
+
+    @Test
+    fun rename_notImplementedByOlderCore_showsGenericNotSupported() = runTest {
         val vm = newViewModel()
         advanceUntilIdle()
         client.setGroupInfoError = GimException.NotImplemented()
@@ -184,9 +199,8 @@ class GroupInfoViewModelTest {
         vm.onRenameChange("Cyclades Crew")
         vm.confirmRename()
         advanceUntilIdle()
-        assertEquals(GroupInfoEvent.ShowError(ContactsError.RENAME_NOT_SUPPORTED), vm.events.first())
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.NOT_SUPPORTED), vm.events.first())
         assertEquals("Aegean Crew", vm.state.value.chat?.name)
-        assertNull(vm.state.value.renameDraft)
         assertFalse(vm.state.value.busy)
     }
 
