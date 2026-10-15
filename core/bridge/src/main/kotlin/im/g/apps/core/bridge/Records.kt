@@ -8,6 +8,7 @@ package im.g.apps.core.bridge
 data class Session(
     val userId: String,
     val deviceId: String,
+    /** Empty until [GimClient.claimHandle]. */
     val handle: String,
     val displayName: String,
 )
@@ -138,10 +139,10 @@ sealed class SendState {
     /** Accepted by the server. */
     data object Sent : SendState()
 
-    /** Delivered to at least one recipient device. */
+    /** Delivered to every device of every other member. */
     data object Delivered : SendState()
 
-    /** Read by at least one recipient. */
+    /** Read on every device of every other member. */
     data object Read : SendState()
 
     /** Gave up; [GimClient.retrySend] or [GimClient.cancelSend]. */
@@ -158,6 +159,31 @@ enum class ConnectionState {
 }
 
 data class ClientConfig(
-    /** Base URL of gim-server, `http://` or `https://`. */
+    /** Base URL of gim-hub, `http://` or `https://`. */
     val serverUrl: String,
 )
+
+/** One device of a user. */
+data class DeviceInfo(
+    val deviceId: String,
+    /** When the device was certified; 0 for revoked devices. */
+    val createdAtMs: Long,
+    /** Whether this is the client's own device. */
+    val isCurrent: Boolean,
+    val revoked: Boolean,
+)
+
+/** New-device side of a device link; mirrors gim-core's `LinkSession`. Accepts one bundle. */
+interface LinkSession {
+    /** Contents of the QR code the old device scans. */
+    fun qrString(): String
+}
+
+/** Old-device side of a device link; mirrors gim-core's `PendingApproval`. */
+interface PendingApproval {
+    /** Six digits, "123 456", compared with the new device's [GimClient.waitLink] result. */
+    fun sas(): String
+
+    /** The new device; revoke it with [GimClient.revokeDevice] if the link is abandoned after approval. */
+    fun deviceId(): String
+}

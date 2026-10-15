@@ -17,7 +17,10 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import im.g.apps.AppContainer
 import im.g.apps.DemoAccountClient
+import im.g.apps.core.bridge.DeviceInfo
+import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimClientFactory
+import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.InMemoryServerUrlStore
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.FakeGimClient
@@ -53,13 +56,24 @@ class GimNavHostTest {
         }
     }
 
-    private fun register() {
-        rule.onNodeWithText("Create your account").assertExists()
-        val fields = rule.onAllNodes(hasSetTextAction())
-        fields[0].performTextInput(DemoData.SERVER_URL)
-        fields[1].performTextInput("sofia")
-        fields[2].performTextInput("Sofia Costa")
+    /** Runs the new-account onboarding; claims "sofia" or skips the handle step. */
+    private fun register(claimHandle: Boolean) {
+        rule.onNodeWithText("Welcome to gim").assertExists()
+        rule.onNode(hasSetTextAction()).performTextInput(DemoData.SERVER_URL)
+        rule.onNodeWithText("Create new account").performClick()
+        rule.onNode(hasSetTextAction()).performTextInput("Sofia Costa")
         rule.onNodeWithText("Create account").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("Save your recovery code"), TIMEOUT)
+        rule.onNodeWithText(FakeGimClient.fakeRecoveryCode(1)).assertExists()
+        rule.onNodeWithText("I have saved my recovery code").performClick()
+        rule.onNodeWithText("Continue").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("Choose a handle"), TIMEOUT)
+        if (claimHandle) {
+            rule.onNode(hasSetTextAction()).performTextInput("sofia")
+            rule.onNodeWithText("Claim handle").performClick()
+        } else {
+            rule.onNodeWithText("Skip for now").performClick()
+        }
     }
 
     @Test
@@ -84,10 +98,10 @@ class GimNavHostTest {
             ),
         )
 
-        register()
+        register(claimHandle = true)
 
         rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
-        rule.onNodeWithText("Create your account").assertDoesNotExist()
+        rule.onNodeWithText("Choose a handle").assertDoesNotExist()
     }
 
     @Test
@@ -109,7 +123,7 @@ class GimNavHostTest {
         rule.onNodeWithText("Sign out").performClick()
         rule.onNode(hasText("Sign out") and hasClickAction()).performClick()
 
-        rule.waitUntilAtLeastOneExists(hasText("Create your account"), TIMEOUT)
+        rule.waitUntilAtLeastOneExists(hasText("Welcome to gim"), TIMEOUT)
         rule.runOnIdle {
             assertEquals(Routes.ONBOARDING, nav.currentDestination?.route)
             assertNull(nav.previousBackStackEntry)
@@ -117,10 +131,97 @@ class GimNavHostTest {
         assertNull(store.get())
         assertNull(container.manager.client.value)
 
-        register()
+        register(claimHandle = false)
 
         rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
         rule.runOnIdle { assertNull(nav.previousBackStackEntry) }
+    }
+
+    @Test
+    fun chat_list_menu_opens_devices_and_back_returns() {
+        launch(testContainer(scope = scope))
+
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+        rule.onNodeWithContentDescription("More options").performClick()
+        rule.onNodeWithText("Devices").performClick()
+
+        rule.waitUntilAtLeastOneExists(hasText("This device"), TIMEOUT)
+        rule.onNodeWithText("Your user ID").assertExists()
+        rule.runOnIdle { assertEquals(Routes.DEVICES, nav.currentDestination?.route) }
+        rule.onNodeWithContentDescription("Back").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+    }
+
+    @Test
+    fun device_revoked_elsewhere_signs_out_to_onboarding() {
+        val store = InMemoryServerUrlStore(DemoData.SERVER_URL)
+        val container = AppContainer(
+            context = ApplicationProvider.getApplicationContext(),
+            appScope = scope,
+            serverUrlStore = store,
+            clientFactory = GimClientFactory { _, _ ->
+                val demo = FakeGimClient.withDemoData(scope, outboxDelays = null)
+                object : GimClient by demo {
+                    override suspend fun devices(): List<DeviceInfo> = throw GimException.NotRegistered()
+                }
+            },
+        )
+        launch(container)
+
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+        rule.onNodeWithContentDescription("More options").performClick()
+        rule.onNodeWithText("Devices").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("This device was removed"), TIMEOUT)
+        rule.onNodeWithText("OK").performClick()
+
+        rule.waitUntilAtLeastOneExists(hasText("Welcome to gim"), TIMEOUT)
+        rule.runOnIdle { assertNull(nav.previousBackStackEntry) }
+        assertNull(store.get())
+        assertNull(container.manager.client.value)
+    }
+
+    @Test
+    fun link_to_existing_device_from_onboarding_shows_the_sas_then_the_chat_list() {
+        launch(
+            testContainer(
+                storedUrl = null,
+                scope = scope,
+                factory = FakeGimClientFactory { _, _ -> FakeGimClient(scope, outboxDelays = null) },
+            ),
+        )
+
+        rule.onNode(hasSetTextAction()).performTextInput(DemoData.SERVER_URL)
+        rule.onNodeWithText("Link to existing device").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("Compare the codes"), TIMEOUT)
+        rule.onNodeWithText("The codes match").performClick()
+
+        rule.waitUntilAtLeastOneExists(hasText("No chats yet"), TIMEOUT)
+        rule.runOnIdle {
+            assertEquals(Routes.CHAT_LIST, nav.currentDestination?.route)
+            assertNull(nav.previousBackStackEntry)
+        }
+    }
+
+    @Test
+    fun chat_list_overflow_opens_link_a_new_device_and_approves_a_pasted_code() {
+        launch(testContainer(scope = scope))
+        val code = FakeGimClient(scope, outboxDelays = null).startLink(emptyList()).qrString()
+
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+        rule.onNodeWithContentDescription("More options").performClick()
+        rule.onNodeWithText("Link a new device").performClick()
+
+        rule.waitUntilAtLeastOneExists(hasText("Allow camera"), TIMEOUT)
+        rule.runOnIdle { assertEquals(Routes.LINK_DEVICE, nav.currentDestination?.route) }
+        rule.onNode(hasSetTextAction()).performTextInput(code)
+        rule.onNodeWithText("Continue").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("Compare the codes"), TIMEOUT)
+        rule.onNodeWithText("The codes match").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("Done"), TIMEOUT)
+        rule.onNodeWithText("Done").performClick()
+
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+        rule.runOnIdle { assertEquals(Routes.CHAT_LIST, nav.currentDestination?.route) }
     }
 
     private companion object {

@@ -5,6 +5,7 @@ import im.g.apps.core.bridge.ChatListDiff
 import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.ClientConfig
 import im.g.apps.core.bridge.ConnectionState
+import im.g.apps.core.bridge.DeviceInfo
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.MediaRef
 import im.g.apps.core.bridge.MembershipChangeKind
@@ -84,6 +85,25 @@ class MappersTest {
             Session("u1", "d1", "alice", "Alice"),
             im.g.gimcore.Session("u1", "d1", "alice", "Alice").toMirror(),
         )
+    }
+
+    @Test
+    fun sessionWithoutHandle() {
+        assertEquals(Session("u1", "d1", "", "Alice"), im.g.gimcore.Session("u1", "d1", "", "Alice").toMirror())
+    }
+
+    @Test
+    fun deviceInfo() {
+        assertEquals(
+            DeviceInfo("d1", 1_700_000_000_000L, isCurrent = true, revoked = false),
+            im.g.gimcore.DeviceInfo("d1", 1_700_000_000_000UL, isCurrent = true, revoked = false).toMirror(),
+        )
+        assertEquals(
+            DeviceInfo("d2", 0L, isCurrent = false, revoked = true),
+            im.g.gimcore.DeviceInfo("d2", 0UL, isCurrent = false, revoked = true).toMirror(),
+        )
+        // u64 converts bit-for-bit.
+        assertEquals(-1L, im.g.gimcore.DeviceInfo("d3", ULong.MAX_VALUE, false, false).toMirror().createdAtMs)
     }
 
     @Test
@@ -257,6 +277,10 @@ class MappersTest {
         check(im.g.gimcore.GimException.Crypto("mls"), GimException.Crypto("mls"))
         check(im.g.gimcore.GimException.Storage("disk"), GimException.Storage("disk"))
         check(im.g.gimcore.GimException.Server(503u, "busy"), GimException.Server(503, "busy"))
+        check(
+            im.g.gimcore.GimException.RetryLater(429u, 30UL, "rate_limited"),
+            GimException.RetryLater(429, 30L, "rate_limited"),
+        )
         check(im.g.gimcore.GimException.Cancelled(), GimException.Cancelled())
         check(im.g.gimcore.GimException.NotImplemented(), GimException.NotImplemented())
         check(im.g.gimcore.GimException.Internal("bug"), GimException.Internal("bug"))
@@ -277,9 +301,25 @@ class MappersTest {
         check(GimException.Crypto("mls"), im.g.gimcore.GimException.Crypto("mls"))
         check(GimException.Storage("disk"), im.g.gimcore.GimException.Storage("disk"))
         check(GimException.Server(503, "busy"), im.g.gimcore.GimException.Server(503u, "busy"))
+        check(
+            GimException.RetryLater(503, 5L, "peer_unavailable"),
+            im.g.gimcore.GimException.RetryLater(503u, 5UL, "peer_unavailable"),
+        )
         check(GimException.Cancelled(), im.g.gimcore.GimException.Cancelled())
         check(GimException.NotImplemented(), im.g.gimcore.GimException.NotImplemented())
         check(GimException.Internal("bug"), im.g.gimcore.GimException.Internal("bug"))
+    }
+
+    @Test
+    fun retryLaterFieldsConvert() {
+        val mirror = im.g.gimcore.GimException.RetryLater(429u, 60UL, "rate_limited").toMirror()
+            as GimException.RetryLater
+        assertEquals(429, mirror.status)
+        assertEquals(60L, mirror.retryAfterSecs)
+        assertEquals("rate_limited", mirror.reason)
+        val core = mirror.toCore() as im.g.gimcore.GimException.RetryLater
+        assertEquals(429.toUShort(), core.status)
+        assertEquals(60UL, core.retryAfterSecs)
     }
 
     @Test

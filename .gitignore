@@ -9,4 +9,3 @@ captures/
 .cxx/
 .kotlin/
 .tmp/
-e2e/gim-server/node_modules/

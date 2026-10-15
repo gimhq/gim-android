@@ -34,6 +34,8 @@ jobs:
     timeout-minutes: 60
     env:
       API_LEVEL: 35
+      # Same device as scripts/run-device-tests.sh; the runner's default AVD (320x640) lets the keyboard cover inputs.
+      AVD_PROFILE: pixel_6
       AVD_DISK_SIZE: 4096M
       AVD_RAM_SIZE: 3072M
     steps:
@@ -61,27 +63,63 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - uses: oven-sh/setup-bun@v2
+      # gim-hub at the commit pinned in e2e/GIM_HUB_VERSION, built with the hub's own Dockerfile (as
+      # scripts/run-device-tests.sh does locally). A pinned commit fully determines the image, so the saved image
+      # is cached by commit: a hit is a ~10 s `docker load`, a miss one Docker build. Faster on ubuntu-latest than
+      # cargo + rust-cache, which would still need the hub's Rust toolchain and a large target dir on every run.
+      - name: Read pinned gim-hub commit
+        run: echo "GIM_HUB_SHA=$(tr -d '[:space:]' < e2e/GIM_HUB_VERSION)" >> "$GITHUB_ENV"
+
+      - name: Restore gim-hub image
+        id: hub-image
+        uses: actions/cache/restore@v4
         with:
-          bun-version: "1.4.x"
+          path: ${{ runner.temp }}/gim-hub-image.tar
+          key: gim-hub-image-${{ env.GIM_HUB_SHA }}
 
-      - name: Install gim-server dependencies
-        working-directory: e2e/gim-server
-        run: bun install --frozen-lockfile
+      - name: Check out gim-hub
+        if: steps.hub-image.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: gimhq/gim-hub
+          ref: ${{ env.GIM_HUB_SHA }}
+          ssh-key: ${{ secrets.GIM_HUB_DEPLOY_KEY }}
+          path: gim-hub-src
+          persist-credentials: false
 
-      - name: Start gim-server
-        working-directory: e2e/gim-server
+      # actions/checkout only writes under the workspace; move the hub out of the Gradle project right away.
+      - name: Build gim-hub image
+        if: steps.hub-image.outputs.cache-hit != 'true'
         run: |
-          mkdir -p "$RUNNER_TEMP/gim-server"
-          PORT=8080 HOST=0.0.0.0 \
-            DATABASE_PATH="$RUNNER_TEMP/gim-server/gim.db" DATA_DIR="$RUNNER_TEMP/gim-server" \
-            nohup bun src/index.ts >"$RUNNER_TEMP/gim-server.log" 2>&1 &
-          for _ in $(seq 1 30); do
+          mv gim-hub-src "$RUNNER_TEMP/gim-hub"
+          docker build --label "gim.hub.commit=$GIM_HUB_SHA" -t gim-hub:ci "$RUNNER_TEMP/gim-hub"
+          docker save gim-hub:ci -o "$RUNNER_TEMP/gim-hub-image.tar"
+
+      - name: Save gim-hub image
+        if: steps.hub-image.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/gim-hub-image.tar
+          key: gim-hub-image-${{ env.GIM_HUB_SHA }}
+
+      - name: Load gim-hub image
+        if: steps.hub-image.outputs.cache-hit == 'true'
+        run: docker load -i "$RUNNER_TEMP/gim-hub-image.tar"
+
+      # Disposable hub: data in memory. Published on the runner's loopback, which the emulator reaches as 10.0.2.2.
+      - name: Start gim-hub
+        run: |
+          rm -f "$RUNNER_TEMP/gim-hub-image.tar"
+          docker run -d --name gim-hub -p 127.0.0.1:8080:8080 \
+            --tmpfs /data:rw,uid=10001,gid=10001,mode=0700 \
+            -e GIM_HUB_LISTEN=0.0.0.0:8080 -e GIM_HUB_DATA_DIR=/data \
+            gim-hub:ci
+          for _ in $(seq 1 60); do
             curl -fsS http://127.0.0.1:8080/healthz && exit 0
             sleep 1
           done
-          echo "gim-server did not become healthy" >&2
-          cat "$RUNNER_TEMP/gim-server.log" >&2
+          echo "gim-hub did not become healthy" >&2
+          docker logs gim-hub >&2
           exit 1
 
       - name: Cache AVD
@@ -91,7 +129,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ env.API_LEVEL }}-google_apis-x86_64-disk${{ env.AVD_DISK_SIZE }}-ram${{ env.AVD_RAM_SIZE }}-cores${{ env.AVD_CORES }}
+          key: avd-${{ env.API_LEVEL }}-google_apis-x86_64-${{ env.AVD_PROFILE }}-disk${{ env.AVD_DISK_SIZE }}-ram${{ env.AVD_RAM_SIZE }}-cores${{ env.AVD_CORES }}
 
       # Boot/infra retry: the snapshot step runs no tests, so retrying it can never mask a test failure.
       # Device tests below are never retried.
@@ -104,6 +142,7 @@ jobs:
           api-level: ${{ env.API_LEVEL }}
           arch: x86_64
           target: google_apis
+          profile: ${{ env.AVD_PROFILE }}
           cores: ${{ env.AVD_CORES }}
           ram-size: ${{ env.AVD_RAM_SIZE }}
           disk-size: ${{ env.AVD_DISK_SIZE }}
@@ -120,6 +159,7 @@ jobs:
           api-level: ${{ env.API_LEVEL }}
           arch: x86_64
           target: google_apis
+          profile: ${{ env.AVD_PROFILE }}
           cores: ${{ env.AVD_CORES }}
           ram-size: ${{ env.AVD_RAM_SIZE }}
           disk-size: ${{ env.AVD_DISK_SIZE }}
@@ -135,6 +175,7 @@ jobs:
           api-level: ${{ env.API_LEVEL }}
           arch: x86_64
           target: google_apis
+          profile: ${{ env.AVD_PROFILE }}
           cores: ${{ env.AVD_CORES }}
           ram-size: ${{ env.AVD_RAM_SIZE }}
           disk-size: ${{ env.AVD_DISK_SIZE }}
@@ -143,10 +184,16 @@ jobs:
           emulator-options: -no-metrics -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           # boot_completed comes before Android has a default network (mirrors scripts/e2e-interop.sh). Waits in
-          # the tests are doubled: the software-rendered emulator draws ~3 frames/s on these runners.
+          # the tests are doubled: the software-rendered emulator draws ~3 frames/s on these runners. On failure the
+          # full device logcat (ANRs, system dialogs) is saved; the test's own logcat only covers its process.
           script: |
+            adb logcat -G 16M
             adb shell 'for i in $(seq 1 90); do dumpsys connectivity | grep -qE "^Active default network: [0-9]+" && exit 0; sleep 1; done; echo "no default network after 90 s" >&2; exit 1'
-            ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.gimServerUrl=http://10.0.2.2:8080 -Pandroid.testInstrumentationRunnerArguments.timeoutScale=2 --no-daemon
+            ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.gimServerUrl=http://10.0.2.2:8080 -Pandroid.testInstrumentationRunnerArguments.timeoutScale=2 --no-daemon || { mkdir -p "$RUNNER_TEMP/emulator-logs"; adb logcat -d > "$RUNNER_TEMP/emulator-logs/device-logcat.txt"; exit 1; }
+
+      - name: Collect gim-hub log
+        if: failure()
+        run: docker logs gim-hub > "$RUNNER_TEMP/gim-hub.log" 2>&1 || true
 
       - name: Collect emulator diagnostics
         if: failure()
@@ -165,5 +212,5 @@ jobs:
           path: |
             **/build/reports/androidTests/**
             **/build/outputs/androidTest-results/**
-            ${{ runner.temp }}/gim-server.log
+            ${{ runner.temp }}/gim-hub.log
             ${{ runner.temp }}/emulator-logs/**

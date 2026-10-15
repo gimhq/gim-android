@@ -76,9 +76,11 @@ class AppContainerTest {
 
         val client = container.manager.connect(DemoData.SERVER_URL)
         assertNull(client.session())
-        assertEquals(DemoData.session, client.register("sofia", "Sofia Costa"))
+        assertNull(client.userId())
+        assertEquals(FakeGimClient.fakeRecoveryCode(1), client.createIdentity("Sofia Costa"))
 
         assertEquals(DemoData.session, client.session())
+        assertEquals(DemoData.session.userId, client.userId())
         val names = client.chatListFlow().first().map { it.name }
         assertTrue(names.containsAll(listOf("Aegean Crew", DemoData.lukas.displayName)))
     }
@@ -133,7 +135,8 @@ class AppContainerTest {
         container.signOut()
 
         val client = container.manager.connect(DemoData.SERVER_URL)
-        assertEquals(DemoData.session, client.register("sofia", "Sofia Costa"))
+        client.createIdentity("Sofia Costa")
+        assertEquals(DemoData.session, client.session())
     }
 
     @Test
