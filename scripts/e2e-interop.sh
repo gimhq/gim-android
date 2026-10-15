@@ -1,0 +1,384 @@
+#!/usr/bin/env bash
+# CLI x Android interop E2E: two gim CLI users (alice, bob) and the Android app (real UI, real gim-core) talk
+# through the vendored gim-server.
+#
+# Usage: scripts/e2e-interop.sh
+#
+# Environment:
+#   GIM_CORE_REPO   gim-core checkout the CLI is built from (read only), default /srv/gimhq/im-client/core
+#   GIM_CORE_REF    gim-core commit of the CLI, default df3ee64 (last gim-server compatible protocol)
+#   LOG_DIR         run log directory, default /tmp/gim-interop-<timestamp>
+#   GRADLE_CACHE    Gradle user home, default /srv/.tmp/cache/gradle
+#   CARGO_CACHE     CARGO_HOME, default /srv/.tmp/cache/cargo
+#   CARGO_TARGET    cargo target dir of gim-cli, default /srv/.tmp/cache/cargo-target/gim-cli
+#   REBUILD_IMAGE=1 rebuild the emulator image (see scripts/lib/device.sh)
+#
+# Outputs (in LOG_DIR, printed at start and end): script.log, server.log, gradle.log, cargo.log,
+# emulator.log, logcat.txt, markers.log (test step markers), instrumentation.txt (am instrument -r),
+# cli-alice.log / cli-bob.log (every gim command, exit code and JSON output), bob-listen.jsonl.
+#
+# Flow:
+#   1. gim-server (e2e/gim-server) in oven/bun:1.4; the emulator (--device /dev/kvm, API 35 x86_64
+#      google_apis, headless) and a rust:1 container running the CLI share its network namespace, so the
+#      app uses http://10.0.2.2:8080 and the CLI http://127.0.0.1:8080.
+#   2. gim-cli is built from `git archive GIM_CORE_REF` (exported to .tmp/gim-core-<sha>/, reused) in rust:1;
+#      the debug and androidTest APKs in ghcr.io/cirruslabs/android-sdk:35.
+#   3. app/src/androidTest/.../interop/InteropTest runs with `am instrument`, getting the run id, handles and
+#      names as instrumentation arguments, while this script drives alice and bob step by step.
+#
+# Handshake: the test logs `STEP <name>` under logcat tag GimInterop (followed into markers.log) when it has
+# done its part of a step; the script waits for that marker, then asserts and acts with the CLI (`--json`,
+# `wait-for`). The test waits on UI state the CLI produces; where it needs an explicit go (the CLI listener
+# being up) the script sends `am broadcast -a im.g.apps.interop.GO --es step <name>`. Every wait is bounded
+# (<= 60 s); on failure both sides' logs are dumped. Containers carry --label ai-agent=true, are named
+# ai-agent-gim-interop-<run>-* and are removed on exit, as is the run's .tmp/e2e-interop-<run>/ directory.
+set -euo pipefail
+
+if [[ ${1:-} == -h || ${1:-} == --help ]]; then
+    sed -n '2,36p' "$0"
+    exit 0
+fi
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+# shellcheck source=lib/device.sh
+source "$repo_root/scripts/lib/device.sh"
+gim_check_host_paths "$repo_root"
+command -v jq >/dev/null || { echo "error: jq is required" >&2; exit 1; }
+
+core_repo=${GIM_CORE_REPO:-/srv/gimhq/im-client/core}
+core_ref=${GIM_CORE_REF:-df3ee64}
+gradle_cache=${GRADLE_CACHE:-/srv/.tmp/cache/gradle}
+cargo_cache=${CARGO_CACHE:-/srv/.tmp/cache/cargo}
+cargo_target=${CARGO_TARGET:-/srv/.tmp/cache/cargo-target/gim-cli}
+log_dir=${LOG_DIR:-/tmp/gim-interop-$(date +%Y%m%d-%H%M%S)}
+run=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+prefix=ai-agent-gim-interop-$run
+server=$prefix-server
+emu=$prefix-emulator
+cli=$prefix-cli
+work=$repo_root/.tmp/e2e-interop-$run
+photo=$repo_root/app/src/androidTest/assets/e2e-photo.png
+timeout=60
+
+alice=alice_$run
+bob=bob_$run
+droid=droid_$run
+alice_name="Alice $run"
+bob_name="Bob $run"
+droid_name="Android $run"
+
+mkdir -p "$log_dir"
+exec > >(tee -a "$log_dir/script.log") 2>&1
+echo "run log: $log_dir"
+echo "run id: $run, gim-core ref: $core_ref"
+
+passed=()
+bg_pids=()
+instrument_pid=
+
+dump_logs() {
+    echo "---- instrumentation (tail) ----"
+    tail -n 40 "$log_dir/instrumentation.txt" 2>/dev/null || true
+    echo "---- markers ----"
+    cat "$log_dir/markers.log" 2>/dev/null || true
+    echo "---- logcat (errors, tail) ----"
+    grep -E ' [EF]/|GimInterop|TestRunner' "$log_dir/logcat.txt" 2>/dev/null | tail -n 60 || true
+    echo "---- CLI (tail) ----"
+    tail -n 20 "$log_dir/cli-alice.log" "$log_dir/cli-bob.log" 2>/dev/null || true
+    echo "---- gim-server (tail) ----"
+    docker logs --tail 40 "$server" 2>&1 || true
+}
+
+cleanup() {
+    local status=$?
+    trap - EXIT INT TERM
+    ((${#bg_pids[@]})) && kill "${bg_pids[@]}" 2>/dev/null || true
+    docker logs "$server" >"$log_dir/server.log" 2>&1 || true
+    docker exec "$emu" cat /tmp/emulator.log >"$log_dir/emulator.log" 2>/dev/null || true
+    if ((status)); then
+        echo "FAILED (exit $status) after ${SECONDS}s"
+        dump_logs
+    fi
+    # Files in $work are written by root inside the CLI container; remove them from there.
+    docker exec "$cli" rm -rf "$work" >/dev/null 2>&1 || true
+    rm -rf "$work" 2>/dev/null || true
+    docker rm -f "$emu" "$cli" "$server" >/dev/null 2>&1 || true
+    echo "run log: $log_dir"
+    exit "$status"
+}
+trap cleanup EXIT INT TERM
+
+fail() {
+    echo "error: $*" >&2
+    exit 1
+}
+
+pass() {
+    passed+=("$1")
+    echo "PASS $1"
+}
+
+# --- CLI helpers --------------------------------------------------------------------------------------
+
+# cli WHO ARGS...: runs `gim --json ARGS` with WHO's profile; sets CLI_OUT and CLI_RC, logs both.
+cli() {
+    local who=$1
+    shift
+    CLI_RC=0
+    CLI_OUT=$(docker exec -e GIM_PROFILE="$work/$who" "$cli" "$work/gim" --json "$@" 2>>"$log_dir/cli-$who.log") \
+        || CLI_RC=$?
+    printf '$ gim %s  [exit %s]\n%s\n' "$*" "$CLI_RC" "$CLI_OUT" >>"$log_dir/cli-$who.log"
+}
+
+cli_ok() {
+    cli "$@"
+    ((CLI_RC == 0)) || fail "$1: gim ${*:2} exited $CLI_RC: $CLI_OUT"
+}
+
+out() {
+    jq -r "$1" <<<"$CLI_OUT"
+}
+
+# expect JQ_FILTER DESCRIPTION: asserts the filter is true for CLI_OUT.
+expect() {
+    [[ $(jq -r "$1" <<<"$CLI_OUT") == true ]] || fail "$2: $CLI_OUT"
+}
+
+# poll DESCRIPTION CMD...: retries CMD every second for up to $timeout seconds.
+poll() {
+    local what=$1
+    shift
+    local _
+    for _ in $(seq 1 "$timeout"); do
+        "$@" && return 0
+        sleep 1
+    done
+    fail "timed out waiting for $what"
+}
+
+# --- Android helpers ----------------------------------------------------------------------------------
+
+adb_() {
+    docker exec "$emu" adb "$@"
+}
+
+has_marker() {
+    grep -qE "STEP $1\$" "$log_dir/markers.log"
+}
+
+instrument_running() {
+    kill -0 "$instrument_pid" 2>/dev/null
+}
+
+# wait_marker STEP: waits for the test's `STEP <step>` marker.
+wait_marker() {
+    local _
+    for _ in $(seq 1 "$timeout"); do
+        has_marker "$1" && return 0
+        instrument_running || { has_marker "$1" && return 0; fail "test ended before step '$1'"; }
+        sleep 1
+    done
+    fail "timed out waiting for test step '$1'"
+}
+
+signal() {
+    adb_ shell am broadcast -a im.g.apps.interop.GO -p im.g.apps --es step "$1" >/dev/null
+}
+
+# --- Setup --------------------------------------------------------------------------------------------
+
+gim_ensure_emulator_image
+gim_start_server "$server" "$repo_root"
+url=http://127.0.0.1:8080
+
+echo "starting emulator"
+docker run -d --label ai-agent=true --name "$emu" \
+    --device /dev/kvm --network "container:$server" \
+    -v "$repo_root:$repo_root:ro" \
+    "$GIM_EMULATOR_IMAGE" sleep infinity >/dev/null
+docker exec "$emu" bash -c "$GIM_EMULATOR_BOOT" >"$log_dir/emulator-boot.log" 2>&1 &
+boot_pid=$!
+bg_pids+=("$boot_pid")
+
+echo "building gim-cli at $core_ref"
+core_sha=$(git -C "$core_repo" rev-parse --short=12 "$core_ref^{commit}")
+core_src=$repo_root/.tmp/gim-core-$core_sha
+if [[ ! -f $core_src/.exported ]]; then
+    rm -rf "$core_src"
+    mkdir -p "$core_src"
+    git -C "$core_repo" archive "$core_sha" | tar -x -C "$core_src"
+    touch "$core_src/.exported"
+fi
+mkdir -p "$cargo_cache" "$cargo_target" "$work"
+docker run --rm --label ai-agent=true --name "$prefix-cargo" \
+    -v "$core_src:$core_src" -w "$core_src" \
+    -v "$cargo_cache:/cache/cargo" -e CARGO_HOME=/cache/cargo \
+    -v "$cargo_target:/cache/target" -e CARGO_TARGET_DIR=/cache/target \
+    rust:1 cargo build -p gim-cli \
+    >"$log_dir/cargo.log" 2>&1 || { tail -n 30 "$log_dir/cargo.log"; fail "gim-cli build failed"; }
+cp "$cargo_target/debug/gim" "$work/gim"
+docker run -d --label ai-agent=true --name "$cli" --network "container:$server" \
+    -v "$work:$work" -w "$work" rust:1 sleep infinity >/dev/null
+cp "$photo" "$work/bob-photo.png"
+
+echo "building APKs"
+mkdir -p "$gradle_cache"
+docker run --rm --label ai-agent=true --name "$prefix-gradle" \
+    -v "$repo_root:$repo_root" -w "$repo_root" \
+    -v "$gradle_cache:/cache/gradle" -e GRADLE_USER_HOME=/cache/gradle \
+    ghcr.io/cirruslabs/android-sdk:35 ./gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest \
+    >"$log_dir/gradle.log" 2>&1 || { tail -n 40 "$log_dir/gradle.log"; fail "gradle build failed"; }
+
+wait "$boot_pid" || { cat "$log_dir/emulator-boot.log"; fail "emulator did not boot"; }
+cat "$log_dir/emulator-boot.log"
+# boot_completed comes before Android has a default network; the app would treat the server as unreachable.
+has_network() {
+    adb_ shell dumpsys connectivity | grep -qE '^Active default network: [0-9]+'
+}
+poll "the emulator's default network" has_network
+adb_ install -r -t "$repo_root/app/build/outputs/apk/debug/app-debug.apk" >/dev/null
+adb_ install -r -t "$repo_root/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk" >/dev/null
+echo "setup done after ${SECONDS}s"
+
+# --- Scenario -----------------------------------------------------------------------------------------
+
+# a. Register alice and bob (CLI), then start the test, which registers through onboarding.
+cli_ok alice --server "$url" register "$alice" "$alice_name"
+expect ".handle == \"$alice\"" "alice registered"
+cli_ok bob --server "$url" register "$bob" "$bob_name"
+expect ".handle == \"$bob\"" "bob registered"
+
+adb_ logcat -c
+adb_ logcat -v time >"$log_dir/logcat.txt" 2>&1 &
+bg_pids+=($!)
+: >"$log_dir/markers.log"
+adb_ logcat -v brief -s GimInterop:I >"$log_dir/markers.log" 2>&1 &
+bg_pids+=($!)
+adb_ shell "am instrument -w -r -e class im.g.apps.interop.InteropTest \
+    -e gimServerUrl $GIM_EMULATOR_SERVER_URL -e interopRun $run \
+    -e aliceName '$alice_name' -e bobName '$bob_name' -e androidHandle $droid -e androidName '$droid_name' \
+    im.g.apps.test/androidx.test.runner.AndroidJUnitRunner" >"$log_dir/instrumentation.txt" 2>&1 &
+instrument_pid=$!
+bg_pids+=("$instrument_pid")
+
+wait_marker registered
+cli_ok alice users search "$droid"
+expect "(.users | length == 1) and .users[0].display_name == \"$droid_name\"" "alice finds android"
+pass "a. register alice (CLI), bob (CLI), android (onboarding UI); alice finds android"
+
+# b. alice DMs android; android replies; alice gets the reply. Read receipts both ways.
+cli_ok alice dm "$droid"
+dm=$(out .chat_id)
+cli_ok alice send "$dm" "Ahoy from alice $run"
+alice_dm_msg=$(out .message_id)
+wait_marker dm-replied
+cli_ok alice wait-for "$dm" --text "Ahoy from android $run" --from "$droid" --timeout "$timeout"
+pass "b. alice -> android DM shown on Android; android reply received by alice"
+cli_ok alice wait-for "$dm" --msg "$alice_dm_msg" --read-by "$droid" --timeout "$timeout"
+expect ".message.receipts[\"$droid\"] == \"read\"" "android's read receipt"
+pass "e. read: android viewed alice's DM -> CLI JSON shows read"
+cli_ok alice read "$dm"
+wait_marker dm-read-tick
+pass "e. read: alice read the chat -> android shows the read tick"
+
+# c. bob creates a group with alice and android.
+cli_ok bob group create "Crew $run" "$alice" "$droid"
+group=$(out .chat_id)
+cli_ok bob send "$group" "Welcome aboard $run"
+cli_ok alice wait-for "$group" --text "Welcome aboard $run" --from "$bob" --timeout "$timeout"
+wait_marker group-open
+cli_ok bob members "$group"
+expect '.members | length == 3' "three members"
+pass "c. bob's group with alice + android seen by all three"
+
+# d. Text both ways, images both ways.
+cli_ok alice wait-for "$group" --text "Android in the group $run" --from "$droid" --timeout "$timeout"
+droid_group_msg=$(out .message.id)
+cli_ok bob wait-for "$group" --text "Android in the group $run" --from "$droid" --timeout "$timeout"
+cli_ok alice send "$group" "Alice in the group $run"
+cli_ok bob wait-for "$group" --text "Alice in the group $run" --from "$alice" --timeout "$timeout"
+cli_ok bob send-image "$group" "$work/bob-photo.png" --caption "Bob photo $run"
+wait_marker cli-image-shown
+pass "d. group text android <-> alice/bob"
+pass "d. image bob (CLI) -> shown on android"
+wait_marker photo-sent
+cli_ok bob wait-for "$group" --text "Android photo $run" --from "$droid" --timeout "$timeout"
+expect '.message.kind == "media" and (.message.media.mime | startswith("image/"))' "android's photo is an image"
+cli_ok bob download "$(out .message.id)" "$work/android-photo.png"
+cmp "$photo" "$work/android-photo.png" || fail "downloaded photo differs from the test asset"
+pass "d. image android (stubbed picker) -> downloaded by bob, byte-identical"
+
+# e. Reply, reaction, edit, delete, typing.
+cli_ok alice send "$group" "Alice replies $run" --reply "$droid_group_msg"
+alice_reply=$(out .message_id)
+wait_marker android-replied
+cli_ok alice wait-for "$group" --text "Android replies $run" --from "$droid" --timeout "$timeout"
+droid_reply=$(out .message.id)
+expect ".message.reply_to == \"$alice_reply\"" "android's reply quotes alice's message"
+pass "e. reply: quoted preview on android; reply_to in CLI JSON"
+
+cli_ok bob react "$droid_reply" ⛵
+wait_marker android-reacted
+cli_ok alice wait-for "$group" --msg "$alice_reply" --reaction 👍 --from "$droid" --timeout "$timeout"
+pass "e. reaction: bob -> android chip; android -> alice CLI JSON"
+
+cli_ok alice edit "$alice_reply" "Alice edited $run"
+wait_marker android-edited
+cli_ok alice wait-for "$group" --msg "$droid_reply" --edited --timeout "$timeout"
+expect ".message.text == \"Android edited $run\"" "android's edit"
+pass "e. edit: alice -> android shows edited text; android -> CLI JSON edited"
+
+cli_ok alice delete "$alice_reply"
+wait_marker android-deleted
+cli_ok alice wait-for "$group" --msg "$droid_reply" --deleted --timeout "$timeout"
+pass "e. delete: alice -> android shows deleted; android -> CLI JSON deleted"
+
+wait_marker typing-ready
+cli_ok alice typing "$group"
+docker exec -e GIM_PROFILE="$work/bob" "$cli" "$work/gim" --json listen --chat "$group" --timeout "$timeout" \
+    >"$log_dir/bob-listen.jsonl" 2>>"$log_dir/cli-bob.log" &
+listen_pid=$!
+bg_pids+=("$listen_pid")
+poll "bob's listener to connect" grep -q '"state":"connected"' "$log_dir/bob-listen.jsonl"
+signal cli-listening
+wait_marker android-typing
+poll "android's typing event" \
+    jq -es "any(.[]; .event == \"typing\" and .user == \"$droid\" and .active)" "$log_dir/bob-listen.jsonl"
+docker exec "$cli" pkill -INT -f "gim --json listen" || true
+wait "$listen_pid" || true
+signal typing-seen
+pass "e. typing: alice -> android indicator; android -> bob listen typing event"
+
+# f. android renames the group in Group info; both CLIs see the name.
+wait_marker renamed
+renamed() {
+    cli_ok "$1" chats list
+    [[ $(out ".chats[] | select(.id == \"$group\") | .name") == "Crew renamed $run" ]]
+}
+poll "alice to see the new group name" renamed alice
+poll "bob to see the new group name" renamed bob
+pass "f. android renamed the group; alice and bob see the new name"
+
+# g. bob removes alice; bob and android keep talking, alice gets nothing new.
+cli_ok bob group remove "$group" "$alice"
+cli_ok bob send "$group" "Bob after removal $run"
+wait_marker android-after-removal
+cli_ok bob wait-for "$group" --text "Android after removal $run" --from "$droid" --timeout "$timeout"
+for text in "Bob after removal $run" "Android after removal $run"; do
+    cli alice wait-for "$group" --text "$text" --timeout 15
+    ((CLI_RC == 3)) || fail "alice: wait-for '$text' after removal exited $CLI_RC (want 3, timeout): $CLI_OUT"
+done
+pass "g. bob removed alice; bob <-> android still deliver; alice's wait-for times out (exit 3)"
+
+# The test ends after its last step; it must report success.
+for _ in $(seq 1 "$timeout"); do
+    instrument_running || break
+    sleep 1
+done
+instrument_running && fail "instrumentation did not finish"
+grep -q '^OK (1 test)' "$log_dir/instrumentation.txt" || fail "instrumentation did not pass"
+pass "android: InteropTest passed"
+
+echo
+echo "all steps passed in ${SECONDS}s:"
+printf '  %s\n' "${passed[@]}"
