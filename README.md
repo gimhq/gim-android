@@ -11,7 +11,7 @@ the native libraries and bindings are vendored into `:core:bridge`.
 | `:app`                | Application entry point, navigation, dependency wiring           |
 | `:core:bridge`        | gim-core UniFFI bindings and vendored `libgim_core.so`           |
 | `:core:designsystem`  | Shared Compose theme and components                              |
-| `:feature:onboarding` | Onboarding (server URL, account)                                 |
+| `:feature:onboarding` | Onboarding (hub URL, new identity, recovery code, handle)        |
 | `:feature:chatlist`   | Conversation list                                                |
 | `:feature:chat`       | Conversation screen                                              |
 | `:feature:contacts`   | Contacts and groups                                              |
@@ -54,19 +54,27 @@ The onboarding server field is prefilled from `BuildConfig.DEFAULT_HUB_URL`, res
 
 `10.0.2.2` is the emulator's alias for the host loopback.
 
+## Onboarding
+
+New accounts follow gim-core's identity model: Welcome (hub address) -> **Create new account** -> display name
+(`createIdentity`) -> the recovery code, shown once (copy button; "I have saved my recovery code" must be ticked)
+-> optional handle (`claimHandle`; a taken handle is reported on the field, **Skip for now** finishes without
+one). **Link to existing device** and **Restore with recovery code** are shown disabled until their flows land.
+The app also starts at onboarding when gim-core reports `localStateReset()` (the local database was discarded).
+
 ## Device tests
 
-Instrumented tests (`core/bridge/src/androidTest`) run against a real gim-server. The server URL comes from the
-`gimServerUrl` instrumentation argument, default `http://10.0.2.2:8080`:
+Instrumented tests (`core/bridge/src/androidTest`, `app/src/androidTest`) run against a real gim-hub. The hub URL
+comes from the `gimServerUrl` instrumentation argument, default `http://10.0.2.2:8080`:
 
 ```bash
 ./gradlew connectedDebugAndroidTest \
   -Pandroid.testInstrumentationRunnerArguments.gimServerUrl=http://10.0.2.2:8080
 ```
 
-- **Locally:** `scripts/run-device-tests.sh [GRADLE_ARGS...]` starts the vendored gim-server
-  (`oven/bun:1.4`) and an API 35 x86_64 emulator in sibling Docker containers (requires `/dev/kvm` on
-  the host), then runs `connectedDebugAndroidTest`. Extra args are passed to Gradle, e.g.
+- **Locally:** `scripts/run-device-tests.sh [GRADLE_ARGS...]` builds (once per commit) and starts gim-hub
+  (image `ai-agent/gim-hub:<sha12>`, see below) and an API 35 x86_64 emulator in sibling Docker containers
+  (requires `/dev/kvm` on the host), then runs `connectedDebugAndroidTest`. Extra args are passed to Gradle, e.g.
   `scripts/run-device-tests.sh :core:bridge:connectedDebugAndroidTest`. `REBUILD_IMAGE=1` rebuilds
   the emulator image; `GRADLE_CACHE` sets the host Gradle user home (default
   `/srv/.tmp/cache/gradle`). The worktree must be on a host-visible path. See `--help`.
@@ -74,18 +82,19 @@ Instrumented tests (`core/bridge/src/androidTest`) run against a real gim-server
   boot from a freshly saved snapshot and doubled test timeouts (each knob can be overridden, e.g.
   `DEVICE_PROFILE`, `CORES`, `GPU`). On failure the full device logcat is written to
   `.tmp/device-tests/`.
-- **CI:** job `device-tests` in `.github/workflows/ci.yml` starts gim-server with Bun on port 8080 and
-  runs the same Gradle task on an API 35 `pixel_6` emulator.
+- **CI:** job `device-tests` in `.github/workflows/ci.yml` checks out `gimhq/gim-hub` at the pinned commit
+  (deploy key secret `GIM_HUB_DEPLOY_KEY`), builds it with its Dockerfile (the image is cached per commit),
+  publishes it on port 8080 and runs the same Gradle task on an API 35 `pixel_6` emulator. The hub log is
+  uploaded on failure.
 
-### Vendored gim-server
+`scripts/e2e-interop.sh` (CLI x Android) is disabled until it is ported to gim-hub; it exits with an error.
 
-`e2e/gim-server` holds a copy of gim-server (`package.json`, `bun.lock`, `tsconfig.json`, `src/`)
-pinned by `e2e/gim-server/VERSION`. It is vendored because CI must not read another private
-repository. Refresh it from a server checkout:
+### Pinned gim-hub
 
-```bash
-scripts/sync-gim-server.sh [SERVER_DIR]   # default /srv/gimhq/im-client/server
-```
+`e2e/GIM_HUB_VERSION` holds the full gim-hub commit the device tests run against. Locally the image is built
+from `git archive <commit>` of the checkout in `GIM_HUB_SRC` (default `/srv/gimhq/im-client/hub`) with the hub's
+own Dockerfile and reused while the tag exists. To move to another hub commit, change the file; both the local
+script and CI follow it.
 
 ## Vendored gim-core
 

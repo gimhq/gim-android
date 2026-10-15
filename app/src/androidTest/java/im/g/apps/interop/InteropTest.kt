@@ -42,8 +42,9 @@ import im.g.apps.feature.contacts.R as ContactsR
 import im.g.apps.feature.onboarding.R as OnboardingR
 
 /**
- * Android side of scripts/e2e-interop.sh: the app user ("android") drives the real UI against gim-server
- * while the script plays alice and bob with the gim CLI. Skipped unless the script passes `interopRun`.
+ * Android side of scripts/e2e-interop.sh: the app user ("android") drives the real UI against the hub while the
+ * script plays alice and bob with the gim CLI. Skipped unless the script passes `interopRun`; the script itself is
+ * disabled until it moves to gim-hub.
  *
  * Instrumentation arguments: `gimServerUrl`, `interopRun` (suffix of every text below), `aliceName`,
  * `bobName`, `androidHandle`, `androidName`. Each [Rendezvous.mark] hands over to the script; the test
@@ -81,12 +82,17 @@ class InteropTest {
 
     @Test
     fun interopWithCliPeers() {
-        // a. Register through onboarding.
-        compose.waitForText(string(OnboardingR.string.onboarding_title))
+        // a. Create the identity through onboarding and claim the handle.
+        compose.waitForText(string(OnboardingR.string.onboarding_welcome_title))
         compose.onNodeWithTag(TAG_SERVER_URL).performTextReplacement(serverUrl)
-        compose.onNodeWithTag(TAG_HANDLE).performTextInput(androidHandle)
+        compose.onNodeWithTag(TAG_CREATE_ACCOUNT).performClick()
         compose.onNodeWithTag(TAG_DISPLAY_NAME).performTextInput(androidName)
         compose.onNodeWithTag(TAG_SUBMIT).performClick()
+        compose.waitFor(hasTestTag(TAG_CODE_SAVED))
+        compose.onNodeWithTag(TAG_CODE_SAVED).performClick()
+        compose.onNodeWithTag(TAG_CODE_CONTINUE).performClick()
+        compose.onNodeWithTag(TAG_HANDLE).performTextInput(androidHandle)
+        compose.onNodeWithTag(TAG_CLAIM_HANDLE).performClick()
         compose.waitForText(string(ChatListR.string.chatlist_title))
         rendezvous.mark("registered")
 
@@ -240,9 +246,13 @@ class InteropTest {
 
         // Tags of internal constants in the feature modules (OnboardingTestTags, COMPOSER_INPUT_TEST_TAG).
         const val TAG_SERVER_URL = "onboarding_server_url"
-        const val TAG_HANDLE = "onboarding_handle"
+        const val TAG_CREATE_ACCOUNT = "onboarding_create_account"
         const val TAG_DISPLAY_NAME = "onboarding_display_name"
         const val TAG_SUBMIT = "onboarding_submit"
+        const val TAG_CODE_SAVED = "onboarding_code_saved"
+        const val TAG_CODE_CONTINUE = "onboarding_code_continue"
+        const val TAG_HANDLE = "onboarding_handle"
+        const val TAG_CLAIM_HANDLE = "onboarding_claim_handle"
         const val TAG_COMPOSER = "composer-input"
     }
 }

@@ -44,59 +44,63 @@ class OnboardingViewModelTest {
         FakeGimClient(backgroundScope, outboxDelays = null).also(configure)
     }
 
-    /** A fake client whose `register` throws [error]. */
-    private fun TestScope.failingRegisterFactory(error: GimException) = GimClientFactory { _, _ ->
-        object : GimClient by FakeGimClient(backgroundScope, outboxDelays = null) {
-            override suspend fun register(handle: String, displayName: String) = throw error
+    /** A fake client whose `createIdentity` and/or `claimHandle` throw. */
+    private fun TestScope.failingFactory(
+        createIdentity: GimException? = null,
+        claimHandle: GimException? = null,
+    ) = GimClientFactory { _, _ ->
+        val fake = FakeGimClient(backgroundScope, outboxDelays = null)
+        object : GimClient by fake {
+            override suspend fun createIdentity(displayName: String): String =
+                createIdentity?.let { throw it } ?: fake.createIdentity(displayName)
+
+            override suspend fun claimHandle(handle: String) = claimHandle?.let { throw it } ?: fake.claimHandle(handle)
         }
     }
 
-    private fun OnboardingViewModel.fillValid() {
-        onServerUrlChange(SERVER_URL)
-        onHandleChange("sofia")
-        onDisplayNameChange("Sofia Costa")
+    /** Welcome -> display name -> recovery code; returns once the code is shown. */
+    private fun TestScope.toRecoveryCode(vm: OnboardingViewModel) {
+        vm.onServerUrlChange(SERVER_URL)
+        vm.createAccount()
+        vm.onDisplayNameChange("Sofia Costa")
+        vm.submitDisplayName()
+        advanceUntilIdle()
+        assertEquals(OnboardingStep.RECOVERY_CODE, vm.state.value.step)
+    }
+
+    private fun TestScope.toHandle(vm: OnboardingViewModel) {
+        toRecoveryCode(vm)
+        vm.onRecoveryCodeSavedChange(true)
+        vm.acknowledgeRecoveryCode()
+        assertEquals(OnboardingStep.HANDLE, vm.state.value.step)
     }
 
     @Test
-    fun initial_state_is_empty_and_cannot_submit() = runTest(dispatcher) {
+    fun initial_state_is_welcome_and_cannot_create() = runTest(dispatcher) {
         val state = OnboardingViewModel(manager(fakeFactory())).state.value
         assertEquals(OnboardingUiState(), state)
-        assertFalse(state.canSubmit)
+        assertEquals(OnboardingStep.WELCOME, state.step)
+        assertFalse(state.canCreateAccount)
+        assertFalse(state.handlesBack)
     }
 
     @Test
-    fun valid_default_server_url_is_prefilled_trimmed_and_submittable() = runTest(dispatcher) {
-        val factory = fakeFactory()
-        val vm = OnboardingViewModel(manager(factory), defaultServerUrl = " $EMULATOR_URL ")
+    fun valid_default_server_url_is_prefilled_trimmed_and_usable() = runTest(dispatcher) {
+        val vm = OnboardingViewModel(manager(fakeFactory()), defaultServerUrl = " $EMULATOR_URL ")
         assertEquals(EMULATOR_URL, vm.state.value.serverUrl)
         assertNull(vm.state.value.serverUrlError)
-        vm.onHandleChange("sofia")
-        vm.onDisplayNameChange("Sofia Costa")
-        assertTrue(vm.state.value.canSubmit)
-
-        vm.events.test {
-            vm.submit()
-            assertTrue(awaitItem() is OnboardingEvent.Registered)
-        }
-        assertEquals(EMULATOR_URL, store.get())
-    }
-
-    @Test
-    fun empty_default_server_url_keeps_field_empty() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()), defaultServerUrl = "")
-        assertEquals(OnboardingUiState(), vm.state.value)
+        assertTrue(vm.state.value.canCreateAccount)
     }
 
     @Test
     fun invalid_default_server_url_is_shown_and_flagged() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager(fakeFactory()), defaultServerUrl = "gim.example.eu")
-        assertEquals("gim.example.eu", vm.state.value.serverUrl)
         assertEquals(FieldError.InvalidServerUrl, vm.state.value.serverUrlError)
-        vm.onHandleChange("sofia")
-        vm.onDisplayNameChange("Sofia Costa")
-        assertFalse(vm.state.value.canSubmit)
+        vm.createAccount()
+        assertEquals(OnboardingStep.WELCOME, vm.state.value.step)
         vm.onServerUrlChange(SERVER_URL)
-        assertTrue(vm.state.value.canSubmit)
+        vm.createAccount()
+        assertEquals(OnboardingStep.DISPLAY_NAME, vm.state.value.step)
     }
 
     @Test
@@ -117,75 +121,126 @@ class OnboardingViewModelTest {
     }
 
     @Test
+    fun back_returns_from_display_name_to_welcome() = runTest(dispatcher) {
+        val vm = OnboardingViewModel(manager(fakeFactory()), SERVER_URL)
+        vm.createAccount()
+        assertEquals(OnboardingStep.DISPLAY_NAME, vm.state.value.step)
+        assertTrue(vm.state.value.handlesBack)
+        vm.back()
+        assertEquals(OnboardingStep.WELCOME, vm.state.value.step)
+    }
+
+    @Test
+    fun display_name_validation_matrix() = runTest(dispatcher) {
+        val vm = OnboardingViewModel(manager(fakeFactory()), SERVER_URL)
+        vm.createAccount()
+        for (name in listOf("S", "  Sofia  ", "x".repeat(64), "  " + "x".repeat(64) + "  ")) {
+            vm.onDisplayNameChange(name)
+            assertNull(name, vm.state.value.displayNameError)
+            assertTrue(name, vm.state.value.canSubmitDisplayName)
+        }
+        for (name in listOf("   ", "x".repeat(65))) {
+            vm.onDisplayNameChange(name)
+            assertEquals(name, FieldError.InvalidDisplayName, vm.state.value.displayNameError)
+            assertFalse(name, vm.state.value.canSubmitDisplayName)
+        }
+    }
+
+    @Test
+    fun create_shows_recovery_code_once_then_claims_handle_and_finishes() = runTest(dispatcher) {
+        val factory = fakeFactory()
+        val vm = OnboardingViewModel(manager(factory))
+        vm.onServerUrlChange(" $SERVER_URL ")
+        vm.createAccount()
+        vm.onDisplayNameChange("  Sofia Costa ")
+
+        vm.submitDisplayName()
+        assertTrue(vm.state.value.isLoading)
+        advanceUntilIdle()
+        assertEquals(OnboardingStep.RECOVERY_CODE, vm.state.value.step)
+        assertEquals(FakeGimClient.fakeRecoveryCode(1), vm.state.value.recoveryCode)
+        assertEquals(SERVER_URL, store.get())
+        val client = factory.created.single()
+        assertEquals("Sofia Costa", client.session()?.displayName)
+        assertEquals("", client.session()?.handle)
+
+        // Saving must be confirmed; back does not leave the code.
+        assertTrue(vm.state.value.handlesBack)
+        vm.back()
+        vm.acknowledgeRecoveryCode()
+        assertEquals(OnboardingStep.RECOVERY_CODE, vm.state.value.step)
+        vm.onRecoveryCodeSavedChange(true)
+        vm.acknowledgeRecoveryCode()
+        assertEquals(OnboardingStep.HANDLE, vm.state.value.step)
+        assertNull(vm.state.value.recoveryCode)
+        assertFalse(vm.state.value.handlesBack)
+
+        vm.onHandleChange(" @Sofia_C ")
+        assertEquals("sofia_c", vm.state.value.handle)
+        vm.events.test {
+            vm.claimHandle()
+            assertTrue(vm.state.value.isLoading)
+            assertEquals(OnboardingEvent.Finished, awaitItem())
+        }
+        assertFalse(vm.state.value.isLoading)
+        assertEquals("sofia_c", client.session()?.handle)
+        assertEquals(1, factory.created.size)
+    }
+
+    @Test
+    fun skip_finishes_without_a_handle() = runTest(dispatcher) {
+        val factory = fakeFactory()
+        val vm = OnboardingViewModel(manager(factory))
+        toHandle(vm)
+        vm.events.test {
+            vm.skipHandle()
+            assertEquals(OnboardingEvent.Finished, awaitItem())
+        }
+        assertEquals("", factory.created.single().session()?.handle)
+    }
+
+    @Test
     fun handle_validation_matrix() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager(fakeFactory()))
-        val valid = listOf("abc", "sofia_costa", "s.costa", "a1b2c3", "x".repeat(32))
-        val invalid = listOf("ab", "x".repeat(33), "sofia-costa", "sofia costa", "sofía", "sofia!")
+        toHandle(vm)
+        val valid = listOf("abc", "sofia_costa", "a1b2c3", "x".repeat(32))
+        val invalid = listOf("ab", "x".repeat(33), "s.costa", "sofia-costa", "sofia costa", "sofía", "sofia!")
         for (handle in valid) {
             vm.onHandleChange(handle)
             assertNull(handle, vm.state.value.handleError)
+            assertTrue(handle, vm.state.value.canClaimHandle)
         }
         for (handle in invalid) {
             vm.onHandleChange(handle)
             assertEquals(handle, FieldError.InvalidHandle, vm.state.value.handleError)
+            assertFalse(handle, vm.state.value.canClaimHandle)
         }
         vm.onHandleChange("")
         assertNull(vm.state.value.handleError)
     }
 
     @Test
-    fun handle_is_normalized_to_lowercase_without_at_sign() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()))
-        vm.onHandleChange(" @Sofia.Costa ")
-        assertEquals("sofia.costa", vm.state.value.handle)
-        assertNull(vm.state.value.handleError)
-    }
-
-    @Test
-    fun display_name_validation_matrix() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()))
-        for (name in listOf("S", "  Sofia  ", "x".repeat(64), "  " + "x".repeat(64) + "  ")) {
-            vm.onDisplayNameChange(name)
-            assertNull(name, vm.state.value.displayNameError)
-        }
-        for (name in listOf("   ", "x".repeat(65))) {
-            vm.onDisplayNameChange(name)
-            assertEquals(name, FieldError.InvalidDisplayName, vm.state.value.displayNameError)
-        }
-    }
-
-    @Test
-    fun can_submit_only_when_all_fields_are_valid() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()))
-        vm.onServerUrlChange(SERVER_URL)
-        assertFalse(vm.state.value.canSubmit)
+    fun taken_handle_maps_to_field_error_until_the_handle_changes() = runTest(dispatcher) {
+        val vm = OnboardingViewModel(
+            manager(fakeFactory { it.addDirectoryUser(UserProfile("u-other", "sofia", "Sofia")) }),
+        )
+        toHandle(vm)
         vm.onHandleChange("sofia")
-        assertFalse(vm.state.value.canSubmit)
-        vm.onDisplayNameChange("Sofia")
-        assertTrue(vm.state.value.canSubmit)
-        vm.onHandleChange("so")
-        assertFalse(vm.state.value.canSubmit)
-    }
-
-    @Test
-    fun submit_success_registers_trimmed_values_and_emits_event() = runTest(dispatcher) {
-        val factory = fakeFactory()
-        val vm = OnboardingViewModel(manager(factory))
-        vm.onServerUrlChange(" $SERVER_URL ")
-        vm.onHandleChange("Sofia")
-        vm.onDisplayNameChange("  Sofia Costa ")
-
         vm.events.test {
-            vm.submit()
-            assertTrue(vm.state.value.isLoading)
-            val event = awaitItem() as OnboardingEvent.Registered
-            assertEquals("sofia", event.session.handle)
-            assertEquals("Sofia Costa", event.session.displayName)
+            vm.claimHandle()
+            advanceUntilIdle()
+            expectNoEvents()
         }
-        assertFalse(vm.state.value.isLoading)
-        assertEquals(SERVER_URL, store.get())
-        assertEquals(1, factory.created.size)
-        assertEquals("sofia", factory.created.single().session()?.handle)
+        assertEquals(FieldError.HandleTaken, vm.state.value.handleError)
+        assertNull(vm.state.value.error)
+        assertFalse(vm.state.value.canClaimHandle)
+
+        vm.onHandleChange("sofia2")
+        assertNull(vm.state.value.handleError)
+        vm.events.test {
+            vm.claimHandle()
+            assertEquals(OnboardingEvent.Finished, awaitItem())
+        }
     }
 
     @Test
@@ -198,109 +253,145 @@ class OnboardingViewModelTest {
                 gate.await()
                 FakeGimClient(backgroundScope, outboxDelays = null)
             },
+            SERVER_URL,
         )
-        vm.fillValid()
+        vm.createAccount()
+        vm.onDisplayNameChange("Sofia")
+        vm.submitDisplayName()
+        advanceUntilIdle()
+        assertTrue(vm.state.value.isLoading)
+        vm.submitDisplayName()
+        vm.onDisplayNameChange("Other")
+        vm.back()
+        advanceUntilIdle()
+        assertEquals("Sofia", vm.state.value.displayName)
+        assertEquals(OnboardingStep.DISPLAY_NAME, vm.state.value.step)
 
-        vm.events.test {
-            vm.submit()
-            advanceUntilIdle()
-            assertTrue(vm.state.value.isLoading)
-            vm.submit()
-            vm.onHandleChange("other")
-            advanceUntilIdle()
-            assertEquals("sofia", vm.state.value.handle)
-
-            gate.complete(Unit)
-            assertTrue(awaitItem() is OnboardingEvent.Registered)
-            expectNoEvents()
-        }
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(OnboardingStep.RECOVERY_CODE, vm.state.value.step)
         assertEquals(1, creates)
     }
 
     @Test
-    fun network_error_maps_to_cannot_reach_server() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(failingRegisterFactory(GimException.Network("timeout"))))
-        vm.fillValid()
-        vm.submit()
+    fun network_error_on_create_maps_to_cannot_reach_server_and_allows_retry() = runTest(dispatcher) {
+        val vm = OnboardingViewModel(manager(failingFactory(createIdentity = GimException.Network("timeout"))), SERVER_URL)
+        vm.createAccount()
+        vm.onDisplayNameChange("Sofia")
+        vm.submitDisplayName()
         advanceUntilIdle()
+        assertEquals(OnboardingStep.DISPLAY_NAME, vm.state.value.step)
         assertEquals(OnboardingError.CannotReachServer, vm.state.value.error)
         assertFalse(vm.state.value.isLoading)
-        assertTrue(vm.state.value.canSubmit)
+        assertTrue(vm.state.value.canSubmitDisplayName)
     }
 
     @Test
     fun network_error_while_connecting_maps_to_cannot_reach_server() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager { _, _ -> throw GimException.Network("unreachable") })
-        vm.fillValid()
-        vm.submit()
+        val vm = OnboardingViewModel(manager { _, _ -> throw GimException.Network("unreachable") }, SERVER_URL)
+        vm.createAccount()
+        vm.onDisplayNameChange("Sofia")
+        vm.submitDisplayName()
         advanceUntilIdle()
         assertEquals(OnboardingError.CannotReachServer, vm.state.value.error)
     }
 
     @Test
-    fun conflict_maps_to_handle_taken_until_handle_changes() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(
-            manager(fakeFactory { it.addDirectoryUser(UserProfile("u-sofia", "sofia", "Sofia")) }),
-        )
-        vm.fillValid()
-        vm.submit()
+    fun invalid_input_from_connect_returns_to_welcome_with_server_url_error() = runTest(dispatcher) {
+        val vm = OnboardingViewModel(manager { _, _ -> throw GimException.InvalidInput("server_url: rejected") }, SERVER_URL)
+        vm.createAccount()
+        vm.onDisplayNameChange("Sofia")
+        vm.submitDisplayName()
         advanceUntilIdle()
-        assertEquals(FieldError.HandleTaken, vm.state.value.handleError)
-        assertNull(vm.state.value.error)
-        assertFalse(vm.state.value.canSubmit)
-
-        vm.onHandleChange("sofia2")
-        assertNull(vm.state.value.handleError)
-        assertTrue(vm.state.value.canSubmit)
-    }
-
-    @Test
-    fun invalid_input_from_connect_maps_to_server_url_error() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager { _, _ -> throw GimException.InvalidInput("server_url: rejected") })
-        vm.fillValid()
-        vm.submit()
-        advanceUntilIdle()
+        assertEquals(OnboardingStep.WELCOME, vm.state.value.step)
         assertEquals(FieldError.InvalidServerUrl, vm.state.value.serverUrlError)
-        assertNull(vm.state.value.handleError)
+        assertNull(vm.state.value.error)
     }
 
     @Test
-    fun invalid_input_from_register_maps_to_handle_error() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(failingRegisterFactory(GimException.InvalidInput("handle: reserved"))))
-        vm.fillValid()
-        vm.submit()
+    fun invalid_input_from_create_maps_to_display_name_error() = runTest(dispatcher) {
+        val vm = OnboardingViewModel(manager(failingFactory(createIdentity = GimException.InvalidInput("display_name"))), SERVER_URL)
+        vm.createAccount()
+        vm.onDisplayNameChange("Sofia")
+        vm.submitDisplayName()
         advanceUntilIdle()
-        assertEquals(FieldError.InvalidHandle, vm.state.value.handleError)
-        assertNull(vm.state.value.serverUrlError)
+        assertEquals(FieldError.InvalidDisplayName, vm.state.value.displayNameError)
     }
 
     @Test
-    fun other_errors_map_to_generic() = runTest(dispatcher) {
-        val errors = listOf(
-            GimException.Server(500, "boom"),
-            GimException.Internal("bug"),
-            GimException.NotImplemented(),
-            GimException.Storage("disk"),
+    fun retry_later_maps_to_try_again_later_on_create_and_on_claim() = runTest(dispatcher) {
+        val throttled = GimException.RetryLater(429, 30, "rate_limited")
+        val create = OnboardingViewModel(manager(failingFactory(createIdentity = throttled)), SERVER_URL)
+        create.createAccount()
+        create.onDisplayNameChange("Sofia")
+        create.submitDisplayName()
+        advanceUntilIdle()
+        assertEquals(OnboardingError.TryAgainLater(30), create.state.value.error)
+
+        val claim = OnboardingViewModel(manager(failingFactory(claimHandle = GimException.RetryLater(503, 0, "peer"))))
+        toHandle(claim)
+        claim.onHandleChange("sofia")
+        claim.claimHandle()
+        advanceUntilIdle()
+        assertEquals(OnboardingError.TryAgainLater(1), claim.state.value.error)
+        assertNull(claim.state.value.handleError)
+        assertTrue(claim.state.value.canClaimHandle)
+    }
+
+    @Test
+    fun claim_errors_map_to_field_or_general_errors() = runTest(dispatcher) {
+        val cases = mapOf<GimException, Pair<FieldError?, OnboardingError?>>(
+            GimException.InvalidInput("handle: reserved") to (FieldError.InvalidHandle to null),
+            GimException.Network("down") to (null to OnboardingError.CannotReachServer),
+            GimException.Server(500, "boom") to (null to OnboardingError.Generic),
+            GimException.NotRegistered() to (null to OnboardingError.Generic),
         )
-        for (error in errors) {
-            val vm = OnboardingViewModel(manager(failingRegisterFactory(error)))
-            vm.fillValid()
-            vm.submit()
+        for ((error, expected) in cases) {
+            val vm = OnboardingViewModel(manager(failingFactory(claimHandle = error)))
+            toHandle(vm)
+            vm.onHandleChange("sofia")
+            vm.claimHandle()
             advanceUntilIdle()
-            assertEquals(error.toString(), OnboardingError.Generic, vm.state.value.error)
+            assertEquals(error.toString(), expected.first, vm.state.value.handleError)
+            assertEquals(error.toString(), expected.second, vm.state.value.error)
             assertFalse(vm.state.value.isLoading)
         }
     }
 
     @Test
-    fun editing_a_field_clears_the_general_error() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(failingRegisterFactory(GimException.Internal("bug"))))
-        vm.fillValid()
-        vm.submit()
-        advanceUntilIdle()
-        assertEquals(OnboardingError.Generic, vm.state.value.error)
-        vm.onDisplayNameChange("Sofia")
-        assertNull(vm.state.value.error)
+    fun other_create_errors_map_to_generic_and_editing_clears_them() = runTest(dispatcher) {
+        val errors = listOf(
+            GimException.Server(500, "boom"),
+            GimException.Internal("bug"),
+            GimException.NotImplemented(),
+            GimException.Storage("keystore locked"),
+        )
+        for (error in errors) {
+            val vm = OnboardingViewModel(manager(failingFactory(createIdentity = error)), SERVER_URL)
+            vm.createAccount()
+            vm.onDisplayNameChange("Sofia")
+            vm.submitDisplayName()
+            advanceUntilIdle()
+            assertEquals(error.toString(), OnboardingError.Generic, vm.state.value.error)
+            assertFalse(vm.state.value.isLoading)
+            vm.onDisplayNameChange("Sofia C")
+            assertNull(vm.state.value.error)
+        }
+    }
+
+    @Test
+    fun actions_outside_their_step_are_ignored() = runTest(dispatcher) {
+        val vm = OnboardingViewModel(manager(fakeFactory()), SERVER_URL)
+        vm.submitDisplayName()
+        vm.onRecoveryCodeSavedChange(true)
+        vm.acknowledgeRecoveryCode()
+        vm.claimHandle()
+        vm.events.test {
+            vm.skipHandle()
+            advanceUntilIdle()
+            expectNoEvents()
+        }
+        assertEquals(OnboardingUiState.withServerUrl(SERVER_URL), vm.state.value)
     }
 
     private companion object {

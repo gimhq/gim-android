@@ -3,9 +3,12 @@ package im.g.apps.core.bridge.uniffi
 import im.g.apps.core.bridge.ChatListListener
 import im.g.apps.core.bridge.ClientConfig
 import im.g.apps.core.bridge.ConnectionStateListener
+import im.g.apps.core.bridge.DeviceInfo
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimClientFactory
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.LinkSession
+import im.g.apps.core.bridge.PendingApproval
 import im.g.apps.core.bridge.PlatformHooks
 import im.g.apps.core.bridge.Session
 import im.g.apps.core.bridge.TaskHandle
@@ -28,8 +31,39 @@ class UniffiGimClientFactory : GimClientFactory {
 internal class UniffiGimClient(private val inner: im.g.gimcore.GimClient) : GimClient {
     override suspend fun session(): Session? = core { inner.session()?.toMirror() }
 
-    override suspend fun register(handle: String, displayName: String): Session =
-        core { inner.register(handle, displayName).toMirror() }
+    override fun userId(): String? = inner.userId()
+
+    override fun localStateReset(): Boolean = inner.localStateReset()
+
+    override suspend fun createIdentity(displayName: String): String = core { inner.createIdentity(displayName) }
+
+    override suspend fun restoreFromRecovery(userId: String, recoveryCode: String, revokeOthers: Boolean) =
+        core { inner.restoreFromRecovery(userId, recoveryCode, revokeOthers) }
+
+    override fun startLink(hubs: List<String>): LinkSession = UniffiLinkSession(core { inner.startLink(hubs) })
+
+    override suspend fun waitLink(link: LinkSession): String = core { inner.waitLink(link.native()) }
+
+    override suspend fun confirmLink(accepted: Boolean) = core { inner.confirmLink(accepted) }
+
+    override suspend fun approveLink(qrString: String): PendingApproval =
+        UniffiPendingApproval(core { inner.approveLink(qrString) })
+
+    override suspend fun confirmApproval(approval: PendingApproval, accepted: Boolean) =
+        core { inner.confirmApproval(approval.native(), accepted) }
+
+    override suspend fun devices(): List<DeviceInfo> = core { inner.devices().map { it.toMirror() } }
+
+    override suspend fun userDevices(userId: String): List<DeviceInfo> =
+        core { inner.userDevices(userId).map { it.toMirror() } }
+
+    override suspend fun revokeDevice(deviceId: String) = core { inner.revokeDevice(deviceId) }
+
+    override suspend fun setDisplayName(name: String) = core { inner.setDisplayName(name) }
+
+    override suspend fun claimHandle(handle: String) = core { inner.claimHandle(handle) }
+
+    override suspend fun releaseHandle() = core { inner.releaseHandle() }
 
     override suspend fun signOut() = core { inner.signOut() }
 
@@ -90,6 +124,8 @@ internal class UniffiGimClient(private val inner: im.g.gimcore.GimClient) : GimC
 
     override suspend fun setTyping(chatId: String, active: Boolean) = core { inner.setTyping(chatId, active) }
 
+    override suspend fun stopTyping(chatId: String) = core { inner.stopTyping(chatId) }
+
     override suspend fun fetchMedia(chatId: String, messageId: String, destPath: String): String =
         core { inner.fetchMedia(chatId, messageId, destPath) }
 
@@ -107,6 +143,24 @@ internal class UniffiGimClient(private val inner: im.g.gimcore.GimClient) : GimC
     override suspend fun typing(chatId: String, listener: TypingListener): TaskHandle =
         UniffiTaskHandle(core { inner.typing(chatId, TypingListenerAdapter(listener)) })
 }
+
+internal class UniffiLinkSession(val inner: im.g.gimcore.LinkSession) : LinkSession {
+    override fun qrString(): String = inner.qrString()
+}
+
+internal class UniffiPendingApproval(val inner: im.g.gimcore.PendingApproval) : PendingApproval {
+    override fun sas(): String = inner.sas()
+
+    override fun deviceId(): String = inner.deviceId()
+}
+
+/** Only sessions from [UniffiGimClient.startLink] can be passed back to gim-core. */
+private fun LinkSession.native(): im.g.gimcore.LinkSession =
+    (this as? UniffiLinkSession)?.inner ?: throw GimException.InvalidInput("link: not created by this client")
+
+/** Only approvals from [UniffiGimClient.approveLink] can be passed back to gim-core. */
+private fun PendingApproval.native(): im.g.gimcore.PendingApproval =
+    (this as? UniffiPendingApproval)?.inner ?: throw GimException.InvalidInput("approval: not created by this client")
 
 internal class UniffiTimeline(private val inner: im.g.gimcore.Timeline) : Timeline {
     override fun chatId(): String = inner.chatId()
@@ -163,27 +217,28 @@ internal class TypingListenerAdapter(private val listener: TypingListener) : im.
 }
 
 /**
- * Exposes the mirror [PlatformHooks] to gim-core. Only `secureStoreSet` may fail across the FFI; its
- * mirror [GimException]s map back 1:1 and any other exception becomes `Storage`.
+ * Exposes the mirror [PlatformHooks] to gim-core. Only `secureStoreGet` and `secureStoreSet` may fail across
+ * the FFI; their mirror [GimException]s map back 1:1 and any other exception becomes `Storage`.
  */
 internal class PlatformHooksAdapter(private val hooks: PlatformHooks) : im.g.gimcore.PlatformHooks {
-    override fun secureStoreGet(key: String): ByteArray? = hooks.secureStoreGet(key)
+    override fun secureStoreGet(key: String): ByteArray? = hook { hooks.secureStoreGet(key) }
 
-    override fun secureStoreSet(key: String, value: ByteArray) {
-        try {
-            hooks.secureStoreSet(key, value)
-        } catch (e: GimException) {
-            throw e.toCore()
-        } catch (e: Exception) {
-            throw im.g.gimcore.GimException.Storage(e.message ?: e.toString()).apply { initCause(e) }
-        }
-    }
+    override fun secureStoreSet(key: String, value: ByteArray) = hook { hooks.secureStoreSet(key, value) }
 
     override fun secureStoreDelete(key: String) = hooks.secureStoreDelete(key)
 
     override fun dataDir(): String = hooks.dataDir()
 
     override fun isNetworkReachable(): Boolean = hooks.isNetworkReachable()
+}
+
+/** Runs a fallible platform hook, rethrowing its failures as gim-core errors. */
+private inline fun <T> hook(block: () -> T): T = try {
+    block()
+} catch (e: GimException) {
+    throw e.toCore()
+} catch (e: Exception) {
+    throw im.g.gimcore.GimException.Storage(e.message ?: e.toString()).apply { initCause(e) }
 }
 
 /** Runs a gim-core call, rethrowing its errors as mirror [GimException]s. */
