@@ -103,6 +103,9 @@ data class ChatUiState(
 /** One-shot events from [im.g.apps.feature.chat.ChatViewModel]. */
 sealed interface ChatEvent {
     data class OpenFile(val path: String, val mime: String) : ChatEvent
+
+    /** A user-initiated action failed; shown as a snackbar. */
+    data class Error(val message: UiText) : ChatEvent
 }
 
 const val GROUPING_WINDOW_MS = 5 * 60_000L
