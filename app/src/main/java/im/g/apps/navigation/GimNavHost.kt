@@ -32,6 +32,8 @@ import im.g.apps.feature.contacts.NewGroupViewModel
 import im.g.apps.feature.contacts.groupInfoViewModelFactory
 import im.g.apps.feature.contacts.newChatViewModelFactory
 import im.g.apps.feature.contacts.newGroupViewModelFactory
+import im.g.apps.feature.devices.DevicesRoute
+import im.g.apps.feature.devices.devicesViewModelFactory
 import im.g.apps.feature.onboarding.OnboardingRoute
 import im.g.apps.feature.onboarding.OnboardingViewModel
 import im.g.apps.feature.onboarding.onboardingViewModelFactory
@@ -87,6 +89,7 @@ fun GimNavHost(
                         navController.navigate(Routes.ONBOARDING) { popUpTo(navController.graph.id) { inclusive = true } }
                     }
                 },
+                onDevices = { navController.navigate(Routes.DEVICES) },
             )
         }
         composable(Routes.CHAT) { entry ->
@@ -139,6 +142,20 @@ fun GimNavHost(
                 viewModel = viewModel(factory = groupInfoViewModelFactory(current, chatId)),
                 onBack = { navController.popBackStack() },
                 onLeftChat = { navController.popBackStack(Routes.CHAT_LIST, inclusive = false) },
+            )
+        }
+        composable(Routes.DEVICES) {
+            val current = client ?: return@composable
+            DevicesRoute(
+                viewModel = viewModel(factory = devicesViewModelFactory(current)),
+                onBack = { navController.popBackStack() },
+                // This device was revoked elsewhere: wipe it like a sign-out and show onboarding.
+                onSignedOut = {
+                    navScope.launch(Dispatchers.Main) {
+                        container.signOut()
+                        navController.navigate(Routes.ONBOARDING) { popUpTo(navController.graph.id) { inclusive = true } }
+                    }
+                },
             )
         }
     }
