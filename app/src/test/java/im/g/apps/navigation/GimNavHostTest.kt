@@ -2,17 +2,23 @@ package im.g.apps.navigation
 
 import android.app.Application
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.rememberNavController
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import im.g.apps.AppContainer
 import im.g.apps.DemoAccountClient
 import im.g.apps.core.bridge.GimClientFactory
+import im.g.apps.core.bridge.InMemoryServerUrlStore
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakeGimClientFactory
@@ -21,6 +27,8 @@ import im.g.apps.testContainer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,9 +43,23 @@ class GimNavHostTest {
 
     private val scope = CoroutineScope(Job())
 
+    private lateinit var nav: NavHostController
+
     private fun launch(container: AppContainer) {
         val start = runBlocking { resolveStartDestination(container.manager) }
-        rule.setContent { GimTheme { GimNavHost(container, start) } }
+        rule.setContent {
+            nav = rememberNavController()
+            GimTheme { GimNavHost(container, start, navController = nav) }
+        }
+    }
+
+    private fun register() {
+        rule.onNodeWithText("Create your account").assertExists()
+        val fields = rule.onAllNodes(hasSetTextAction())
+        fields[0].performTextInput(DemoData.SERVER_URL)
+        fields[1].performTextInput("sofia")
+        fields[2].performTextInput("Sofia Costa")
+        rule.onNodeWithText("Create account").performClick()
     }
 
     @Test
@@ -62,15 +84,43 @@ class GimNavHostTest {
             ),
         )
 
-        rule.onNodeWithText("Create your account").assertExists()
-        val fields = rule.onAllNodes(hasSetTextAction())
-        fields[0].performTextInput(DemoData.SERVER_URL)
-        fields[1].performTextInput("sofia")
-        fields[2].performTextInput("Sofia Costa")
-        rule.onNodeWithText("Create account").performClick()
+        register()
 
         rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
         rule.onNodeWithText("Create your account").assertDoesNotExist()
+    }
+
+    @Test
+    fun sign_out_returns_to_onboarding_with_an_empty_back_stack_and_allows_registering_again() {
+        val store = InMemoryServerUrlStore(DemoData.SERVER_URL)
+        val demo = FakeGimClientFactory { _, _ -> FakeGimClient.withDemoData(scope, outboxDelays = null) }
+        val container = AppContainer(
+            context = ApplicationProvider.getApplicationContext(),
+            appScope = scope,
+            serverUrlStore = store,
+            clientFactory = GimClientFactory { config, hooks ->
+                DemoAccountClient(demo.create(config, hooks), registered = store.get() != null)
+            },
+        )
+        launch(container)
+
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+        rule.onNodeWithContentDescription("More options").performClick()
+        rule.onNodeWithText("Sign out").performClick()
+        rule.onNode(hasText("Sign out") and hasClickAction()).performClick()
+
+        rule.waitUntilAtLeastOneExists(hasText("Create your account"), TIMEOUT)
+        rule.runOnIdle {
+            assertEquals(Routes.ONBOARDING, nav.currentDestination?.route)
+            assertNull(nav.previousBackStackEntry)
+        }
+        assertNull(store.get())
+        assertNull(container.manager.client.value)
+
+        register()
+
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+        rule.runOnIdle { assertNull(nav.previousBackStackEntry) }
     }
 
     private companion object {

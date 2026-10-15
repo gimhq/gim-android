@@ -36,6 +36,7 @@ import im.g.apps.feature.onboarding.OnboardingRoute
 import im.g.apps.feature.onboarding.OnboardingViewModel
 import im.g.apps.feature.onboarding.onboardingViewModelFactory
 import im.g.apps.openFile
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /** App navigation graph; ViewModels are scoped to their back stack entries. */
@@ -47,10 +48,14 @@ fun GimNavHost(
     navController: NavHostController = rememberNavController(),
 ) {
     val client by container.manager.client.collectAsState()
+    // Outlives the chat list entry, which leaves composition as soon as sign-out drops the client.
+    val navScope = rememberCoroutineScope()
 
     NavHost(navController, startDestination, modifier) {
         composable(Routes.ONBOARDING) {
-            val vm: OnboardingViewModel = viewModel(factory = onboardingViewModelFactory(container.manager))
+            val vm: OnboardingViewModel = viewModel(
+                factory = onboardingViewModelFactory(container.manager, container.defaultHubUrl),
+            )
             OnboardingRoute(
                 viewModel = vm,
                 onRegistered = {
@@ -72,6 +77,13 @@ fun GimNavHost(
                 onOpenChat = { navController.navigate(Routes.chat(it)) },
                 onNewChat = { navController.navigate(Routes.NEW_CHAT) },
                 onNewGroup = { navController.navigate(Routes.NEW_GROUP) },
+                onSignOut = {
+                    // Main: sign-out resumes from background work and NavController is main-thread only.
+                    navScope.launch(Dispatchers.Main) {
+                        container.signOut()
+                        navController.navigate(Routes.ONBOARDING) { popUpTo(navController.graph.id) { inclusive = true } }
+                    }
+                },
             )
         }
         composable(Routes.CHAT) { entry ->
