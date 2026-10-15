@@ -42,6 +42,7 @@ dependencies {
     implementation(project(":feature:chatlist"))
     implementation(project(":feature:chat"))
     implementation(project(":feature:contacts"))
+    implementation(project(":feature:linking"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

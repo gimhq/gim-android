@@ -9,6 +9,7 @@ object Routes {
     const val CHAT_LIST = "chatlist"
     const val NEW_CHAT = "newChat"
     const val NEW_GROUP = "newGroup"
+    const val LINK_DEVICE = "linkDevice"
     const val CHAT_ID = "chatId"
     const val CHAT = "chat/{$CHAT_ID}"
     const val GROUP_INFO = "groupInfo/{$CHAT_ID}"

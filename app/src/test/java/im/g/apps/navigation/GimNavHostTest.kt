@@ -134,6 +134,50 @@ class GimNavHostTest {
         rule.runOnIdle { assertNull(nav.previousBackStackEntry) }
     }
 
+    @Test
+    fun link_to_existing_device_from_onboarding_shows_the_sas_then_the_chat_list() {
+        launch(
+            testContainer(
+                storedUrl = null,
+                scope = scope,
+                factory = FakeGimClientFactory { _, _ -> FakeGimClient(scope, outboxDelays = null) },
+            ),
+        )
+
+        rule.onNode(hasSetTextAction()).performTextInput(DemoData.SERVER_URL)
+        rule.onNodeWithText("Link to existing device").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("Compare the codes"), TIMEOUT)
+        rule.onNodeWithText("The codes match").performClick()
+
+        rule.waitUntilAtLeastOneExists(hasText("No chats yet"), TIMEOUT)
+        rule.runOnIdle {
+            assertEquals(Routes.CHAT_LIST, nav.currentDestination?.route)
+            assertNull(nav.previousBackStackEntry)
+        }
+    }
+
+    @Test
+    fun chat_list_overflow_opens_link_a_new_device_and_approves_a_pasted_code() {
+        launch(testContainer(scope = scope))
+        val code = FakeGimClient(scope, outboxDelays = null).startLink(emptyList()).qrString()
+
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+        rule.onNodeWithContentDescription("More options").performClick()
+        rule.onNodeWithText("Link a new device").performClick()
+
+        rule.waitUntilAtLeastOneExists(hasText("Allow camera"), TIMEOUT)
+        rule.runOnIdle { assertEquals(Routes.LINK_DEVICE, nav.currentDestination?.route) }
+        rule.onNode(hasSetTextAction()).performTextInput(code)
+        rule.onNodeWithText("Continue").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("Compare the codes"), TIMEOUT)
+        rule.onNodeWithText("The codes match").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("Done"), TIMEOUT)
+        rule.onNodeWithText("Done").performClick()
+
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+        rule.runOnIdle { assertEquals(Routes.CHAT_LIST, nav.currentDestination?.route) }
+    }
+
     private companion object {
         const val TIMEOUT = 5_000L
     }

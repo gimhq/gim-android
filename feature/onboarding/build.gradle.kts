@@ -5,3 +5,7 @@ plugins {
 android {
     namespace = "im.g.apps.feature.onboarding"
 }
+
+dependencies {
+    implementation(libs.zxing.core)
+}

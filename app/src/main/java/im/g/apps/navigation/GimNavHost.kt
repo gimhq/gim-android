@@ -32,6 +32,8 @@ import im.g.apps.feature.contacts.NewGroupViewModel
 import im.g.apps.feature.contacts.groupInfoViewModelFactory
 import im.g.apps.feature.contacts.newChatViewModelFactory
 import im.g.apps.feature.contacts.newGroupViewModelFactory
+import im.g.apps.feature.linking.LinkDeviceRoute
+import im.g.apps.feature.linking.linkDeviceViewModelFactory
 import im.g.apps.feature.onboarding.OnboardingRoute
 import im.g.apps.feature.onboarding.OnboardingViewModel
 import im.g.apps.feature.onboarding.onboardingViewModelFactory
@@ -54,10 +56,11 @@ fun GimNavHost(
     NavHost(navController, startDestination, modifier) {
         composable(Routes.ONBOARDING) {
             val vm: OnboardingViewModel = viewModel(
-                factory = onboardingViewModelFactory(container.manager, container.defaultHubUrl),
+                // A dropped link must also wipe the keystore and data dir, like sign-out.
+                factory = onboardingViewModelFactory(container.manager, container.defaultHubUrl, container::signOut),
             )
             val state by vm.state.collectAsState()
-            // Display name -> Welcome; on the recovery code back is swallowed until it is acknowledged.
+            // Display name -> Welcome, link QR code -> cancel; on the recovery code and the link SAS back is swallowed.
             BackHandler(enabled = state.handlesBack) { vm.back() }
             OnboardingRoute(
                 viewModel = vm,
@@ -80,6 +83,7 @@ fun GimNavHost(
                 onOpenChat = { navController.navigate(Routes.chat(it)) },
                 onNewChat = { navController.navigate(Routes.NEW_CHAT) },
                 onNewGroup = { navController.navigate(Routes.NEW_GROUP) },
+                onLinkDevice = { navController.navigate(Routes.LINK_DEVICE) },
                 onSignOut = {
                     // Main: sign-out resumes from background work and NavController is main-thread only.
                     navScope.launch(Dispatchers.Main) {
@@ -87,6 +91,13 @@ fun GimNavHost(
                         navController.navigate(Routes.ONBOARDING) { popUpTo(navController.graph.id) { inclusive = true } }
                     }
                 },
+            )
+        }
+        composable(Routes.LINK_DEVICE) {
+            val current = client ?: return@composable
+            LinkDeviceRoute(
+                viewModel = viewModel(factory = linkDeviceViewModelFactory(current)),
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Routes.CHAT) { entry ->
