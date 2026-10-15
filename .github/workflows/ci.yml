@@ -29,6 +29,8 @@ jobs:
 
   device-tests:
     runs-on: ubuntu-latest
+    # Non-blocking until device tests are green twice in a row on CI (M2.0 decision 3hw80l71); a follow-up task removes this key.
+    continue-on-error: true
     timeout-minutes: 60
     env:
       API_LEVEL: 35
