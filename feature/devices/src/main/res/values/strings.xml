@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="devices_title">Devices</string>
+    <string name="devices_back">Back</string>
+    <string name="devices_refresh">Refresh</string>
+    <string name="devices_user_id_label">Your user ID</string>
+    <string name="devices_user_id_hint">You need it with your recovery code to restore your account.</string>
+    <string name="devices_copy">Copy</string>
+    <string name="devices_this_device">This device</string>
+    <string name="devices_other_device">Device %1$s</string>
+    <string name="devices_added">Added %1$s</string>
+    <string name="devices_revoked">Revoked</string>
+    <string name="devices_revoke">Revoke device</string>
+    <string name="devices_revoke_title">Revoke this device?</string>
+    <string name="devices_revoke_body">Device %1$s will be removed from all chats and can no longer sign in. This cannot be undone.</string>
+    <string name="devices_revoke_confirm">Revoke</string>
+    <string name="devices_cancel">Cancel</string>
+    <string name="devices_empty_title">No devices to show</string>
+    <string name="devices_retry">Retry</string>
+    <string name="devices_removed_title">This device was removed</string>
+    <string name="devices_removed_body">This device was revoked from another device. Its messages and keys will be deleted from this device; set it up again to keep using it.</string>
+    <string name="devices_removed_ok">OK</string>
+    <string name="devices_error_network">Can\'t reach the server. Check your connection and try again.</string>
+    <string name="devices_error_retry_later">The server is busy. Try again in %1$d s.</string>
+    <string name="devices_error_current_device">This device can\'t be revoked from itself.</string>
+    <string name="devices_error_not_found">That device no longer exists.</string>
+    <string name="devices_error_server">The server could not complete the request.</string>
+    <string name="devices_error_unknown">Something went wrong.</string>
+</resources>
