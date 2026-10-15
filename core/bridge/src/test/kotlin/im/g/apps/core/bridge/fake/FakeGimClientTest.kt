@@ -371,6 +371,9 @@ class FakeGimClientTest {
         assertEquals("image/png", ref.mime)
         assertEquals(3L, ref.size)
         assertGimError<GimException.InvalidInput> { client.setGroupInfo(DIRECT_CHAT_ID, "x", null) }
+        assertGimError<GimException.InvalidInput> { client.setGroupInfo(groupId, null, null) }
+        assertGimError<GimException.InvalidInput> { client.setGroupInfo(groupId, " ", null) }
+        assertEquals("Adriatic Crew", chats.chat(groupId).name)
 
         client.leaveChat(groupId)
         assertEquals(
@@ -501,10 +504,18 @@ class FakeGimClientTest {
         val client = demo()
         val states = mutableListOf<ConnectionState>()
         client.connectionState { states += it }
-        client.startSync()
         client.setNetworkReachable(false)
         client.setNetworkReachable(true)
+        client.startSync()
+        // Unreachable neither pauses sync nor forces OFFLINE.
+        client.setNetworkReachable(false)
+        // A failed connection waits OFFLINE for its retry; becoming reachable reconnects at once.
+        client.setConnection(ConnectionState.OFFLINE)
+        client.setNetworkReachable(true)
+        client.setNetworkReachable(true)
         client.stopSync()
+        client.setNetworkReachable(false)
+        client.setNetworkReachable(true)
         client.setConnection(ConnectionState.SYNCING)
         val online = listOf(ConnectionState.CONNECTING, ConnectionState.SYNCING, ConnectionState.CONNECTED)
         assertEquals(
