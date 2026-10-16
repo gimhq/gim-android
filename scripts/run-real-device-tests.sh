@@ -7,8 +7,9 @@
 #   AM_INSTRUMENT_ARGS  extra `am instrument` arguments for the app suite, e.g. -e class im.g.apps.e2e.LinkDeviceE2eTest
 #
 # Environment:
-#   GIM_REAL_SERIAL     adb serial of the phone, default 3ffc81dc
-#   GIM_REAL_ADB_CONTAINER  container owning the adb server and the USB device, default ai-agent-adb
+#   GIM_REAL_SERIAL     adb serial of the phone; default: the attached device of model GIM_REAL_MODEL
+#   GIM_REAL_MODEL      model in `adb devices -l` used to find the phone, default 2607DRA18G
+#   GIM_REAL_ADB_CONTAINER  container owning the adb server and the device connection, default ai-agent-adb
 #   GIM_REAL_NET        lan (default: hub published on the host, phone uses http://GIM_REAL_LAN_HOST:<port>) or
 #                       reverse (hub in ai-agent-adb's network namespace + adb reverse, phone uses 127.0.0.1)
 #   GIM_REAL_LAN_HOST   the host's LAN address as seen from the phone, default 192.168.68.220
@@ -25,17 +26,20 @@
 #   1. Builds the debug and androidTest APKs in ghcr.io/cirruslabs/android-sdk:35 with the pinned debug keystore.
 #   2. Takes the device lock, starts gim-hub (ai-agent/gim-hub:<sha12>) on a free port from 18080 (GIM_REAL_NET).
 #   3. Updates im.g.apps and im.g.apps.test in place (`install -r -t`), clears im.g.apps, grants it CAMERA and runs
-#      the suite with `am instrument -w -r` (gimServerUrl, timeoutScale, realCamera=true for CameraScannerE2eTest).
+#      the suite with `am instrument -w -r` (gimServerUrl, timeoutScale) without CameraScannerE2eTest, then
+#      CameraScannerE2eTest alone (realCamera=true) as a final run, so a camera crash cannot hide other results.
 #   4. Always: `pm clear im.g.apps` (packages stay installed), removes the reverse, the hub container and the lock.
 #
 # Outputs (LOG_DIR): summary.txt (PASS/FAIL/SKIP per test with durations), instrumentation.txt (raw `-r` output),
 # logcat.txt (im.g.apps and test package UIDs only), hub.log, gradle.log, screenshots/ (taken by tests at the
-# failing step, plus one by this script per failed test). Exit code: 0 when every test passed, 1 otherwise, 3 when the
-# phone cannot be updated unattended (signature mismatch, refused or unverifiable install confirmation).
+# failing step, plus one by this script per failed test). Exit codes: 0 every test passed; 1 a test failed (or the
+# build / setup failed); 3 the phone cannot be updated unattended (signature mismatch, refused or unverifiable install
+# confirmation); 4 device not attached at the start; 5 INTERRUPTED (infra): the device went away or offline during
+# the run (summary.txt says so), not a test result.
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,38p' "$0"
+    sed -n '2,44p' "$0"
     exit 0
 fi
 
@@ -56,6 +60,7 @@ test_apk=$repo_root/app/build/outputs/apk/androidTest/debug/app-debug-androidTes
 app=$GIM_REAL_APP
 test_pkg=$app.test
 runner=androidx.test.runner.AndroidJUnitRunner
+camera_test=im.g.apps.e2e.CameraScannerE2eTest
 
 mkdir -p "$log_dir/screenshots"
 exec > >(tee -a "$log_dir/script.log") 2>&1
@@ -64,6 +69,12 @@ echo "run log: $log_dir"
 cleanup() {
     local status=$?
     trap - EXIT INT TERM
+    # A step that broke because the transport went away is an infrastructure interruption, not a test result.
+    if ((status != 0 && status != GIM_REAL_EXIT_NOT_ATTACHED && status != GIM_REAL_EXIT_INTERRUPTED)) &&
+        [[ -n $GIM_REAL_SERIAL ]] && ((gim_real_locked)) && ! gim_real_attached; then
+        interrupted "during setup"
+        status=$GIM_REAL_EXIT_INTERRUPTED
+    fi
     if ((gim_real_locked)); then
         gim_real_kill_bg
         pull_test_screenshots
@@ -88,18 +99,33 @@ pull_test_screenshots() {
     done
 }
 
+interrupted() {
+    echo "INTERRUPTED (infra): device $GIM_REAL_SERIAL not attached/online $1" | tee -a "$log_dir/summary.txt"
+}
+
 # instrument NAME TARGET ARGS...: runs `am instrument -w -r ARGS TARGET`, appends the raw output to
-# instrumentation.txt and one line per test to summary.txt; returns 1 when a test failed or the run broke.
+# instrumentation.txt and one line per test to summary.txt; returns 1 when a test failed or the run broke, 5 when
+# the device went away (before or during the run).
 instrument() {
     local name=$1 target=$2 status=0
     shift 2
+    gim_real_attached || {
+        interrupted "before the $name run"
+        return "$GIM_REAL_EXIT_INTERRUPTED"
+    }
     echo "== $name: am instrument -w -r $* $target" | tee -a "$log_dir/instrumentation.txt"
     # Like gim_real_bg, but bounded: the pid file lets cleanup stop the container-side adb after a timeout.
     # shellcheck disable=SC2016 # expanded by the container's sh
     timeout "${INSTRUMENT_TIMEOUT:-1800}" docker exec "$GIM_REAL_ADB_CONTAINER" sh -c 'echo $$ >"$0"; exec "$@"' \
         "/tmp/$GIM_RUN_LABEL/instrument.pid" adb -s "$GIM_REAL_SERIAL" shell am instrument -w -r "$@" "$target" </dev/null |
         tr -d '\r' | tee -a "$log_dir/instrumentation.txt" | summarize || status=$?
-    return "$status"
+    ((status)) || return 0
+    if ! gim_real_attached; then
+        interrupted "during the $name run (results above are partial)"
+        return "$GIM_REAL_EXIT_INTERRUPTED"
+    fi
+    ((status == 2)) && echo "FAIL $name: instrumentation did not complete" | tee -a "$log_dir/summary.txt"
+    return 1
 }
 
 # Reads `am instrument -r` output, prints and records each test result as it arrives.
@@ -137,11 +163,13 @@ summarize() {
         esac
     done
     if ((!finished || !tests)); then
-        echo "FAIL instrumentation did not complete (tests reported: $tests)" | tee -a "$log_dir/summary.txt"
-        return 1
+        echo "instrumentation did not complete (tests reported: $tests)"
+        return 2
     fi
     return "$failed"
 }
+
+gim_real_resolve_serial
 
 echo "building APKs"
 mkdir -p "$gradle_cache"
@@ -159,7 +187,6 @@ docker run --rm --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --na
 gim_real_lock
 gim_real_start_hub "$hub" "$repo_root"
 url=$GIM_REAL_HUB_URL
-gim_real_adb shell getprop ro.product.model | tr -d '\r' | sed 's/^/device: /'
 
 gim_real_install "$app_apk" "$test_apk"
 gim_real_adb shell pm clear "$app" >/dev/null
@@ -172,13 +199,21 @@ gim_real_bg logcat logcat -v threadtime -T "$since" --uid="$uids" >"$log_dir/log
 : >"$log_dir/summary.txt"
 echo "setup done after ${SECONDS}s; hub $url"
 status=0
-instrument app "$test_pkg/$runner" -e gimServerUrl "$url" -e timeoutScale "${TIMEOUT_SCALE:-1}" -e realCamera true "$@" ||
-    status=1
+instrument app "$test_pkg/$runner" -e gimServerUrl "$url" -e timeoutScale "${TIMEOUT_SCALE:-1}" \
+    -e notClass "$camera_test" "$@" || status=$?
+if ((status != GIM_REAL_EXIT_INTERRUPTED)); then
+    camera=0
+    instrument camera "$test_pkg/$runner" -e gimServerUrl "$url" -e timeoutScale "${TIMEOUT_SCALE:-1}" \
+        -e realCamera true -e class "$camera_test" || camera=$?
+    ((camera == GIM_REAL_EXIT_INTERRUPTED || status == 0)) && status=$camera
+fi
 
 echo
 echo "summary ($log_dir/summary.txt):"
 cat "$log_dir/summary.txt"
-if ((status)); then
+if ((status == GIM_REAL_EXIT_INTERRUPTED)); then
+    echo "real-device run INTERRUPTED (infra): device $GIM_REAL_SERIAL went away"
+elif ((status)); then
     echo "real-device tests FAILED; gim-hub log tail:"
     docker logs --tail 30 "$hub" 2>&1 || true
 else

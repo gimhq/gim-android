@@ -14,8 +14,10 @@
 #   CARGO_TARGET    cargo target dir of gim-cli, default /srv/.tmp/cache/cargo-target/gim-cli
 #   REBUILD_IMAGE=1 rebuild the emulator image (see scripts/lib/device.sh)
 #   GIM_DEVICE=real run on the test phone attached to the ai-agent-adb container instead of an emulator (see
-#                   scripts/lib/real-device.sh for GIM_REAL_SERIAL, GIM_REAL_NET=lan|reverse, GIM_REAL_LAN_HOST and the
-#                   package rules): builds first (pinned debug keystore), then takes the device lock, starts gim-hub
+#                   scripts/lib/real-device.sh for GIM_REAL_SERIAL / GIM_REAL_MODEL, GIM_REAL_NET=lan|reverse,
+#                   GIM_REAL_LAN_HOST and the package rules). Exit 4: device not attached at the start; exit 5:
+#                   INTERRUPTED (infra), the device went away or offline during the run (checked after every step
+#                   and on any failure), not a scenario failure: builds first (pinned debug keystore), then takes the device lock, starts gim-hub
 #                   (published on the host in lan mode, in ai-agent-adb's network namespace in reverse mode) with the
 #                   CLI container in the hub's namespace, updates im.g.apps and im.g.apps.test in place and
 #                   `pm clear`s im.g.apps before and after the run (never uninstalls). logcat is limited to the
@@ -85,6 +87,7 @@ mkdir -p "$log_dir"
 exec > >(tee -a "$log_dir/script.log") 2>&1
 echo "run log: $log_dir"
 echo "run id: $run, gim-core ref: $core_ref, device: $device"
+[[ $device == emulator ]] || gim_real_resolve_serial
 
 passed=()
 bg_pids=()
@@ -110,6 +113,10 @@ dump_logs() {
 cleanup() {
     local status=$?
     trap - EXIT INT TERM
+    if [[ $device == real ]] && ((status == 1)) && [[ -n $GIM_REAL_SERIAL ]] && ! gim_real_attached; then
+        echo "INTERRUPTED (infra): device $GIM_REAL_SERIAL not attached/online"
+        status=$GIM_REAL_EXIT_INTERRUPTED
+    fi
     ((${#bg_pids[@]})) && kill "${bg_pids[@]}" 2>/dev/null || true
     docker logs "$hub" >"$log_dir/hub.log" 2>&1 || true
     docker exec "$emu" cat /tmp/emulator.log >"$log_dir/emulator.log" 2>/dev/null || true
@@ -132,7 +139,16 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# On the phone, a lost transport is an infrastructure interruption (exit 5), not a scenario result.
+check_attached() {
+    [[ $device == real ]] || return 0
+    [[ -n $GIM_REAL_SERIAL ]] && ! gim_real_attached || return 0
+    echo "INTERRUPTED (infra): device $GIM_REAL_SERIAL not attached/online $1 (passed so far: ${#passed[@]})" >&2
+    exit "$GIM_REAL_EXIT_INTERRUPTED"
+}
+
 fail() {
+    check_attached "($*)"
     echo "error: $*" >&2
     exit 1
 }
@@ -140,6 +156,7 @@ fail() {
 pass() {
     passed+=("$1")
     echo "PASS $1"
+    check_attached "after: $1"
 }
 
 # --- CLI helpers --------------------------------------------------------------------------------------

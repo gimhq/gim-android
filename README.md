@@ -101,8 +101,10 @@ writes its logs to `LOG_DIR` (default `/tmp/gim-interop-<timestamp>`) and prints
 
 ### Real device
 
-A dedicated test phone attached to the long-running `ai-agent-adb` container (its adb server owns the USB device;
-serial `GIM_REAL_SERIAL`, default `3ffc81dc`) runs the app suite and the interop. By default gim-hub is a sibling
+A dedicated test phone attached (USB or wireless adb) to the adb server in the long-running `ai-agent-adb`
+container runs the app suite and the interop. Its serial is resolved at the start of each run from
+`adb devices -l` by model (`GIM_REAL_MODEL`, default `2607DRA18G`; a wireless serial changes after reconnects);
+`GIM_REAL_SERIAL` overrides it. The scripts never connect, pair or disconnect devices. By default gim-hub is a sibling
 container published on the host (`-p <port>:8080`, first free port from 18080) and the phone, on the same LAN, uses
 `http://GIM_REAL_LAN_HOST:<port>` (default host `192.168.68.220`). `GIM_REAL_NET=reverse` is the fallback: the hub
 runs in `ai-agent-adb`'s network namespace on `127.0.0.1:<port>` and `adb reverse` maps the port on the phone.
@@ -116,12 +118,14 @@ confirmation ("Install via USB"); the scripts accept it only while their own ins
 running, after a UI dump shows the dialog names GIM, by tapping the accept button found by its text, and log it.
 
 - `scripts/run-real-device-tests.sh [AM_INSTRUMENT_ARGS...]` builds the debug and androidTest APKs, grants
-  `im.g.apps` CAMERA, runs `im.g.apps.test` with `am instrument -w -r` and writes `/tmp/gim-realdevice-<timestamp>/`
+  `im.g.apps` CAMERA, runs `im.g.apps.test` with `am instrument -w -r` (the suite without `CameraScannerE2eTest`,
+  then that test alone, so a camera crash cannot hide other results) and writes `/tmp/gim-realdevice-<timestamp>/`
   (`summary.txt` with PASS/FAIL/SKIP and duration per test, `instrumentation.txt`, `logcat.txt` limited to the
-  app's UIDs, `hub.log`, `screenshots/`). Exit code is the test result; 3 means the phone could not be updated
-  unattended (signature mismatch, refused confirmation).
+  app's UIDs, `hub.log`, `screenshots/`). Exit codes: 0 passed, 1 test (or build/setup) failure, 3 the phone could
+  not be updated unattended (signature mismatch, refused confirmation), 4 device not attached, 5 INTERRUPTED: the
+  device went away or offline during the run (an infrastructure problem, recorded in `summary.txt`).
 - `GIM_DEVICE=real scripts/e2e-interop.sh` runs the CLI x Android interop on the phone; the CLI container shares
-  the hub's network namespace.
+  the hub's network namespace. Exit codes 4 and 5 as above (the device is checked after every step).
 - `CameraScannerE2eTest` (instrumentation argument `realCamera=true`, skipped on emulators) opens the link-device
   scanner with the real CameraX pipeline: the back camera is opened, preview and analysis streams are configured,
   the scanner keeps running and leaving the screen releases the camera. Scanning a physical QR code with the

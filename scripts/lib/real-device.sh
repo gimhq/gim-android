@@ -15,6 +15,11 @@
 # GIM_REAL_ANDROID_HOME (see gim_real_gradle_env). A fresh install (package missing) makes HyperOS show its
 # "Install via USB" confirmation; gim_real_install accepts it only under the guard in gim_real_accept_install.
 #
+#   gim_real_resolve_serial       set GIM_REAL_SERIAL: an explicit value wins, else the first attached device of model
+#                                 GIM_REAL_MODEL (default 2607DRA18G) in `adb devices -l` (USB or wireless; the serial
+#                                 of a wireless device changes after reconnects). Exits $GIM_REAL_EXIT_NOT_ATTACHED (4)
+#                                 with "device not attached" when there is none. Never connects, pairs or disconnects.
+#   gim_real_attached             whether GIM_REAL_SERIAL is still attached and online (`adb get-state` == device)
 #   gim_real_lock                 take the device lock (mkdir /tmp/.lock-device in the adb container), waiting up to
 #                                 LOCK_WAIT seconds (default 900) while another run holds it
 #   gim_real_unlock               release the lock if this run took it
@@ -36,17 +41,40 @@
 # No device setting is changed; the only screen input is the guarded install confirmation.
 
 GIM_REAL_ADB_CONTAINER=${GIM_REAL_ADB_CONTAINER:-ai-agent-adb}
-GIM_REAL_SERIAL=${GIM_REAL_SERIAL:-3ffc81dc}
+GIM_REAL_SERIAL=${GIM_REAL_SERIAL:-}
+GIM_REAL_MODEL=${GIM_REAL_MODEL:-2607DRA18G}
 GIM_REAL_NET=${GIM_REAL_NET:-lan}
 GIM_REAL_LAN_HOST=${GIM_REAL_LAN_HOST:-192.168.68.220}
 GIM_REAL_ANDROID_HOME=${GIM_REAL_ANDROID_HOME:-/srv/.tmp/cache/android-debug-keystore}
 GIM_REAL_LOCK=/tmp/.lock-device
 GIM_REAL_APP=im.g.apps
 GIM_REAL_PORT=
+GIM_REAL_EXIT_NOT_ATTACHED=4
+GIM_REAL_EXIT_INTERRUPTED=5
 gim_real_locked=0
 
 gim_real_adb() {
     docker exec "$GIM_REAL_ADB_CONTAINER" adb -s "$GIM_REAL_SERIAL" "$@"
+}
+
+gim_real_resolve_serial() {
+    docker inspect "$GIM_REAL_ADB_CONTAINER" >/dev/null 2>&1 || {
+        echo "error: container $GIM_REAL_ADB_CONTAINER is not running" >&2
+        exit "$GIM_REAL_EXIT_NOT_ATTACHED"
+    }
+    if [[ -z $GIM_REAL_SERIAL ]]; then
+        GIM_REAL_SERIAL=$(docker exec "$GIM_REAL_ADB_CONTAINER" adb devices -l |
+            awk -v model="model:$GIM_REAL_MODEL" '$2 == "device" { for (i = 3; i <= NF; i++) if ($i == model) { print $1; exit } }')
+    fi
+    if [[ -z $GIM_REAL_SERIAL ]] || ! gim_real_attached; then
+        echo "error: device not attached (serial '${GIM_REAL_SERIAL}', model $GIM_REAL_MODEL, adb server in $GIM_REAL_ADB_CONTAINER)" >&2
+        exit "$GIM_REAL_EXIT_NOT_ATTACHED"
+    fi
+    echo "device: $GIM_REAL_SERIAL (model $GIM_REAL_MODEL)"
+}
+
+gim_real_attached() {
+    [[ $(docker exec "$GIM_REAL_ADB_CONTAINER" adb -s "$GIM_REAL_SERIAL" get-state 2>/dev/null | tr -d '\r') == device ]]
 }
 
 gim_real_lock() {
@@ -66,9 +94,9 @@ gim_real_lock() {
     done
     gim_real_locked=1
     echo "device lock taken"
-    [[ $(gim_real_adb get-state 2>/dev/null) == device ]] || {
-        echo "error: device $GIM_REAL_SERIAL is not attached to $GIM_REAL_ADB_CONTAINER" >&2
-        return 1
+    gim_real_attached || {
+        echo "error: device not attached ($GIM_REAL_SERIAL went away while waiting for the lock)" >&2
+        exit "$GIM_REAL_EXIT_NOT_ATTACHED"
     }
 }
 
