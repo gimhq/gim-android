@@ -26,6 +26,7 @@ import im.g.apps.GimApplication
 import im.g.apps.MainActivity
 import im.g.apps.testing.awaitServerReachable
 import im.g.apps.testing.dismissSystemDialogs
+import im.g.apps.testing.keepScreenOn
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -65,6 +66,7 @@ class CreateRetryE2eTest {
 
     @Test
     fun createSucceedsAfterFailingAgainstAnUnreachableHub() {
+        keepScreenOn(instrumentation, compose.activity)
         awaitServerReachable(instrumentation.targetContext, serverUrl)
         if (!dismissSystemDialogs(instrumentation, timeoutMs) { appHasFocus() }) {
             Log.w(LOG_TAG, "app window still has no focus; continuing")

@@ -36,6 +36,7 @@ import im.g.apps.GimApplication
 import im.g.apps.MainActivity
 import im.g.apps.testing.awaitServerReachable
 import im.g.apps.testing.dismissSystemDialogs
+import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -107,6 +108,7 @@ class CameraScannerE2eTest {
 
     @Test
     fun scannerBindsBackCameraAndReleasesIt() {
+        keepScreenOn(instrumentation, compose.activity)
         val context = instrumentation.targetContext
         assertEquals(
             "CAMERA must be granted before the test (pm grant ${context.packageName} android.permission.CAMERA)",
