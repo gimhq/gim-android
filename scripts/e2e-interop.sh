@@ -6,7 +6,7 @@
 #
 # Environment:
 #   GIM_CORE_REPO   gim-core checkout the CLI is built from (read only), default /srv/gimhq/im-client/core
-#   GIM_CORE_REF    gim-core commit of the CLI, default d5ead6d (the commit GIM_CORE_VERSION pins)
+#   GIM_CORE_REF    gim-core commit of the CLI, default 50f7915 (the commit GIM_CORE_VERSION pins)
 #   GIM_HUB_SRC     gim-hub checkout the hub image is exported from, default /srv/gimhq/im-client/hub
 #   LOG_DIR         run log directory, default /tmp/gim-interop-<timestamp>
 #   GRADLE_CACHE    Gradle user home, default /srv/.tmp/cache/gradle
@@ -21,8 +21,9 @@
 #                   and on any failure), not a scenario failure. Before the test starts the phone is woken
 #                   (KEYCODE_WAKEUP / `wm dismiss-keyguard`, no setting changes); exit 6: NOT READY (infra), the
 #                   screen is still off or locked then, or when a step failed (a secure lock screen needs a person): builds first (pinned debug keystore), then takes the device lock, starts gim-hub
-#                   (published on the host in lan mode, in gim-adb-host's network namespace in reverse mode) with the
-#                   CLI container in the hub's namespace, updates im.g.apps and im.g.apps.test in place and
+#                   (published on the host in lan mode, in gim-adb-host's network namespace in reverse mode) with
+#                   GIM_HUB_PUBLIC_URL = the phone's URL, which the CLI uses too (lan: the CLI container on the default
+#                   bridge network reaches the host's LAN address; reverse: it shares gim-adb-host's namespace), updates im.g.apps and im.g.apps.test in place and
 #                   `pm clear`s im.g.apps before and after the run (never uninstalls). logcat is limited to the
 #                   app's UID; a failure saves screenshot.png.
 #
@@ -36,8 +37,9 @@
 #
 # Flow:
 #   1. gim-hub (ai-agent/gim-hub:<sha12>, see scripts/lib/device.sh) with an in-memory /data; the emulator (--device /dev/kvm, API 35 x86_64
-#      google_apis, headless) and a rust:1 container running the CLI share its network namespace, so the
-#      app uses http://10.0.2.2:8080 and the CLI http://127.0.0.1:8080.
+#      google_apis, headless) and a rust:1 container running the CLI share its network namespace. The hub's
+#      GIM_HUB_PUBLIC_URL is http://10.0.2.2:8080 and both use that URL (URL-bound sign-in): the app through the
+#      emulator's host loopback, the CLI through 10.0.2.2 added to lo in that namespace (scripts/lib/device.sh).
 #   2. gim-cli is built from `git archive GIM_CORE_REF` (exported to .tmp/gim-core-<sha>/, reused) in rust:1;
 #      the debug and androidTest APKs in ghcr.io/cirruslabs/android-sdk:35.
 #   3. app/src/androidTest/.../interop/InteropTest runs with `am instrument`, getting the run id, handles and
@@ -53,7 +55,7 @@
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,52p' "$0"
+    sed -n '2,54p' "$0"
     exit 0
 fi
 
@@ -70,7 +72,7 @@ gim_check_host_paths "$repo_root"
 command -v jq >/dev/null || { echo "error: jq is required" >&2; exit 1; }
 
 core_repo=${GIM_CORE_REPO:-/srv/gimhq/im-client/core}
-core_ref=${GIM_CORE_REF:-d5ead6d}
+core_ref=${GIM_CORE_REF:-50f7915}
 gradle_cache=${GRADLE_CACHE:-/srv/.tmp/cache/gradle}
 cargo_cache=${CARGO_CACHE:-/srv/.tmp/cache/cargo}
 cargo_target=${CARGO_TARGET:-}
@@ -145,6 +147,7 @@ cleanup() {
         gim_real_unlock
     fi
     docker rm -f "$emu" "$cli" "$hub" >/dev/null 2>&1 || true
+    gim_cleanup_hubs "$repo_root"
     echo "run log: $log_dir"
     exit "$status"
 }
@@ -279,7 +282,7 @@ if [[ $device == emulator ]]; then
     gim_ensure_emulator_image
     gim_start_hub "$hub" "$repo_root"
     live+=("$hub")
-    url=http://127.0.0.1:8080
+    url=$GIM_EMULATOR_SERVER_URL
     app_url=$GIM_EMULATOR_SERVER_URL
     cli_network=container:$hub
 
@@ -350,8 +353,9 @@ else
         cli_network=container:$GIM_REAL_ADB_CONTAINER
         url=$GIM_REAL_HUB_URL
     else
-        cli_network=container:$hub
-        url=http://127.0.0.1:8080
+        # The hub's public URL is the host's LAN address; the default bridge network reaches its published port.
+        cli_network=bridge
+        url=$GIM_REAL_HUB_URL
     fi
     start_cli
     echo "device: $(adb_ shell getprop ro.product.model | tr -d '\r'), app hub URL $app_url, CLI hub URL $url"

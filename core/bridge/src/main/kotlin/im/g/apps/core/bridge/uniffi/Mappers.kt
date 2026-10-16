@@ -8,6 +8,8 @@ import im.g.apps.core.bridge.ClientConfig
 import im.g.apps.core.bridge.ConnectionState
 import im.g.apps.core.bridge.DeviceInfo
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.HubInfo
+import im.g.apps.core.bridge.HubState
 import im.g.apps.core.bridge.MediaRef
 import im.g.apps.core.bridge.MembershipChangeKind
 import im.g.apps.core.bridge.MessageContent
@@ -43,6 +45,22 @@ internal fun im.g.gimcore.DeviceInfo.toMirror() = DeviceInfo(
     createdAtMs = createdAtMs.toLong(),
     isCurrent = isCurrent,
     revoked = revoked,
+)
+
+internal fun im.g.gimcore.HubState.toMirror(): HubState = when (this) {
+    im.g.gimcore.HubState.UNVERIFIED -> HubState.UNVERIFIED
+    im.g.gimcore.HubState.VERIFIED -> HubState.VERIFIED
+    im.g.gimcore.HubState.REMOVED -> HubState.REMOVED
+}
+
+internal fun im.g.gimcore.HubInfo.toMirror() = HubInfo(
+    hubId = hubId,
+    url = url,
+    state = state.toMirror(),
+    priority = priority.toInt(),
+    isPrimary = isPrimary,
+    isHome = isHome,
+    signedIn = signedIn,
 )
 
 internal fun im.g.gimcore.ChatKind.toMirror(): ChatKind = when (this) {
@@ -205,6 +223,11 @@ internal fun im.g.gimcore.GimException.toMirror(): GimException = when (this) {
     is im.g.gimcore.GimException.Cancelled -> GimException.Cancelled()
     is im.g.gimcore.GimException.NotImplemented -> GimException.NotImplemented()
     is im.g.gimcore.GimException.ChatNotActive -> GimException.ChatNotActive(chatId, state.toMirror())
+    is im.g.gimcore.GimException.HubNotVerified -> GimException.HubNotVerified(reason)
+    is im.g.gimcore.GimException.HubOwnsGroups -> GimException.HubOwnsGroups(hubId, groupCount.toInt())
+    is im.g.gimcore.GimException.LastHub -> GimException.LastHub(hubId)
+    is im.g.gimcore.GimException.HomeHub -> GimException.HomeHub(hubId)
+    is im.g.gimcore.GimException.HubNotDrained -> GimException.HubNotDrained(hubId, reason)
     is im.g.gimcore.GimException.Internal -> GimException.Internal(reason)
 }.also { it.initCause(this) }
 
@@ -222,5 +245,10 @@ internal fun GimException.toCore(): im.g.gimcore.GimException = when (this) {
     is GimException.Cancelled -> im.g.gimcore.GimException.Cancelled()
     is GimException.NotImplemented -> im.g.gimcore.GimException.NotImplemented()
     is GimException.ChatNotActive -> im.g.gimcore.GimException.ChatNotActive(chatId, state.toCore())
+    is GimException.HubNotVerified -> im.g.gimcore.GimException.HubNotVerified(reason)
+    is GimException.HubOwnsGroups -> im.g.gimcore.GimException.HubOwnsGroups(hubId, groupCount.toUInt())
+    is GimException.LastHub -> im.g.gimcore.GimException.LastHub(hubId)
+    is GimException.HomeHub -> im.g.gimcore.GimException.HomeHub(hubId)
+    is GimException.HubNotDrained -> im.g.gimcore.GimException.HubNotDrained(hubId, reason)
     is GimException.Internal -> im.g.gimcore.GimException.Internal(reason)
 }.also { it.initCause(this) }
