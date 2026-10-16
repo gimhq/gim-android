@@ -35,11 +35,12 @@
 # failing step, plus one by this script per failed test). Exit codes: 0 every test passed; 1 a test failed (or the
 # build / setup failed); 3 the phone cannot be updated unattended (signature mismatch, refused or unverifiable install
 # confirmation); 4 device not attached at the start; 5 INTERRUPTED (infra): the device went away or offline during
-# the run (summary.txt says so), not a test result.
+# the run (summary.txt says so), not a test result; 6 NOT READY (infra): the phone's screen is off or locked, before a
+# run or when a run failed (a person has to wake and unlock it; the script never does).
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,44p' "$0"
+    sed -n '2,46p' "$0"
     exit 0
 fi
 
@@ -70,7 +71,8 @@ cleanup() {
     local status=$?
     trap - EXIT INT TERM
     # A step that broke because the transport went away is an infrastructure interruption, not a test result.
-    if ((status != 0 && status != GIM_REAL_EXIT_NOT_ATTACHED && status != GIM_REAL_EXIT_INTERRUPTED)) &&
+    if ((status != 0 && status != GIM_REAL_EXIT_NOT_ATTACHED && status != GIM_REAL_EXIT_INTERRUPTED &&
+        status != GIM_REAL_EXIT_NOT_READY)) &&
         [[ -n $GIM_REAL_SERIAL ]] && ((gim_real_locked)) && ! gim_real_attached; then
         interrupted "during setup"
         status=$GIM_REAL_EXIT_INTERRUPTED
@@ -99,6 +101,22 @@ pull_test_screenshots() {
     done
 }
 
+not_ready() {
+    local why
+    why=$(gim_real_not_ready | paste -sd';')
+    [[ -n $why ]] || return 1
+    echo "NOT READY (infra): $why $1; wake and unlock the phone" | tee -a "$log_dir/summary.txt"
+}
+
+# test_seconds METHOD CLASS: the test's duration from the device's TestRunner started/finished lines in logcat.txt.
+test_seconds() {
+    awk -v t="$1($2)" '
+        function ms(clock) { split(clock, a, /[:.]/); return ((a[1] * 60 + a[2]) * 60 + a[3]) * 1000 + a[4] }
+        $0 ~ /TestRunner: started: / && index($0, t) { s = ms($2) }
+        $0 ~ /TestRunner: finished: / && index($0, t) && s { d = ms($2) - s; if (d < 0) d += 86400000; f = d }
+        END { if (f != "") printf "%.1f", f / 1000 }' "$log_dir/logcat.txt"
+}
+
 interrupted() {
     echo "INTERRUPTED (infra): device $GIM_REAL_SERIAL not attached/online $1" | tee -a "$log_dir/summary.txt"
 }
@@ -113,6 +131,9 @@ instrument() {
         interrupted "before the $name run"
         return "$GIM_REAL_EXIT_INTERRUPTED"
     }
+    if not_ready "before the $name run"; then
+        return "$GIM_REAL_EXIT_NOT_READY"
+    fi
     echo "== $name: am instrument -w -r $* $target" | tee -a "$log_dir/instrumentation.txt"
     # Like gim_real_bg, but bounded: the pid file lets cleanup stop the container-side adb after a timeout.
     # shellcheck disable=SC2016 # expanded by the container's sh
@@ -125,6 +146,9 @@ instrument() {
         return "$GIM_REAL_EXIT_INTERRUPTED"
     fi
     ((status == 2)) && echo "FAIL $name: instrumentation did not complete" | tee -a "$log_dir/summary.txt"
+    if not_ready "after the $name run (its failures may come from that)"; then
+        return "$GIM_REAL_EXIT_NOT_READY"
+    fi
     return 1
 }
 
@@ -142,6 +166,10 @@ summarize() {
                     echo "RUN  $class#$test"
                     continue
                 fi
+                # The output can arrive late (e.g. while a screenshot is taken); prefer the device's own timing.
+                sleep 1
+                secs=$(test_seconds "$test" "$class")
+                [[ -n $secs ]] || secs="~$((SECONDS - started))"
                 case $code in
                     0) result=PASS ;;
                     -3 | -4) result=SKIP ;;
@@ -151,7 +179,6 @@ summarize() {
                         gim_real_screenshot "$log_dir/screenshots/script-${class##*.}-$test.png"
                         ;;
                 esac
-                secs=$((SECONDS - started))
                 tests=$((tests + 1))
                 printf '%s %s#%s (%ss)\n' "$result" "$class" "$test" "$secs" | tee -a "$log_dir/summary.txt"
                 ;;
@@ -170,6 +197,7 @@ summarize() {
 }
 
 gim_real_resolve_serial
+gim_real_require_ready
 
 echo "building APKs"
 mkdir -p "$gradle_cache"
@@ -201,11 +229,11 @@ echo "setup done after ${SECONDS}s; hub $url"
 status=0
 instrument app "$test_pkg/$runner" -e gimServerUrl "$url" -e timeoutScale "${TIMEOUT_SCALE:-1}" \
     -e notClass "$camera_test" "$@" || status=$?
-if ((status != GIM_REAL_EXIT_INTERRUPTED)); then
+if ((status != GIM_REAL_EXIT_INTERRUPTED && status != GIM_REAL_EXIT_NOT_READY)); then
     camera=0
     instrument camera "$test_pkg/$runner" -e gimServerUrl "$url" -e timeoutScale "${TIMEOUT_SCALE:-1}" \
         -e realCamera true -e class "$camera_test" || camera=$?
-    ((camera == GIM_REAL_EXIT_INTERRUPTED || status == 0)) && status=$camera
+    ((camera == GIM_REAL_EXIT_INTERRUPTED || camera == GIM_REAL_EXIT_NOT_READY || status == 0)) && status=$camera
 fi
 
 echo
@@ -213,6 +241,8 @@ echo "summary ($log_dir/summary.txt):"
 cat "$log_dir/summary.txt"
 if ((status == GIM_REAL_EXIT_INTERRUPTED)); then
     echo "real-device run INTERRUPTED (infra): device $GIM_REAL_SERIAL went away"
+elif ((status == GIM_REAL_EXIT_NOT_READY)); then
+    echo "real-device run NOT READY (infra): the phone's screen is off or locked"
 elif ((status)); then
     echo "real-device tests FAILED; gim-hub log tail:"
     docker logs --tail 30 "$hub" 2>&1 || true

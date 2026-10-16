@@ -20,6 +20,10 @@
 #                                 of a wireless device changes after reconnects). Exits $GIM_REAL_EXIT_NOT_ATTACHED (4)
 #                                 with "device not attached" when there is none. Never connects, pairs or disconnects.
 #   gim_real_attached             whether GIM_REAL_SERIAL is still attached and online (`adb get-state` == device)
+#   gim_real_not_ready            print why the phone cannot run UI tests (screen off / dozing, lock screen shown), or
+#                                 nothing when it can. The scripts never wake or unlock the phone themselves: a person
+#                                 does (or the phone's own stay-awake setup); runs stop with $GIM_REAL_EXIT_NOT_READY (6).
+#   gim_real_require_ready        exit $GIM_REAL_EXIT_NOT_READY with the reason when gim_real_not_ready reports one
 #   gim_real_lock                 take the device lock (mkdir /tmp/.lock-device in the adb container), waiting up to
 #                                 LOCK_WAIT seconds (default 900) while another run holds it
 #   gim_real_unlock               release the lock if this run took it
@@ -51,6 +55,7 @@ GIM_REAL_APP=im.g.apps
 GIM_REAL_PORT=
 GIM_REAL_EXIT_NOT_ATTACHED=4
 GIM_REAL_EXIT_INTERRUPTED=5
+GIM_REAL_EXIT_NOT_READY=6
 gim_real_locked=0
 
 gim_real_adb() {
@@ -73,8 +78,26 @@ gim_real_resolve_serial() {
     echo "device: $GIM_REAL_SERIAL (model $GIM_REAL_MODEL)"
 }
 
+# gim_real_require_ready: exits $GIM_REAL_EXIT_NOT_READY when gim_real_not_ready reports a reason.
+gim_real_require_ready() {
+    local why
+    why=$(gim_real_not_ready | paste -sd';')
+    [[ -n $why ]] || return 0
+    echo "NOT READY (infra): $why; wake and unlock the phone, then run again" >&2
+    exit "$GIM_REAL_EXIT_NOT_READY"
+}
+
 gim_real_attached() {
     [[ $(docker exec "$GIM_REAL_ADB_CONTAINER" adb -s "$GIM_REAL_SERIAL" get-state 2>/dev/null | tr -d '\r') == device ]]
+}
+
+gim_real_not_ready() {
+    local wakefulness keyguard
+    wakefulness=$(gim_real_adb shell dumpsys power 2>/dev/null | tr -d '\r' | sed -nE 's/^ *mWakefulness=([A-Za-z]+).*/\1/p' | head -n 1)
+    keyguard=$(gim_real_adb shell dumpsys window policy 2>/dev/null | tr -d '\r' |
+        awk '/KeyguardServiceDelegate/ { d = 1 } d && /showing=/ { sub(/.*showing=/, ""); print; exit }')
+    [[ $wakefulness == Awake ]] || echo "screen is not on (wakefulness ${wakefulness:-unknown})"
+    [[ $keyguard != true ]] || echo "lock screen is showing"
 }
 
 gim_real_lock() {

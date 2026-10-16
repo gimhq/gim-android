@@ -17,7 +17,8 @@
 #                   scripts/lib/real-device.sh for GIM_REAL_SERIAL / GIM_REAL_MODEL, GIM_REAL_NET=lan|reverse,
 #                   GIM_REAL_LAN_HOST and the package rules). Exit 4: device not attached at the start; exit 5:
 #                   INTERRUPTED (infra), the device went away or offline during the run (checked after every step
-#                   and on any failure), not a scenario failure: builds first (pinned debug keystore), then takes the device lock, starts gim-hub
+#                   and on any failure), not a scenario failure; exit 6: NOT READY (infra), the phone's screen is off
+#                   or locked at the start or when a step failed (a person wakes and unlocks it; never the script): builds first (pinned debug keystore), then takes the device lock, starts gim-hub
 #                   (published on the host in lan mode, in ai-agent-adb's network namespace in reverse mode) with the
 #                   CLI container in the hub's namespace, updates im.g.apps and im.g.apps.test in place and
 #                   `pm clear`s im.g.apps before and after the run (never uninstalls). logcat is limited to the
@@ -87,7 +88,10 @@ mkdir -p "$log_dir"
 exec > >(tee -a "$log_dir/script.log") 2>&1
 echo "run log: $log_dir"
 echo "run id: $run, gim-core ref: $core_ref, device: $device"
-[[ $device == emulator ]] || gim_real_resolve_serial
+if [[ $device == real ]]; then
+    gim_real_resolve_serial
+    gim_real_require_ready
+fi
 
 passed=()
 bg_pids=()
@@ -149,6 +153,7 @@ check_attached() {
 
 fail() {
     check_attached "($*)"
+    [[ $device == emulator ]] || gim_real_require_ready
     echo "error: $*" >&2
     exit 1
 }
