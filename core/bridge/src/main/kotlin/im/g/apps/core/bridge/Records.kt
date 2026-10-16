@@ -208,6 +208,37 @@ data class DeviceInfo(
     val revoked: Boolean,
 )
 
+/** Where a hub of the user's hosting record stands on this device. */
+enum class HubState {
+    /**
+     * Listed, but this device has no URL for it that proved the hub's identity (none yet, or only one shared by
+     * another own device, which is never contacted): [GimClient.addHub] with its URL on this device.
+     */
+    UNVERIFIED,
+
+    /** Listed, and its URL proved the hub's identity: in use. */
+    VERIFIED,
+
+    /** No longer listed by the hosting record. */
+    REMOVED,
+}
+
+/** A hub of the user's hosting record, for the hub settings screen. */
+data class HubInfo(
+    val hubId: String,
+    /** Client API base URL, once known. */
+    val url: String?,
+    val state: HubState,
+    /** Priority in the hosting record; lower is preferred. gim-core's `u8`. */
+    val priority: Int,
+    /** The first listed hub: messages and member changes are submitted there first. */
+    val isPrimary: Boolean,
+    /** The hub of [ClientConfig.serverUrl]; it cannot be removed. */
+    val isHome: Boolean,
+    /** This device holds a session on the hub. */
+    val signedIn: Boolean,
+)
+
 /** New-device side of a device link; mirrors gim-core's `LinkSession`. Accepts one bundle. */
 interface LinkSession {
     /** Contents of the QR code the old device scans. */

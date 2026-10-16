@@ -84,13 +84,19 @@ comes from the `gimServerUrl` instrumentation argument, default `http://10.0.2.2
   `.tmp/device-tests/`.
 - **CI:** job `device-tests` in `.github/workflows/ci.yml` checks out `gimhq/gim-hub` at the pinned commit
   (deploy key secret `GIM_HUB_DEPLOY_KEY`), builds it with its Dockerfile (the image is cached per commit),
-  publishes it on port 8080 and runs the same Gradle task on an API 35 `pixel_6` emulator. The hub log is
-  uploaded on failure.
+  publishes it on port 8080 with `GIM_HUB_PUBLIC_URL=http://10.0.2.2:8080` and runs the same Gradle task on an
+  API 35 `pixel_6` emulator. The hub log is uploaded on failure.
+- **Hub public URLs:** gim-core signs in only at the URL a hub proves (`GIM_HUB_PUBLIC_URL`), else
+  `HubNotVerified`, so every client of a test hub uses exactly that URL. Emulator runs use `http://10.0.2.2:8080`
+  (hub B of 2-hub runs, `GIM_HUB2=1 scripts/run-device-tests.sh`: `http://10.0.2.2:8081`, federated with hub A);
+  gim-cli peers reach the same URLs from the hub's network namespace, where 10.0.2.2 is added to `lo` (see
+  `scripts/lib/device.sh`). Real-device runs use `http://GIM_REAL_LAN_HOST:<port>` (or `http://127.0.0.1:<port>`
+  with `GIM_REAL_NET=reverse`) for the phone and the CLI alike.
 
 ### CLI x Android interop
 
 `scripts/e2e-interop.sh` runs two gim CLI users (alice, bob; `gim-cli` built from gim-core `GIM_CORE_REF`,
-default `d5ead6d`) and the app (`app/src/androidTest/.../interop/InteropTest`, real UI and gim-core) against the
+default `50f7915`) and the app (`app/src/androidTest/.../interop/InteropTest`, real UI and gim-core) against the
 pinned gim-hub on the same emulator setup as the device tests. alice and bob create identities and claim handles
 with `gim register`; the app goes through onboarding (create identity, acknowledge the recovery code, claim a
 handle). Steps: DM both ways with read receipts, bob's group of three, text and images both ways, reply,
@@ -154,11 +160,16 @@ script and CI follow it.
 - `core/bridge/src/main/jniLibs/{arm64-v8a,x86_64}/libgim_core.so`
 - `core/bridge/src/main/kotlin/im/g/gimcore/gim_core.kt` (UniFFI bindings)
 
-The vendored version and source commit are pinned in `GIM_CORE_VERSION` at the repo root. Refresh
-them from a gim-core checkout:
+The vendored version and source commit are pinned in `GIM_CORE_VERSION` at the repo root (currently gim-core
+`50f7915`, tested against gim-hub `50b3401` from `e2e/GIM_HUB_VERSION`). Refresh them from a gim-core checkout, or
+from a clean export of a commit (then `--commit` with its full sha is required):
 
 ```bash
-scripts/sync-gim-core.sh [--build] [GIM_CORE_DIR]   # default /srv/gimhq/im-client/core
+scripts/sync-gim-core.sh [--build] [--commit SHA] [GIM_CORE_DIR]   # default /srv/gimhq/im-client/core
+
+sha=$(git -C /srv/gimhq/im-client/core rev-parse 50f7915)
+mkdir -p .tmp/gim-core-$sha && git -C /srv/gimhq/im-client/core archive $sha | tar -x -m -C .tmp/gim-core-$sha
+SKIP_IMAGE_BUILD=1 scripts/sync-gim-core.sh --build --commit $sha .tmp/gim-core-$sha
 ```
 
 `--build` runs gim-core's `scripts/build-android.sh` before copying. Re-running with unchanged inputs

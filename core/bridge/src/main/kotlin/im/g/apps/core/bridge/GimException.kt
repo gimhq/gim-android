@@ -49,6 +49,27 @@ sealed class GimException(message: String) : Exception(message) {
     class ChatNotActive(val chatId: String, val state: ChatState) :
         GimException("chat $chatId is not active: $state")
 
+    /**
+     * The server at the configured URL did not prove that it is the expected hub at that URL (a wrong URL, or a relay
+     * in between); the device did not sign in there. Check the hub URL.
+     */
+    class HubNotVerified(val reason: String) : GimException("hub not verified: $reason")
+
+    /**
+     * [GimClient.removeHub] without `confirmOwnedGroups`: the hub owns [groupCount] chats of this user. Ask the user,
+     * then call again with `confirmOwnedGroups = true`.
+     */
+    class HubOwnsGroups(val hubId: String, val groupCount: Int) : GimException("hub $hubId owns $groupCount chats")
+
+    /** [GimClient.removeHub] of the only listed hub: add another hub first. */
+    class LastHub(val hubId: String) : GimException("hub $hubId is the only hub")
+
+    /** [GimClient.removeHub] of the hub the client was created for: make another hub primary instead. */
+    class HomeHub(val hubId: String) : GimException("hub $hubId is the home hub")
+
+    /** [GimClient.removeHub] while messages or member changes sent through the hub are not settled; retry later. */
+    class HubNotDrained(val hubId: String, val reason: String) : GimException("hub $hubId is not drained: $reason")
+
     /** A bug or an unexpected failure inside gim-core or a platform callback. */
     class Internal(val reason: String) : GimException("internal error: $reason")
 }
