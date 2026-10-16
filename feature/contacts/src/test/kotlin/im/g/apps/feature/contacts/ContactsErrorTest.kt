@@ -1,5 +1,6 @@
 package im.g.apps.feature.contacts
 
+import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.GimException
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -17,6 +18,12 @@ class ContactsErrorTest {
         assertEquals(ContactsError.UserNotFound, GimException.NotFound("users").toInviteError())
         assertEquals(ContactsError.Network, GimException.Network("offline").toInviteError())
         assertEquals(ContactsError.RetryLater(5), GimException.RetryLater(503, 5, "peer_unavailable").toInviteError())
+    }
+
+    @Test
+    fun chatNotActive_isReadOnly() {
+        assertEquals(ContactsError.ChatNotActive, GimException.ChatNotActive("c1", ChatState.LEAVING).toContactsError())
+        assertEquals(ContactsError.ChatNotActive, GimException.ChatNotActive("c1", ChatState.LEFT).toInviteError())
     }
 
     @Test

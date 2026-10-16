@@ -2,6 +2,7 @@ package im.g.apps.core.bridge.uniffi
 
 import im.g.apps.core.bridge.ChatKind
 import im.g.apps.core.bridge.ChatListDiff
+import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.ClientConfig
 import im.g.apps.core.bridge.ConnectionState
@@ -58,7 +59,20 @@ internal fun im.g.gimcore.ChatSummary.toMirror() = ChatSummary(
     unreadCount = unreadCount.toInt(),
     updatedAtMs = updatedAtMs.toLong(),
     memberCount = memberCount.toInt(),
+    state = state.toMirror(),
 )
+
+internal fun im.g.gimcore.ChatState.toMirror(): ChatState = when (this) {
+    im.g.gimcore.ChatState.ACTIVE -> ChatState.ACTIVE
+    im.g.gimcore.ChatState.LEAVING -> ChatState.LEAVING
+    im.g.gimcore.ChatState.LEFT -> ChatState.LEFT
+}
+
+internal fun ChatState.toCore(): im.g.gimcore.ChatState = when (this) {
+    ChatState.ACTIVE -> im.g.gimcore.ChatState.ACTIVE
+    ChatState.LEAVING -> im.g.gimcore.ChatState.LEAVING
+    ChatState.LEFT -> im.g.gimcore.ChatState.LEFT
+}
 
 internal fun im.g.gimcore.MessagePreview.toMirror() = MessagePreview(
     senderName = senderName,
@@ -71,7 +85,13 @@ internal fun im.g.gimcore.TimelineItem.toMirror(): TimelineItem = when (this) {
     is im.g.gimcore.TimelineItem.Message -> TimelineItem.Message(item.toMirror())
     is im.g.gimcore.TimelineItem.DateSeparator -> TimelineItem.DateSeparator(dayStartMs.toLong())
     is im.g.gimcore.TimelineItem.MembershipChange ->
-        TimelineItem.MembershipChange(userName = userName, change = change.toMirror(), atMs = atMs.toLong())
+        TimelineItem.MembershipChange(
+            userName = userName,
+            change = change.toMirror(),
+            atMs = atMs.toLong(),
+            userId = userId,
+            actorUserId = actorUserId,
+        )
 }
 
 internal fun im.g.gimcore.MembershipChangeKind.toMirror(): MembershipChangeKind = when (this) {
@@ -184,6 +204,7 @@ internal fun im.g.gimcore.GimException.toMirror(): GimException = when (this) {
         GimException.RetryLater(status.toInt(), retryAfterSecs.toLong(), reason)
     is im.g.gimcore.GimException.Cancelled -> GimException.Cancelled()
     is im.g.gimcore.GimException.NotImplemented -> GimException.NotImplemented()
+    is im.g.gimcore.GimException.ChatNotActive -> GimException.ChatNotActive(chatId, state.toMirror())
     is im.g.gimcore.GimException.Internal -> GimException.Internal(reason)
 }.also { it.initCause(this) }
 
@@ -200,5 +221,6 @@ internal fun GimException.toCore(): im.g.gimcore.GimException = when (this) {
         im.g.gimcore.GimException.RetryLater(status.toUShort(), retryAfterSecs.toULong(), reason)
     is GimException.Cancelled -> im.g.gimcore.GimException.Cancelled()
     is GimException.NotImplemented -> im.g.gimcore.GimException.NotImplemented()
+    is GimException.ChatNotActive -> im.g.gimcore.GimException.ChatNotActive(chatId, state.toCore())
     is GimException.Internal -> im.g.gimcore.GimException.Internal(reason)
 }.also { it.initCause(this) }

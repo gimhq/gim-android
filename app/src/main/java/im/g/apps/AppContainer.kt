@@ -5,14 +5,12 @@ import android.util.Log
 import im.g.apps.core.bridge.GimClientFactory
 import im.g.apps.core.bridge.GimClientManager
 import im.g.apps.core.bridge.GimException
-import im.g.apps.core.bridge.PendingLeaveStore
 import im.g.apps.core.bridge.ServerUrlStore
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakeGimClientFactory
 import im.g.apps.core.bridge.platform.AndroidMediaPaths
 import im.g.apps.core.bridge.platform.AndroidPlatformHooks
 import im.g.apps.core.bridge.platform.AndroidReachabilityMonitor
-import im.g.apps.core.bridge.platform.SharedPrefsPendingLeaveStore
 import im.g.apps.core.bridge.platform.SharedPrefsServerUrlStore
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
 import kotlinx.coroutines.CoroutineScope
@@ -31,8 +29,6 @@ class AppContainer(
     clientFactory: GimClientFactory? = null,
     /** Build-time hub URL prefilled in onboarding; empty when not configured. */
     val defaultHubUrl: String = BuildConfig.DEFAULT_HUB_URL,
-    /** Left groups waiting for the own `Left` change; cleared on sign-out. */
-    val pendingLeaves: PendingLeaveStore = SharedPrefsPendingLeaveStore(context),
 ) {
     private val appContext = context.applicationContext
 
@@ -74,7 +70,6 @@ class AppContainer(
         } catch (e: GimException) {
             Log.w(TAG, "gim-core sign-out failed; wiping local state anyway", e)
         }
-        pendingLeaves.clear()
         withContext(Dispatchers.IO) { hooks.wipe() }
     }
 

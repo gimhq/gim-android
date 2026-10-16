@@ -2,6 +2,7 @@ package im.g.apps.core.bridge.uniffi
 
 import im.g.apps.core.bridge.ChatKind
 import im.g.apps.core.bridge.ChatListDiff
+import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.ClientConfig
 import im.g.apps.core.bridge.ConnectionState
@@ -40,6 +41,7 @@ class MappersTest {
         unreadCount = 3u,
         updatedAtMs = 1_700_000_000_001UL,
         memberCount = 4u,
+        state = im.g.gimcore.ChatState.LEAVING,
     )
     private val summary = ChatSummary(
         chatId = "c1",
@@ -50,6 +52,7 @@ class MappersTest {
         unreadCount = 3,
         updatedAtMs = 1_700_000_000_001L,
         memberCount = 4,
+        state = ChatState.LEAVING,
     )
 
     private val coreMessage = im.g.gimcore.MessageItem(
@@ -209,9 +212,23 @@ class MappersTest {
             im.g.gimcore.TimelineItem.DateSeparator(86_400_000UL).toMirror(),
         )
         assertEquals(
-            TimelineItem.MembershipChange("Bob", MembershipChangeKind.LEFT, 9L),
-            im.g.gimcore.TimelineItem.MembershipChange("Bob", im.g.gimcore.MembershipChangeKind.LEFT, 9UL).toMirror(),
+            TimelineItem.MembershipChange("Bob", MembershipChangeKind.LEFT, 9L, "u-bob", "u-bob"),
+            im.g.gimcore.TimelineItem.MembershipChange("Bob", im.g.gimcore.MembershipChangeKind.LEFT, 9UL, "u-bob", "u-bob")
+                .toMirror(),
         )
+        assertEquals(
+            TimelineItem.MembershipChange("Ana", MembershipChangeKind.REMOVED, 10L, "u-ana", null),
+            im.g.gimcore.TimelineItem.MembershipChange("Ana", im.g.gimcore.MembershipChangeKind.REMOVED, 10UL, "u-ana", null)
+                .toMirror(),
+        )
+    }
+
+    @Test
+    fun chatState() {
+        assertEquals(ChatState.ACTIVE, im.g.gimcore.ChatState.ACTIVE.toMirror())
+        assertEquals(ChatState.LEAVING, im.g.gimcore.ChatState.LEAVING.toMirror())
+        assertEquals(ChatState.LEFT, im.g.gimcore.ChatState.LEFT.toMirror())
+        for (state in ChatState.entries) assertEquals(state, state.toCore().toMirror())
     }
 
     @Test
@@ -284,6 +301,13 @@ class MappersTest {
         check(im.g.gimcore.GimException.Cancelled(), GimException.Cancelled())
         check(im.g.gimcore.GimException.NotImplemented(), GimException.NotImplemented())
         check(im.g.gimcore.GimException.Internal("bug"), GimException.Internal("bug"))
+        check(
+            im.g.gimcore.GimException.ChatNotActive("c1", im.g.gimcore.ChatState.LEFT),
+            GimException.ChatNotActive("c1", ChatState.LEFT),
+        )
+        val notActive = im.g.gimcore.GimException.ChatNotActive("c1", im.g.gimcore.ChatState.LEAVING).toMirror()
+        assertEquals("c1", (notActive as GimException.ChatNotActive).chatId)
+        assertEquals(ChatState.LEAVING, notActive.state)
     }
 
     @Test
@@ -308,6 +332,10 @@ class MappersTest {
         check(GimException.Cancelled(), im.g.gimcore.GimException.Cancelled())
         check(GimException.NotImplemented(), im.g.gimcore.GimException.NotImplemented())
         check(GimException.Internal("bug"), im.g.gimcore.GimException.Internal("bug"))
+        check(
+            GimException.ChatNotActive("c1", ChatState.LEAVING),
+            im.g.gimcore.GimException.ChatNotActive("c1", im.g.gimcore.ChatState.LEAVING),
+        )
     }
 
     @Test

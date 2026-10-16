@@ -1,6 +1,7 @@
 package im.g.apps.feature.chatlist
 
 import androidx.compose.runtime.Immutable
+import im.g.apps.core.bridge.ChatState
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
@@ -28,6 +29,8 @@ data class ChatRowUi(
     val preview: String,
     val time: String,
     val unreadCount: Int,
+    /** Leaving or left chats show their state instead of the last message. */
+    val state: ChatState = ChatState.ACTIVE,
 )
 
 @Immutable

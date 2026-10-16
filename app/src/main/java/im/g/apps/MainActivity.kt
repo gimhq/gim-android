@@ -17,6 +17,8 @@ import im.g.apps.core.designsystem.theme.GimTheme
 import im.g.apps.navigation.GimNavHost
 import im.g.apps.navigation.Routes
 import im.g.apps.navigation.resolveStartDestination
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,7 +38,8 @@ class MainActivity : ComponentActivity() {
 fun GimApp(container: AppContainer) {
     var start by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(container) {
-        val route = resolveStartDestination(container.manager)
+        // Compose test frame clocks resume inline; gim-core calls need a real dispatcher.
+        val route = withContext(Dispatchers.IO) { resolveStartDestination(container.manager) }
         if (route == Routes.CHAT_LIST) container.sync.onSignedIn()
         start = route
     }

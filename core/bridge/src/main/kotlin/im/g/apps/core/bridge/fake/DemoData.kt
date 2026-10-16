@@ -69,8 +69,8 @@ object DemoData {
     }
 
     private fun Builder.groupChat(): List<TimelineItem> {
-        membership(lukas, MembershipChangeKind.ADDED)
-        membership(nikos, MembershipChangeKind.ADDED)
+        membership(lukas, MembershipChangeKind.ADDED, actor = ana)
+        membership(nikos, MembershipChangeKind.ADDED, actor = ana)
         text(ana, "Welcome aboard everyone! Week of 12 July, Piraeus to the Cyclades.")
         text(nikos, "I'll sort the charter paperwork at Alimos marina.")
         text(me, "Which islands are we aiming for?")
@@ -155,8 +155,8 @@ object DemoData {
 
         fun deleted(from: UserProfile) = message(from, { MessageContent.Deleted })
 
-        fun membership(user: UserProfile, change: MembershipChangeKind) {
-            items += TimelineItem.MembershipChange(user.displayName, change, nextTime())
+        fun membership(user: UserProfile, change: MembershipChangeKind, actor: UserProfile?) {
+            items += TimelineItem.MembershipChange(user.displayName, change, nextTime(), user.userId, actor?.userId)
         }
 
         private fun message(

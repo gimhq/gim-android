@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.designsystem.component.Avatar
 import im.g.apps.core.designsystem.component.ConnectionBanner
 import im.g.apps.core.designsystem.component.EmptyState
@@ -256,10 +257,14 @@ private fun ChatRow(row: ChatRowUi, onClick: () -> Unit) {
 }
 
 @Composable
-private fun previewText(row: ChatRowUi): String = when (val sender = row.sender) {
-    null -> row.preview
-    PreviewSender.You -> stringResource(R.string.chatlist_preview_you, row.preview)
-    is PreviewSender.Member -> stringResource(R.string.chatlist_preview_member, sender.firstName, row.preview)
+private fun previewText(row: ChatRowUi): String = when (row.state) {
+    ChatState.LEAVING -> stringResource(R.string.chatlist_state_leaving)
+    ChatState.LEFT -> stringResource(R.string.chatlist_state_left)
+    ChatState.ACTIVE -> when (val sender = row.sender) {
+        null -> row.preview
+        PreviewSender.You -> stringResource(R.string.chatlist_preview_you, row.preview)
+        is PreviewSender.Member -> stringResource(R.string.chatlist_preview_member, sender.firstName, row.preview)
+    }
 }
 
 private fun ConnectionBannerUi.labelRes(): Int = when (this) {

@@ -7,11 +7,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import im.g.apps.core.bridge.ChatKind
+import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
-import im.g.apps.core.bridge.InMemoryPendingLeaveStore
-import im.g.apps.core.bridge.PendingLeaveStore
 import im.g.apps.core.bridge.TimelineItem
 import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.flow.chatListFlow
@@ -53,14 +52,20 @@ data class GroupInfoUiState(
     val addMemberDialog: AddMemberDialogState? = null,
     val pendingRemoval: UserProfile? = null,
     val confirmingLeave: Boolean = false,
-    /** The leave was submitted and the own `Left` change has not arrived yet. */
-    val leaving: Boolean = false,
     /** Draft of the rename dialog; null when it is closed. */
     val renameDraft: String? = null,
     val busy: Boolean = false,
 ) {
     val isGroup: Boolean
         get() = chat?.kind == ChatKind.GROUP
+
+    /** The leave was accepted and another member has not committed it yet ([ChatState.LEAVING]). */
+    val leaving: Boolean
+        get() = chat?.state == ChatState.LEAVING
+
+    /** The signed-in user is no longer a member ([ChatState.LEFT]). */
+    val left: Boolean
+        get() = chat?.state == ChatState.LEFT
 
     /** The other user of a direct chat. */
     val peer: UserProfile?
@@ -76,7 +81,7 @@ data class GroupInfoUiState(
 sealed interface GroupInfoEvent {
     data class ShowError(val error: ContactsError) : GroupInfoEvent
 
-    /** The leave was submitted; back to the chat, which shows it until the own `Left` change arrives. */
+    /** The leave was submitted; back to the chat, which shows "Leaving…" until the own `Left` change arrives. */
     data object LeftChat : GroupInfoEvent
 }
 
@@ -84,14 +89,12 @@ sealed interface GroupInfoEvent {
  * Details of one chat: the chat list row (observed through [chatListFlow]) plus [GimClient.chatMembers].
  * gim-core has no members listener, so the member list is re-queried whenever the chat's row changes,
  * the chat's timeline gains a membership change, or after this screen's own add/remove calls.
- * Groups support rename, add/remove member and leave; direct chats are read-only. A submitted leave is recorded in
- * [pendingLeaves] until the chat shows the own `Left` change.
+ * Groups support rename, add/remove member and leave; direct chats are read-only. Whether a leave is in progress (or
+ * done) comes from the row's [ChatState], which gim-core keeps across restarts.
  */
 class GroupInfoViewModel(
     private val client: GimClient,
     private val chatId: String,
-    private val pendingLeaves: PendingLeaveStore = InMemoryPendingLeaveStore(),
-    private val clock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
     private val _state = MutableStateFlow(GroupInfoUiState())
     val state: StateFlow<GroupInfoUiState> = _state.asStateFlow()
@@ -112,11 +115,6 @@ class GroupInfoViewModel(
             launch { memberRefreshes.receiveAsFlow().collect { loadMembers() } }
             launch { observeChat() }
             launch { observeMembershipChanges() }
-        }
-        viewModelScope.launch {
-            pendingLeaves.pending.map { chatId in it }.distinctUntilChanged().collect { leaving ->
-                _state.update { it.copy(leaving = leaving) }
-            }
         }
     }
 
@@ -182,7 +180,7 @@ class GroupInfoViewModel(
     // region Leave
 
     fun requestLeave() {
-        if (!_state.value.isGroup || _state.value.leaving) return
+        if (!_state.value.isGroup || _state.value.leaving || _state.value.left) return
         _state.update { it.copy(confirmingLeave = true) }
     }
 
@@ -191,9 +189,7 @@ class GroupInfoViewModel(
         _state.update { it.copy(confirmingLeave = false, busy = true) }
         viewModelScope.launch {
             try {
-                val requestedAtMs = clock()
                 client.leaveChat(chatId)
-                pendingLeaves.add(chatId, requestedAtMs)
                 _events.send(GroupInfoEvent.LeftChat)
             } catch (e: GimException) {
                 _events.send(GroupInfoEvent.ShowError(e.toContactsError()))
@@ -272,10 +268,6 @@ class GroupInfoViewModel(
     }
 }
 
-fun groupInfoViewModelFactory(
-    client: GimClient,
-    chatId: String,
-    pendingLeaves: PendingLeaveStore,
-): ViewModelProvider.Factory = viewModelFactory {
-    initializer { GroupInfoViewModel(client, chatId, pendingLeaves) }
+fun groupInfoViewModelFactory(client: GimClient, chatId: String): ViewModelProvider.Factory = viewModelFactory {
+    initializer { GroupInfoViewModel(client, chatId) }
 }

@@ -45,6 +45,7 @@ import im.g.apps.feature.chat.R
 import im.g.apps.feature.chat.timeline.asString
 
 internal const val COMPOSER_INPUT_TEST_TAG = "composer-input"
+internal const val COMPOSER_BANNER_TEST_TAG = "composer-membership-banner"
 private const val MAX_INPUT_LINES = 6
 
 /**
@@ -72,6 +73,7 @@ fun Composer(
                 is ComposerMode.Editing -> EditingBar(mode.originalText, onCancelMode)
                 ComposerMode.Normal -> Unit
             }
+            membershipBannerText(state.membership)?.let { MembershipBanner(stringResource(it)) }
             Row(
                 verticalAlignment = Alignment.Bottom,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
@@ -83,17 +85,7 @@ fun Composer(
                     value = state.draft,
                     onValueChange = onDraftChange,
                     enabled = state.isMember,
-                    placeholder = {
-                        Text(
-                            stringResource(
-                                when (state.membership) {
-                                    ChatMembership.JOINED -> R.string.chat_composer_placeholder
-                                    ChatMembership.LEAVING -> R.string.chat_composer_leaving
-                                    ChatMembership.LEFT -> R.string.chat_composer_left
-                                },
-                            ),
-                        )
-                    },
+                    placeholder = { Text(stringResource(R.string.chat_composer_placeholder)) },
                     maxLines = MAX_INPUT_LINES,
                     colors = TextFieldDefaults.colors(
                         focusedIndicatorColor = Color.Transparent,
@@ -117,6 +109,27 @@ fun Composer(
             }
         }
     }
+}
+
+/** Why the composer is disabled, or null while the signed-in user can send. */
+private fun membershipBannerText(membership: ChatMembership): Int? = when (membership) {
+    ChatMembership.JOINED -> null
+    ChatMembership.LEAVING -> R.string.chat_composer_leaving
+    ChatMembership.LEFT -> R.string.chat_composer_left
+    ChatMembership.REMOVED -> R.string.chat_composer_removed
+}
+
+@Composable
+private fun MembershipBanner(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .testTag(COMPOSER_BANNER_TEST_TAG),
+    )
 }
 
 @Composable

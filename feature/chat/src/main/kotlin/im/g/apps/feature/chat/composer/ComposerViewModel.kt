@@ -6,19 +6,17 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
-import im.g.apps.core.bridge.InMemoryPendingLeaveStore
 import im.g.apps.core.bridge.MembershipChangeKind
 import im.g.apps.core.bridge.MessageContent
 import im.g.apps.core.bridge.MessageItem
-import im.g.apps.core.bridge.PendingLeaveStore
 import im.g.apps.core.bridge.SendState
-import im.g.apps.core.bridge.Session
 import im.g.apps.core.bridge.TimelineItem
 import im.g.apps.core.bridge.displayLabel
+import im.g.apps.core.bridge.flow.chatListFlow
 import im.g.apps.core.bridge.flow.itemsFlow
-import im.g.apps.core.bridge.hasOwnLeft
 import im.g.apps.feature.chat.R
 import im.g.apps.feature.chat.toUiText
 import im.g.apps.feature.chat.timeline.UiText
@@ -46,8 +44,8 @@ import java.io.IOException
 /**
  * Composer and message actions of one chat. Kept separate from [im.g.apps.feature.chat.ChatViewModel]
  * so the timeline stays read-only; it follows the same gim-core timeline to decide which actions a
- * long-pressed message offers, and the signed-in user's [ChatMembership]: a leave recorded in [pendingLeaves] keeps
- * the composer disabled until the own `Left` change arrives, which also clears the record.
+ * long-pressed message offers, and the chat's [ChatState] (from its chat list row, which gim-core updates on every
+ * transition) for the signed-in user's [ChatMembership]: the composer is disabled while leaving and once left.
  *
  * @param clock epoch-millisecond time source for the typing throttle.
  */
@@ -58,7 +56,6 @@ class ComposerViewModel(
     private val clock: () -> Long = System::currentTimeMillis,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
-    private val pendingLeaves: PendingLeaveStore = InMemoryPendingLeaveStore(),
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ComposerUiState())
@@ -76,20 +73,16 @@ class ComposerViewModel(
 
     init {
         viewModelScope.launch {
-            val self = try {
-                client.session()
-            } catch (_: GimException) {
-                null
-            }
-            val leaveRequest = pendingLeaves.pending.map { it[chatId] }.distinctUntilChanged()
-            combine(client.timeline(chatId).itemsFlow(), leaveRequest) { items, requestedAtMs ->
+            val timeline = client.timeline(chatId)
+            val rowState = client.chatListFlow().map { rows -> rows.firstOrNull { it.chatId == chatId }?.state }
+            combine(timeline.itemsFlow(), rowState.distinctUntilChanged()) { items, state ->
                 val byId = items.mapNotNull { (it as? TimelineItem.Message)?.item }.associateBy { it.messageId }
-                Triple(byId, chatMembership(items, self, requestedAtMs), requestedAtMs)
+                // Synchronous reads of local state; flowOn keeps them off the main thread.
+                byId to chatMembership(state ?: timeline.chatState(), items, client.userId())
             }
                 .flowOn(defaultDispatcher)
-                .collect { (byId, membership, requestedAtMs) ->
+                .collect { (byId, membership) ->
                     messages = byId
-                    if (requestedAtMs != null && membership != ChatMembership.LEAVING) pendingLeaves.remove(chatId)
                     _uiState.update { it.copy(membership = membership) }
                 }
         }
@@ -170,7 +163,7 @@ class ComposerViewModel(
     /** Opens the actions sheet for [messageId]; ignored for messages not in the timeline. */
     fun onMessageLongPress(messageId: String) {
         val message = messages[messageId] ?: return
-        _uiState.update { it.copy(actions = actionsFor(message)) }
+        _uiState.update { it.copy(actions = actionsFor(message, it.isMember)) }
     }
 
     fun dismissActions() = _uiState.update { it.copy(actions = null) }
@@ -201,7 +194,7 @@ class ComposerViewModel(
     fun confirmDelete() {
         val messageId = _uiState.value.confirmDeleteId ?: return
         _uiState.update { it.copy(confirmDeleteId = null) }
-        if (messages[messageId]?.let { canDelete(it) } != true) return
+        if (messages[messageId]?.let { canDelete(it) } != true || !_uiState.value.isMember) return
         _uiState.update { state ->
             val mode = state.mode
             val target = (mode as? ComposerMode.Replying)?.messageId ?: (mode as? ComposerMode.Editing)?.messageId
@@ -233,8 +226,9 @@ class ComposerViewModel(
         viewModelScope.launch { runAction(R.string.composer_error_retry) { client.retrySend(chatId, messageId) } }
     }
 
+    /** Removes a failed message from the outbox and the timeline ("Delete" on a failed message). */
     fun cancelSend(messageId: String) {
-        takeAction(messageId) { it.canRetry } ?: return
+        takeAction(messageId) { it.canDiscard } ?: return
         viewModelScope.launch { runAction(R.string.composer_error_cancel) { client.cancelSend(chatId, messageId) } }
     }
 
@@ -260,7 +254,7 @@ class ComposerViewModel(
     private fun takeAction(messageId: String, allowed: (MessageActionsUi) -> Boolean): MessageItem? {
         dismissActions()
         val message = messages[messageId] ?: return null
-        return message.takeIf { allowed(actionsFor(it)) }
+        return message.takeIf { allowed(actionsFor(it, _uiState.value.isMember)) }
     }
 
     private fun stopTyping() {
@@ -274,6 +268,9 @@ class ComposerViewModel(
     private suspend fun runAction(@StringRes error: Int, action: suspend () -> Unit) {
         try {
             action()
+        } catch (e: GimException.ChatNotActive) {
+            // Show the chat read-only at once; the chat list row confirms the state.
+            _uiState.update { it.copy(membership = e.state.toMembership(it.membership)) }
         } catch (e: GimException) {
             _events.send(ComposerEvent.Error(e.toUiText(error)))
         }
@@ -296,48 +293,60 @@ class ComposerViewModel(
         const val TYPING_IDLE_MS = 5_000L
         const val MAX_ATTACHMENT_BYTES = 100L * 1024 * 1024
 
-        fun factory(
-            client: GimClient,
-            chatId: String,
-            uriCopier: UriCopier,
-            pendingLeaves: PendingLeaveStore,
-        ): ViewModelProvider.Factory =
-            viewModelFactory { initializer { ComposerViewModel(client, chatId, uriCopier, pendingLeaves = pendingLeaves) } }
+        fun factory(client: GimClient, chatId: String, uriCopier: UriCopier): ViewModelProvider.Factory =
+            viewModelFactory { initializer { ComposerViewModel(client, chatId, uriCopier) } }
 
         /**
-         * [ChatMembership.LEAVING] while a leave requested at [leaveRequestedAtMs] has no own `Left` change yet, else
-         * [ChatMembership.LEFT] if the latest membership change of [self] is a `Left`.
+         * The membership for gim-core's [state] (null while the chat is not known locally: joined). A `Left` chat is
+         * [ChatMembership.REMOVED] when the latest change of [selfUserId] in [items] is a removal.
          */
-        internal fun chatMembership(items: List<TimelineItem>, self: Session?, leaveRequestedAtMs: Long?): ChatMembership {
-            if (self == null) return ChatMembership.JOINED
-            if (leaveRequestedAtMs != null && !items.hasOwnLeft(self, leaveRequestedAtMs)) return ChatMembership.LEAVING
-            val own = items.lastOrNull {
-                it is TimelineItem.MembershipChange && (it.userName == self.displayName || it.userName == self.userId)
-            } as TimelineItem.MembershipChange?
-            return if (own?.change == MembershipChangeKind.LEFT) ChatMembership.LEFT else ChatMembership.JOINED
+        internal fun chatMembership(state: ChatState?, items: List<TimelineItem>, selfUserId: String?): ChatMembership =
+            when (state) {
+                null, ChatState.ACTIVE -> ChatMembership.JOINED
+                ChatState.LEAVING -> ChatMembership.LEAVING
+                ChatState.LEFT -> {
+                    val own = items.lastOrNull { it is TimelineItem.MembershipChange && it.userId == selfUserId }
+                    val removed = (own as TimelineItem.MembershipChange?)?.change == MembershipChangeKind.REMOVED
+                    if (removed) ChatMembership.REMOVED else ChatMembership.LEFT
+                }
+            }
+
+        /** [ChatMembership] after a [GimException.ChatNotActive] with [this] state; keeps a known removal. */
+        private fun ChatState.toMembership(current: ChatMembership): ChatMembership = when (this) {
+            ChatState.ACTIVE -> current
+            ChatState.LEAVING -> ChatMembership.LEAVING
+            ChatState.LEFT -> if (current == ChatMembership.REMOVED) current else ChatMembership.LEFT
         }
 
-        internal fun actionsFor(message: MessageItem): MessageActionsUi {
+        /**
+         * Actions for [message]; a chat that is not [active] (leaving or left) is read-only: copy, and dropping an own
+         * failed message, only.
+         */
+        internal fun actionsFor(message: MessageItem, active: Boolean = true): MessageActionsUi {
             val content = message.content
             val deleted = content == MessageContent.Deleted
+            val failed = message.isOwn && message.sendState is SendState.Failed
             return MessageActionsUi(
                 messageId = message.messageId,
-                canReply = !deleted,
+                canReply = !deleted && active,
                 copyText = when (content) {
                     is MessageContent.Text -> content.body
                     is MessageContent.Image -> content.caption
                     is MessageContent.File -> content.caption
                     else -> null
                 }?.takeIf { it.isNotBlank() },
-                canEdit = message.isOwn && content is MessageContent.Text,
-                canDelete = canDelete(message),
-                canReact = !deleted,
+                canEdit = message.isOwn && content is MessageContent.Text && !failed && active,
+                canDelete = canDelete(message) && active,
+                canReact = !deleted && !failed && active,
                 ownReactions = message.reactions.filter { it.own }.map { it.emoji }.toImmutableSet(),
-                canRetry = message.isOwn && message.sendState is SendState.Failed,
+                canRetry = failed && active,
+                canDiscard = failed,
             )
         }
 
-        private fun canDelete(message: MessageItem) = message.isOwn && message.content != MessageContent.Deleted
+        /** Delete for everyone: sent own messages; a failed one is discarded with [cancelSend] instead. */
+        private fun canDelete(message: MessageItem) =
+            message.isOwn && message.content != MessageContent.Deleted && message.sendState !is SendState.Failed
 
         private fun previewText(content: MessageContent): UiText = when (content) {
             is MessageContent.Text -> UiText.Raw(content.body)
