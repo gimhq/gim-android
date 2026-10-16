@@ -356,6 +356,7 @@ class OnboardingViewModel(
         specific(loaded) ?: loaded.copy(
             error = when (e) {
                 is GimException.Network -> OnboardingError.CannotReachServer
+                is GimException.HubNotVerified -> OnboardingError.HubNotVerified
                 is GimException.RetryLater -> OnboardingError.TryAgainLater(e.retryAfterSecs.coerceAtLeast(1))
                 else -> OnboardingError.Generic
             },
@@ -371,6 +372,7 @@ class OnboardingViewModel(
         private fun linkError(e: Throwable): OnboardingError = when (e) {
             is TimeoutCancellationException -> OnboardingError.LinkTimedOut
             is GimException.Network -> OnboardingError.CannotReachServer
+            is GimException.HubNotVerified -> OnboardingError.HubNotVerified
             is GimException.RetryLater -> OnboardingError.TryAgainLater(e.retryAfterSecs.coerceAtLeast(1))
             else -> OnboardingError.LinkFailed
         }

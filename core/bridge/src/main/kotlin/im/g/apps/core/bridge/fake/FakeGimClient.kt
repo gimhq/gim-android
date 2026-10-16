@@ -10,6 +10,9 @@ import im.g.apps.core.bridge.ConnectionStateListener
 import im.g.apps.core.bridge.DeviceInfo
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.HubInfo
+import im.g.apps.core.bridge.HubListListener
+import im.g.apps.core.bridge.HubState
 import im.g.apps.core.bridge.LinkSession
 import im.g.apps.core.bridge.LocalTimeZone
 import im.g.apps.core.bridge.MediaRef
@@ -30,6 +33,7 @@ import im.g.apps.core.bridge.TimelineListener
 import im.g.apps.core.bridge.TypingListener
 import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.key
+import im.g.apps.core.bridge.requireValidServerUrl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -54,6 +58,12 @@ import java.time.ZoneId
  * without a second device ([waitLink] signs in as [linkedUser]; [approveLink] accepts QR strings from
  * [startLink]). Both sides' SAS are the same fixed-format digits.
  *
+ * Hubs follow gim-core's hub management: a session starts with the home hub at [homeHubUrl] (hub id [fakeHubId] of
+ * the URL), [addHub] lists a hub last, [removeHub] refuses the home hub ([GimException.HomeHub]), the only listed hub
+ * ([GimException.LastHub]), a hub owning chats ([GimException.HubOwnsGroups], see [simulateChatOwnedBy]) unless
+ * confirmed, and a non-empty outbox ([GimException.HubNotDrained]); [setPrimaryHub] needs a session on every hub
+ * whose priority changes ([simulateHubSharedByOtherDevice] lists one without).
+ *
  * @param clock epoch-millisecond time source for timestamps.
  * @param pageSize number of newest history events (messages, membership changes) loaded before
  *   [Timeline.paginateBackwards].
@@ -66,6 +76,7 @@ class FakeGimClient(
     private val outboxDelays: OutboxDelays? = OutboxDelays(),
     private val pageSize: Int = DEFAULT_PAGE_SIZE,
     private val discardedLocalState: Boolean = false,
+    private val homeHubUrl: String = DEFAULT_HOME_HUB_URL,
 ) : GimClient {
 
     data class OutboxDelays(
@@ -91,6 +102,14 @@ class FakeGimClient(
         /** Timeline items as last delivered to listeners. */
         var rendered: List<TimelineItem> = emptyList()
     }
+
+    private data class FakeHub(
+        val hubId: String,
+        val url: String?,
+        val state: HubState,
+        val priority: Int,
+        val signedIn: Boolean,
+    )
 
     private class MediaEntry(val ref: MediaRef, val width: Int?, val height: Int?, val sourcePath: String?)
 
@@ -168,15 +187,21 @@ class FakeGimClient(
     private var failNextReason: String? = null
     private var nextId = 1
     private var chatList: List<ChatSummary> = emptyList()
+    private val hubs = LinkedHashMap<String, FakeHub>()
+    private val chatOwners = HashMap<String, String>()
+    private val unverifiableHubUrls = HashSet<String>()
 
     private val chatListRegs = mutableListOf<Registration<ChatListListener>>()
     private val timelineRegs = mutableListOf<Registration<TimelineListener>>()
     private val connectionRegs = mutableListOf<Registration<ConnectionStateListener>>()
     private val typingRegs = mutableListOf<Registration<TypingListener>>()
+    private val hubListRegs = mutableListOf<Registration<HubListListener>>()
 
     /** Number of live subscriptions of every kind; lets tests assert that flows close their handles. */
     val activeSubscriptions: Int
-        get() = synchronized(lock) { chatListRegs.size + timelineRegs.size + connectionRegs.size + typingRegs.size }
+        get() = synchronized(lock) {
+            chatListRegs.size + timelineRegs.size + connectionRegs.size + typingRegs.size + hubListRegs.size
+        }
 
     // region GimClient
 
@@ -267,6 +292,65 @@ class FakeGimClient(
         ownDevices[index] = ownDevices[index].copy(createdAtMs = 0, revoked = true)
     }
 
+    override suspend fun hubs(): List<HubInfo> = synchronized(lock) {
+        requireSession()
+        hubInfos()
+    }
+
+    override suspend fun addHub(url: String): HubInfo = synchronized(lock) {
+        requireSession()
+        val normalized = normalizeHubUrl(url)
+        if (normalized in unverifiableHubUrls) throw GimException.HubNotVerified("$normalized did not prove its hub")
+        val hubId = fakeHubId(normalized)
+        val existing = hubs[hubId]
+        if (existing != null && existing.state != HubState.REMOVED) {
+            if (hubId != homeHubId()) {
+                hubs[hubId] = existing.copy(url = normalized, state = HubState.VERIFIED, signedIn = true)
+            }
+        } else {
+            if (listedHubs().size >= MAX_HUBS) {
+                throw GimException.InvalidInput("a hosting record lists at most $MAX_HUBS hubs")
+            }
+            val priority = listedHubs().maxOfOrNull { it.priority + 1 } ?: 1
+            hubs[hubId] = FakeHub(hubId, normalized, HubState.VERIFIED, priority, signedIn = true)
+        }
+        publishHubs()
+        hubInfos().first { it.hubId == hubId }
+    }
+
+    override suspend fun removeHub(hubId: String, confirmOwnedGroups: Boolean) = synchronized(lock) {
+        requireSession()
+        val listed = listedHubs()
+        val hub = listed.firstOrNull { it.hubId == hubId }
+            ?: throw GimException.InvalidInput("hub $hubId is not listed by the hosting record")
+        if (hubId == homeHubId()) throw GimException.HomeHub(hubId)
+        if (listed.size < 2) throw GimException.LastHub(hubId)
+        val owned = chats.keys.count { chatOwners[it] == hubId && it !in left }
+        if (owned > 0 && !confirmOwnedGroups) throw GimException.HubOwnsGroups(hubId, owned)
+        if (outbox.isNotEmpty()) {
+            throw GimException.HubNotDrained(hubId, "${outbox.size} messages and 0 commits not acknowledged yet")
+        }
+        hubs[hubId] = hub.copy(state = HubState.REMOVED, signedIn = false)
+        publishHubs()
+    }
+
+    override suspend fun setPrimaryHub(hubId: String) = synchronized(lock) {
+        requireSession()
+        val order = listedHubs().toMutableList()
+        val position = order.indexOfFirst { it.hubId == hubId }
+        if (position < 0) throw GimException.InvalidInput("hub $hubId is not listed by the hosting record")
+        if (position == 0) return@synchronized
+        order.add(0, order.removeAt(position))
+        val changed = order.mapIndexedNotNull { priority, hub ->
+            hub.takeIf { it.priority != priority }?.copy(priority = priority)
+        }
+        changed.firstOrNull { !it.signedIn }?.let {
+            throw GimException.InvalidInput("hub ${it.hubId} is not reachable from this device; set its URL first")
+        }
+        changed.forEach { hubs[it.hubId] = it }
+        publishHubs()
+    }
+
     override suspend fun setDisplayName(name: String) = synchronized(lock) {
         val me = requireSession()
         updateSession(me.copy(displayName = requireDisplayName(name)))
@@ -306,6 +390,9 @@ class FakeGimClient(
         doomed.clear()
         myTyping.clear()
         chatList = emptyList()
+        hubs.clear()
+        chatOwners.clear()
+        hubListRegs.toList().forEach { it.listener.onUpdate(emptyList()) }
         chatListRegs.toList().forEach { it.listener.onUpdate(listOf(ChatListDiff.Clear)) }
         timelineRegs.toList().forEach { it.listener.onUpdate(listOf(TimelineDiff.Clear)) }
         val typingChats = typingUsers.keys.toSet()
@@ -610,6 +697,12 @@ class FakeGimClient(
         register(typingRegs, chatId, listener)
     }
 
+    override suspend fun hubList(listener: HubListListener): TaskHandle = synchronized(lock) {
+        requireSession()
+        listener.onUpdate(hubInfos())
+        register(hubListRegs, null, listener)
+    }
+
     override suspend fun chatMembers(chatId: String): List<UserProfile> = synchronized(lock) {
         me()
         chat(chatId).members.toList()
@@ -660,6 +753,33 @@ class FakeGimClient(
         publishChat(chatId)
     }
 
+    /**
+     * Another own device shared [url] for the listed hub [hubId]: it is listed last, [HubState.UNVERIFIED] and without
+     * a session here until [addHub] with its URL.
+     */
+    fun simulateHubSharedByOtherDevice(hubId: String, url: String?) = synchronized(lock) {
+        requireSession()
+        val priority = listedHubs().maxOfOrNull { it.priority + 1 } ?: 1
+        hubs[hubId] = FakeHub(hubId, url, HubState.UNVERIFIED, priority, signedIn = false)
+        publishHubs()
+    }
+
+    /** Another own device removed the hub [hubId] from the hosting record (also possible for this client's home hub). */
+    fun simulateHubRemovedByOtherDevice(hubId: String) = synchronized(lock) {
+        val hub = hubs[hubId] ?: return@synchronized
+        hubs[hubId] = hub.copy(state = HubState.REMOVED, signedIn = false)
+        publishHubs()
+    }
+
+    /** Makes the hub [hubId] the owner of [chatId] (as if another own device created it there). */
+    fun simulateChatOwnedBy(chatId: String, hubId: String) = synchronized(lock) {
+        chat(chatId)
+        chatOwners[chatId] = hubId
+    }
+
+    /** Makes [addHub] of [url] fail with [GimException.HubNotVerified], as for a relay or a wrong public URL. */
+    fun rejectHubUrl(url: String) = synchronized(lock) { unverifiableHubUrls += normalizeHubUrl(url) }
+
     /** Makes the next outbound send (or retry) end in [SendState.Failed] with [reason]. */
     fun failNextSend(reason: String = "Simulated send failure") = synchronized(lock) { failNextReason = reason }
 
@@ -706,6 +826,10 @@ class FakeGimClient(
 
     internal fun seedSession(session: Session) = synchronized(lock) {
         this.session = session
+        hubs.clear()
+        val home = normalizeHubUrl(homeHubUrl)
+        hubs[fakeHubId(home)] = FakeHub(fakeHubId(home), home, HubState.VERIFIED, 0, signedIn = true)
+        publishHubs()
         directory[session.userId] = UserProfile(session.userId, session.handle, session.displayName)
         ownDevices.clear()
         ownDevices += DeviceInfo(session.deviceId, clock(), isCurrent = true, revoked = false)
@@ -759,6 +883,36 @@ class FakeGimClient(
     private fun updateSession(updated: Session) {
         session = updated
         directory[updated.userId] = UserProfile(updated.userId, updated.handle, updated.displayName)
+    }
+
+    private fun homeHubId(): String = fakeHubId(homeHubUrl)
+
+    /** Listed (not removed) hubs, primary first. */
+    private fun listedHubs(): List<FakeHub> =
+        hubs.values.filter { it.state != HubState.REMOVED }.sortedWith(HUB_ORDER)
+
+    /** Like gim-core's `hubs()`: primary first (priority, then hub id), removed ones last. */
+    private fun hubInfos(): List<HubInfo> {
+        val listed = listedHubs()
+        val removed = hubs.values.filter { it.state == HubState.REMOVED }.sortedWith(HUB_ORDER)
+        val primary = listed.firstOrNull()?.hubId
+        return (listed + removed).map {
+            HubInfo(
+                hubId = it.hubId,
+                url = it.url,
+                state = it.state,
+                priority = it.priority,
+                isPrimary = it.hubId == primary,
+                isHome = it.hubId == homeHubId(),
+                signedIn = it.signedIn,
+            )
+        }
+    }
+
+    private fun publishHubs() {
+        if (hubListRegs.isEmpty()) return
+        val current = hubInfos()
+        hubListRegs.toList().forEach { it.listener.onUpdate(current) }
     }
 
     private fun me(): UserProfile = requireSession().let { UserProfile(it.userId, it.handle, it.displayName) }
@@ -963,6 +1117,11 @@ class FakeGimClient(
 
     companion object {
         const val DEFAULT_PAGE_SIZE = 20
+
+        /** Home hub of a [FakeGimClient] created without a server URL. */
+        const val DEFAULT_HOME_HUB_URL = "https://hub.example.eu"
+        private const val MAX_HUBS = 16
+        private val HUB_ORDER = compareBy<FakeHub>({ it.priority }, { it.hubId })
         private const val DAY_MS = 86_400_000L
 
         private val HANDLE_PATTERN = Regex("[a-z0-9_]{3,32}")
@@ -983,6 +1142,20 @@ class FakeGimClient(
             val symbols = code.uppercase().filterNot { it == '-' || it.isWhitespace() }
                 .replace('I', '1').replace('L', '1').replace('O', '0')
             return symbols.takeIf { it.length == RECOVERY_CODE_CHARS && it.all { c -> c in CROCKFORD } }
+        }
+
+        /** The hub id the fake gives the hub at [url]: derived from its normalized URL, stable across clients. */
+        fun fakeHubId(url: String): String =
+            "hub-" + normalizeHubUrl(url).substringAfter("://").replace(Regex("[^a-z0-9]+"), "-")
+
+        /** Like gim-core: an `http(s)://host` URL, else [GimException.InvalidInput]; lowercased, no trailing `/`. */
+        private fun normalizeHubUrl(url: String): String {
+            try {
+                requireValidServerUrl(url.trim())
+            } catch (e: GimException.InvalidInput) {
+                throw GimException.InvalidInput("url" + e.reason.removePrefix("server_url"))
+            }
+            return url.trim().trimEnd('/').lowercase()
         }
 
         private fun fakeSas(qr: String): String = "%03d %03d".format(Math.floorMod(qr.hashCode(), 1000), qr.length)

@@ -7,9 +7,19 @@
 #   gim_ensure_hub_image ROOT     build ai-agent/gim-hub:<sha12> once from `git archive` of the commit in
 #                                 ROOT/e2e/GIM_HUB_VERSION (checkout: GIM_HUB_SRC, default
 #                                 /srv/gimhq/im-client/hub) with the hub's own Dockerfile; sets GIM_HUB_IMAGE
-#   gim_start_hub NAME ROOT       run that image as NAME with an ephemeral /data (tmpfs), wait for /healthz
+#   gim_start_hub NAME ROOT [fed] run that image as NAME with GIM_HUB_PUBLIC_URL=$GIM_EMULATOR_SERVER_URL and an
+#                                 ephemeral /data (tmpfs), wait for /healthz, then gim_alias_emulator_host NAME. With
+#                                 `fed`, NAME runs federated and ready for gim_start_hub2 (see below): /data and the hub
+#                                 root key live in a volume NAME-data, the federation config in ROOT/.tmp/gim-fed-<label>.
+#   gim_start_hub2 NAME NAME2 ROOT
+#                                 hub B for 2-hub runs: start NAME2 in NAME's network namespace (NAME started with
+#                                 `fed`) on port 8081 with GIM_HUB_PUBLIC_URL=$GIM_EMULATOR_SERVER_URL2, wait for its
+#                                 /healthz and until both hubs have bound each other
+#   gim_alias_emulator_host NAME  add 10.0.2.2/32 to lo in NAME's network namespace (short-lived alpine helper with
+#                                 --cap-add NET_ADMIN), so CLI peers sharing it reach the hubs at their public URLs
+#   gim_cleanup_hubs ROOT         remove this run's hub volumes and federation config (after removing the containers)
 #   gim_containers_dead NAME...   print "NAME <state>" for each container that is missing or not running, and
-#                                 "NAME unhealthy" for a gim-hub (name ending in -hub) whose /healthz does not answer;
+#                                 "NAME unhealthy" for a gim-hub (name ending in -hub or -hub2) whose /healthz does not answer;
 #                                 nothing when all are fine. Containers removed by someone else mid-run show up here.
 #   GIM_EMULATOR_BOOT             bash code, run inside the emulator image (with --device /dev/kvm): boots
 #                                 the AVD headless, waits for sys.boot_completed, disables animations.
@@ -25,11 +35,20 @@
 #
 # The emulator shares the hub container's network namespace (--network container:NAME), so
 # http://10.0.2.2:8080 (the emulator's host loopback) reaches the hub.
+#
+# URL-bound sign-in: gim-core signs in only at the URL the hub proves, its GIM_HUB_PUBLIC_URL, so every client of a
+# hub must use exactly that URL. The app inside the emulator uses http://10.0.2.2:8080 (and :8081 for hub B), so
+# the hubs run with those public URLs, and every other client uses them too: in-process test peers inside the
+# emulator reach them like the app; gim-cli runs in the hub's network namespace, where 10.0.2.2 is added to lo
+# (gim_alias_emulator_host), so http://10.0.2.2:8080 reaches hub A on its 0.0.0.0:8080 listener there as well.
+# Hub-to-hub federation (libp2p, TCP with a pre-shared key) uses /ip4/127.0.0.1/tcp/4001 (A) and 4002 (B) in that
+# namespace.
 
 GIM_EMULATOR_IMAGE=ai-agent/gim-android-emulator
 GIM_EMULATOR_API=35
 GIM_SYSTEM_IMAGE="system-images;android-$GIM_EMULATOR_API;google_apis;x86_64"
 GIM_EMULATOR_SERVER_URL=http://10.0.2.2:8080
+GIM_EMULATOR_SERVER_URL2=http://10.0.2.2:8081
 GIM_HUB_SRC=${GIM_HUB_SRC:-/srv/gimhq/im-client/hub}
 GIM_RUN_LABEL=${GIM_RUN_LABEL:-gim-android-$$}
 
@@ -90,33 +109,123 @@ gim_containers_dead() {
         state=$(docker inspect -f '{{.State.Status}}' "$name" 2>/dev/null) || state=gone
         if [[ $state != running ]]; then
             echo "$name $state"
-        elif [[ $name == *-hub ]] && ! docker exec "$name" gim-hub healthcheck >/dev/null 2>&1; then
+        elif [[ $name == *-hub || $name == *-hub2 ]] && ! docker exec "$name" gim-hub healthcheck >/dev/null 2>&1; then
             echo "$name unhealthy"
         fi
     done
 }
 
-gim_start_hub() {
-    local name=$1 root=$2
-    gim_ensure_hub_image "$root"
-    echo "starting gim-hub ($GIM_HUB_IMAGE)"
-    # Disposable: the hub's data lives in memory and goes with the container.
-    docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$name" \
-        --tmpfs /data:rw,uid=10001,gid=10001,mode=0700 \
-        -e GIM_HUB_LISTEN=0.0.0.0:8080 -e GIM_HUB_DATA_DIR=/data \
-        "$GIM_HUB_IMAGE" >/dev/null
-    local _
+gim_wait_hub_healthy() {
+    local name=$1 _
     for _ in $(seq 1 60); do
         # `gim-hub healthcheck` is GET /healthz on GIM_HUB_LISTEN, exit 0 on 200.
         if docker exec "$name" gim-hub healthcheck >/dev/null 2>&1; then
-            echo "gim-hub healthy"
+            echo "gim-hub $name healthy"
             return 0
         fi
         sleep 1
     done
-    echo "error: gim-hub did not become healthy" >&2
+    echo "error: gim-hub $name did not become healthy" >&2
     docker logs "$name" >&2 || true
     return 1
+}
+
+gim_fed_dir() {
+    echo "$1/.tmp/gim-fed-$GIM_RUN_LABEL"
+}
+
+# gim_fed_hub_id VOLUME: creates the hub root key in VOLUME and prints the hub id.
+gim_fed_hub_id() {
+    docker volume create --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" "$1" >/dev/null
+    docker run --rm --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" -v "$1:/data" \
+        -e GIM_HUB_DATA_DIR=/data "$GIM_HUB_IMAGE" gim-hub hub-id | tr -d '\r\n'
+}
+
+# Closed federation of hubs A (NAME) and B (NAME2), like gim-core's scripts/gim-hub-dev.sh fed-start: both allow
+# each other and share a libp2p PSK; they live in one network namespace, so the peers' addresses are loopback ports.
+gim_fed_prepare() {
+    local name=$1 root=$2 dir id_a id_b
+    dir=$(gim_fed_dir "$root")
+    rm -rf "$dir"
+    mkdir -p "$dir"
+    id_a=$(gim_fed_hub_id "$name-data")
+    id_b=$(gim_fed_hub_id "${name}2-data")
+    echo "federation: hub A $id_a, hub B $id_b"
+    {
+        echo "/key/swarm/psk/1.0.0/"
+        echo "/base16/"
+        od -An -tx1 -N32 /dev/urandom | tr -d ' \n'
+        echo
+    } >"$dir/swarm.key"
+    printf '%s /ip4/127.0.0.1/tcp/4001\n%s /ip4/127.0.0.1/tcp/4002\n' "$id_a" "$id_b" >"$dir/allowlist"
+    chmod 0755 "$dir"
+    chmod 0644 "$dir"/*
+    GIM_FED_HUB_ID_A=$id_a
+    GIM_FED_HUB_ID_B=$id_b
+}
+
+# gim_fed_args P2P_PORT ROOT: docker run arguments of a federated hub listening for peers on P2P_PORT.
+gim_fed_args() {
+    GIM_FED_ARGS=(-v "$(gim_fed_dir "$2"):/config:ro" -e GIM_HUB_FEDERATION=true
+        -e "GIM_HUB_P2P_LISTEN=/ip4/0.0.0.0/tcp/$1" -e "GIM_HUB_P2P_EXTERNAL_ADDRS=/ip4/127.0.0.1/tcp/$1"
+        -e GIM_HUB_FEDERATION_ALLOWLIST=/config/allowlist -e GIM_HUB_P2P_PSK_FILE=/config/swarm.key
+        -e GIM_HUB_S2S_TIMEOUT_SECONDS=3 -e GIM_HUB_OUTBOX_BACKOFF_MAX_SECONDS=2)
+}
+
+gim_alias_emulator_host() {
+    docker run --rm --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --network "container:$1" \
+        --cap-add NET_ADMIN alpine:3 ip addr add 10.0.2.2/32 dev lo
+}
+
+gim_start_hub() {
+    local name=$1 root=$2 mode=${3:-}
+    gim_ensure_hub_image "$root"
+    echo "starting gim-hub ($GIM_HUB_IMAGE) at $GIM_EMULATOR_SERVER_URL${mode:+ ($mode)}"
+    # shellcheck disable=SC2054 # the commas belong to the --tmpfs options
+    local data=(--tmpfs /data:rw,uid=10001,gid=10001,mode=0700)
+    GIM_FED_ARGS=()
+    if [[ $mode == fed ]]; then
+        gim_fed_prepare "$name" "$root"
+        data=(-v "$name-data:/data")
+        gim_fed_args 4001 "$root"
+    fi
+    # Disposable: the hub's data lives in memory (or the run's volume) and goes with the run.
+    docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$name" "${data[@]}" \
+        -e GIM_HUB_LISTEN=0.0.0.0:8080 -e GIM_HUB_DATA_DIR=/data -e "GIM_HUB_PUBLIC_URL=$GIM_EMULATOR_SERVER_URL" \
+        -e RUST_LOG=info "${GIM_FED_ARGS[@]}" "$GIM_HUB_IMAGE" >/dev/null
+    gim_wait_hub_healthy "$name" || return 1
+    gim_alias_emulator_host "$name"
+}
+
+# gim_fed_wait_bound NAME HUB_ID: waits until hub NAME's log shows its binding of HUB_ID.
+gim_fed_wait_bound() {
+    local _
+    for _ in $(seq 1 60); do
+        docker logs "$1" 2>&1 | grep "peer hub bound" | grep -q "$2" && return 0
+        sleep 1
+    done
+    echo "error: $1 did not bind peer hub $2" >&2
+    docker logs --tail 30 "$1" >&2 || true
+    return 1
+}
+
+gim_start_hub2() {
+    local name=$1 name2=$2 root=$3
+    [[ -n ${GIM_FED_HUB_ID_B:-} ]] || { echo "error: start $name with gim_start_hub ... fed first" >&2; return 1; }
+    echo "starting gim-hub B ($GIM_HUB_IMAGE) at $GIM_EMULATOR_SERVER_URL2 in $name's network namespace"
+    gim_fed_args 4002 "$root"
+    docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$name2" \
+        --network "container:$name" -v "${name}2-data:/data" \
+        -e GIM_HUB_LISTEN=0.0.0.0:8081 -e GIM_HUB_DATA_DIR=/data -e "GIM_HUB_PUBLIC_URL=$GIM_EMULATOR_SERVER_URL2" \
+        -e RUST_LOG=info "${GIM_FED_ARGS[@]}" "$GIM_HUB_IMAGE" >/dev/null
+    gim_wait_hub_healthy "$name2" || return 1
+    gim_fed_wait_bound "$name" "$GIM_FED_HUB_ID_B" && gim_fed_wait_bound "$name2" "$GIM_FED_HUB_ID_A" || return 1
+    echo "hubs $name and $name2 federated"
+}
+
+gim_cleanup_hubs() {
+    docker volume ls -q --filter "label=ai-agent-run=$GIM_RUN_LABEL" | xargs -r docker volume rm >/dev/null 2>&1 || true
+    rm -rf "$(gim_fed_dir "$1")"
 }
 
 # shellcheck disable=SC2016 # expanded inside the emulator container

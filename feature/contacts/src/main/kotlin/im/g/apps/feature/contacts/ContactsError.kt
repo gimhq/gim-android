@@ -47,6 +47,11 @@ internal fun GimException.toContactsError(): ContactsError = when (this) {
     is GimException.Storage,
     is GimException.Cancelled,
     is GimException.Internal,
+    is GimException.HubNotVerified,
+    is GimException.HubOwnsGroups,
+    is GimException.LastHub,
+    is GimException.HomeHub,
+    is GimException.HubNotDrained,
     -> ContactsError.Unknown
 }
 

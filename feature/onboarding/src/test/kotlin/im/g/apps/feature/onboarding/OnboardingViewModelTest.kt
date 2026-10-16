@@ -452,6 +452,17 @@ class OnboardingViewModelTest {
     }
 
     @Test
+    fun unverified_hub_asks_to_check_the_address() = runTest(dispatcher) {
+        val vm = OnboardingViewModel(manager(failingFactory(createIdentity = GimException.HubNotVerified("relay"))), SERVER_URL)
+        vm.createAccount()
+        vm.onDisplayNameChange("Sofia")
+        vm.submitDisplayName()
+        advanceUntilIdle()
+        assertEquals(OnboardingError.HubNotVerified, vm.state.value.error)
+        assertFalse(vm.state.value.isLoading)
+    }
+
+    @Test
     fun actions_outside_their_step_are_ignored() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager(fakeFactory()), SERVER_URL)
         vm.submitDisplayName()
