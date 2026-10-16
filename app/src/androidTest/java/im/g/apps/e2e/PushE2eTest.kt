@@ -18,6 +18,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToString
+import androidx.core.app.NotificationManagerCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
@@ -170,6 +171,9 @@ class PushE2eTest {
         } else {
             device.pressBack()
         }
+        // With two notifications of the app, the MIUI shade bundles them and the tap below did not reach the text's
+        // own notification (the chat never opened); keep only the text's.
+        NotificationManagerCompat.from(instrumentation.targetContext).cancelAll()
 
         val text = "Mooring at Poros $suffix"
         bounded("peer sends the text") { peer.sendText(chatId, text, null) }
@@ -204,8 +208,14 @@ class PushE2eTest {
         }
     }
 
-    private fun waitFor(step: String, matcher: SemanticsMatcher) =
-        waitFor(step) { compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty() }
+    /** Also waits while no compose hierarchy exists, e.g. while the activity is recreated from a notification. */
+    private fun waitFor(step: String, matcher: SemanticsMatcher) = waitFor(step) {
+        try {
+            compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty()
+        } catch (_: IllegalStateException) {
+            false
+        }
+    }
 
     /** Replaces the text of the field tagged [tag] and waits until the field holds exactly [value]. */
     private fun enterText(field: String, tag: String, value: String) {
