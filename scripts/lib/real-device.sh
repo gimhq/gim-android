@@ -1,12 +1,13 @@
-# Shared plumbing for running against a real (dedicated test) phone attached to the long-running `ai-agent-adb`
+# Shared plumbing for running against a real (dedicated test) phone attached to the long-running `gim-adb-host`
 # container (scripts/run-real-device-tests.sh, GIM_DEVICE=real scripts/e2e-interop.sh). Source it after
 # scripts/lib/device.sh; it defines functions and variables only.
 #
-# The phone is reached only through the adb server inside that container (`docker exec ai-agent-adb adb -s SERIAL`);
-# never start another adb server. Two ways for the phone to reach gim-hub (GIM_REAL_NET):
+# The phone is reached only through the adb server inside that container (`docker exec gim-adb-host adb -s SERIAL`);
+# never start another adb server. The container belongs to the user (it deliberately carries no ai-agent label): the
+# scripts only `docker exec` into it and never stop, remove or restart it. Two ways for the phone to reach gim-hub (GIM_REAL_NET):
 #   lan      (default) the hub is a sibling container publishing -p <port>:8080 on the host; the phone, on the same
 #            LAN, uses http://$GIM_REAL_LAN_HOST:<port> (default host 192.168.68.220).
-#   reverse  fallback: the hub runs in ai-agent-adb's network namespace on 127.0.0.1:<port> and `adb reverse` maps the
+#   reverse  fallback: the hub runs in gim-adb-host's network namespace on 127.0.0.1:<port> and `adb reverse` maps the
 #            same port on the phone, which uses http://127.0.0.1:<port>.
 #
 # Package rules: im.g.apps and im.g.apps.test stay installed. They are only ever updated in place (`install -r -t`,
@@ -50,7 +51,7 @@
 #
 # No device setting is changed; the only screen input is the guarded install confirmation and gim_real_wake.
 
-GIM_REAL_ADB_CONTAINER=${GIM_REAL_ADB_CONTAINER:-ai-agent-adb}
+GIM_REAL_ADB_CONTAINER=${GIM_REAL_ADB_CONTAINER:-gim-adb-host}
 GIM_REAL_SERIAL=${GIM_REAL_SERIAL:-}
 GIM_REAL_MODEL=${GIM_REAL_MODEL:-2607DRA18G}
 GIM_REAL_NET=${GIM_REAL_NET:-lan}
@@ -172,7 +173,7 @@ gim_real_gradle_env() {
     GIM_REAL_GRADLE_ENV=(-v "$GIM_REAL_ANDROID_HOME:/cache/android-user-home" -e ANDROID_USER_HOME=/cache/android-user-home)
 }
 
-# Ports free in ai-agent-adb's network namespace and not reversed on the phone (reverse mode).
+# Ports free in gim-adb-host's network namespace and not reversed on the phone (reverse mode).
 gim_real_netns_ports() {
     local used reversed port
     used=$(docker exec "$GIM_REAL_ADB_CONTAINER" cat /proc/net/tcp /proc/net/tcp6 |

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs the app's instrumented tests (im.g.apps.test) on a real test phone attached to the long-running `ai-agent-adb`
+# Runs the app's instrumented tests (im.g.apps.test) on a real test phone attached to the long-running `gim-adb-host`
 # container, against gim-hub at the commit pinned in e2e/GIM_HUB_VERSION. See scripts/lib/real-device.sh for the
 # package and networking rules.
 #
@@ -10,9 +10,9 @@
 #   GIM_REAL_SERIAL     wireless adb serial (host:port) of the phone; default: the online wireless device of model
 #                       GIM_REAL_MODEL (USB serials are never used)
 #   GIM_REAL_MODEL      model in `adb devices -l` used to find the phone, default 2607DRA18G
-#   GIM_REAL_ADB_CONTAINER  container owning the adb server and the device connection, default ai-agent-adb
+#   GIM_REAL_ADB_CONTAINER  container owning the adb server and the device connection, default gim-adb-host
 #   GIM_REAL_NET        lan (default: hub published on the host, phone uses http://GIM_REAL_LAN_HOST:<port>) or
-#                       reverse (hub in ai-agent-adb's network namespace + adb reverse, phone uses 127.0.0.1)
+#                       reverse (hub in gim-adb-host's network namespace + adb reverse, phone uses 127.0.0.1)
 #   GIM_REAL_LAN_HOST   the host's LAN address as seen from the phone, default 192.168.68.220
 #   GIM_REAL_ANDROID_HOME  persistent ANDROID_USER_HOME holding the debug keystore the installed packages are signed
 #                       with, default /srv/.tmp/cache/android-debug-keystore

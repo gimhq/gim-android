@@ -101,14 +101,15 @@ writes its logs to `LOG_DIR` (default `/tmp/gim-interop-<timestamp>`) and prints
 
 ### Real device
 
-A dedicated test phone connected over wireless adb to the adb server in the long-running `ai-agent-adb` container
+A dedicated test phone connected over wireless adb to the adb server in the long-running `gim-adb-host` container
+(owned by the user, no ai-agent label; the scripts only `docker exec` into it and never stop, remove or restart it)
 runs the app suite and the interop. Its serial is resolved at the start of each run from `adb devices -l` by model
 (`GIM_REAL_MODEL`, default `2607DRA18G`) and must be a wireless `host:port` serial (it changes after reconnects);
 `GIM_REAL_SERIAL` overrides it and must be `host:port` too. A USB-only attachment is refused ("wireless adb
 required", exit 4). The scripts never run `adb connect`, `pair`, `disconnect` or `usb`. By default gim-hub is a sibling
 container published on the host (`-p <port>:8080`, first free port from 18080) and the phone, on the same LAN, uses
 `http://GIM_REAL_LAN_HOST:<port>` (default host `192.168.68.220`). `GIM_REAL_NET=reverse` is the fallback: the hub
-runs in `ai-agent-adb`'s network namespace on `127.0.0.1:<port>` and `adb reverse` maps the port on the phone.
+runs in `gim-adb-host`'s network namespace on `127.0.0.1:<port>` and `adb reverse` maps the port on the phone.
 
 Runs take the device lock (`/tmp/.lock-device` in the container) and never change device settings. `im.g.apps` and
 `im.g.apps.test` stay installed: they are updated in place (`adb install -r -t`, no confirmation on the phone),

@@ -14,14 +14,14 @@
 #   CARGO_TARGET    cargo target dir of gim-cli, default /srv/.tmp/cache/cargo-target/gim-cli-<core sha12> (one per
 #                   core commit: cargo would treat artifacts of another commit's workspace crates as fresh)
 #   REBUILD_IMAGE=1 rebuild the emulator image (see scripts/lib/device.sh)
-#   GIM_DEVICE=real run on the test phone attached to the ai-agent-adb container instead of an emulator (see
+#   GIM_DEVICE=real run on the test phone attached to the gim-adb-host container instead of an emulator (see
 #                   scripts/lib/real-device.sh for GIM_REAL_SERIAL / GIM_REAL_MODEL, GIM_REAL_NET=lan|reverse,
 #                   GIM_REAL_LAN_HOST and the package rules). Exit 4: device not attached at the start; exit 5:
 #                   INTERRUPTED (infra), the device went away or offline during the run (checked after every step
 #                   and on any failure), not a scenario failure. Before the test starts the phone is woken
 #                   (KEYCODE_WAKEUP / `wm dismiss-keyguard`, no setting changes); exit 6: NOT READY (infra), the
 #                   screen is still off or locked then, or when a step failed (a secure lock screen needs a person): builds first (pinned debug keystore), then takes the device lock, starts gim-hub
-#                   (published on the host in lan mode, in ai-agent-adb's network namespace in reverse mode) with the
+#                   (published on the host in lan mode, in gim-adb-host's network namespace in reverse mode) with the
 #                   CLI container in the hub's namespace, updates im.g.apps and im.g.apps.test in place and
 #                   `pm clear`s im.g.apps before and after the run (never uninstalls). logcat is limited to the
 #                   app's UID; a failure saves screenshot.png.
