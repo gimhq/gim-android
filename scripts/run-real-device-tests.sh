@@ -7,7 +7,8 @@
 #   AM_INSTRUMENT_ARGS  extra `am instrument` arguments for the app suite, e.g. -e class im.g.apps.e2e.LinkDeviceE2eTest
 #
 # Environment:
-#   GIM_REAL_SERIAL     adb serial of the phone; default: the attached device of model GIM_REAL_MODEL
+#   GIM_REAL_SERIAL     wireless adb serial (host:port) of the phone; default: the online wireless device of model
+#                       GIM_REAL_MODEL (USB serials are never used)
 #   GIM_REAL_MODEL      model in `adb devices -l` used to find the phone, default 2607DRA18G
 #   GIM_REAL_ADB_CONTAINER  container owning the adb server and the device connection, default ai-agent-adb
 #   GIM_REAL_NET        lan (default: hub published on the host, phone uses http://GIM_REAL_LAN_HOST:<port>) or
@@ -26,21 +27,24 @@
 #   1. Builds the debug and androidTest APKs in ghcr.io/cirruslabs/android-sdk:35 with the pinned debug keystore.
 #   2. Takes the device lock, starts gim-hub (ai-agent/gim-hub:<sha12>) on a free port from 18080 (GIM_REAL_NET).
 #   3. Updates im.g.apps and im.g.apps.test in place (`install -r -t`), clears im.g.apps, grants it CAMERA and runs
-#      the suite with `am instrument -w -r` (gimServerUrl, timeoutScale) without CameraScannerE2eTest, then
-#      CameraScannerE2eTest alone (realCamera=true) as a final run, so a camera crash cannot hide other results.
+#      one `am instrument -w -r` per test class (gimServerUrl, timeoutScale; listed with the runner's `-e log true`
+#      dry run), CameraScannerE2eTest (realCamera=true) last, so a class that loses the foreground or crashes the
+#      process cannot hide the other results. Before each run the phone is woken (`input keyevent KEYCODE_WAKEUP` if
+#      the screen is off, `wm dismiss-keyguard` if the lock screen shows; no setting changes).
 #   4. Always: `pm clear im.g.apps` (packages stay installed), removes the reverse, the hub container and the lock.
 #
 # Outputs (LOG_DIR): summary.txt (PASS/FAIL/SKIP per test with durations), instrumentation.txt (raw `-r` output),
 # logcat.txt (im.g.apps and test package UIDs only), hub.log, gradle.log, screenshots/ (taken by tests at the
 # failing step, plus one by this script per failed test). Exit codes: 0 every test passed; 1 a test failed (or the
 # build / setup failed); 3 the phone cannot be updated unattended (signature mismatch, refused or unverifiable install
-# confirmation); 4 device not attached at the start; 5 INTERRUPTED (infra): the device went away or offline during
-# the run (summary.txt says so), not a test result; 6 NOT READY (infra): the phone's screen is off or locked, before a
-# run or when a run failed (a person has to wake and unlock it; the script never does).
+# confirmation); 4 device not attached at the start (or only over USB: wireless adb is required); 5 INTERRUPTED
+# (infra): the device went away or offline during the run (summary.txt says so), not a test result; 6 NOT READY
+# (infra): the screen stays off or locked after the wake-up (a secure lock screen needs a person), before a run or when
+# a run failed.
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,46p' "$0"
+    sed -n '2,43p' "$0"
     exit 0
 fi
 
@@ -131,6 +135,7 @@ instrument() {
         interrupted "before the $name run"
         return "$GIM_REAL_EXIT_INTERRUPTED"
     }
+    gim_real_wake
     if not_ready "before the $name run"; then
         return "$GIM_REAL_EXIT_NOT_READY"
     fi
@@ -197,7 +202,6 @@ summarize() {
 }
 
 gim_real_resolve_serial
-gim_real_require_ready
 
 echo "building APKs"
 mkdir -p "$gradle_cache"
@@ -226,15 +230,32 @@ gim_real_bg logcat logcat -v threadtime -T "$since" --uid="$uids" >"$log_dir/log
 
 : >"$log_dir/summary.txt"
 echo "setup done after ${SECONDS}s; hub $url"
+# One `am instrument` per test class (the runner's dry run, `-e log true`, lists them), CameraScannerE2eTest last: a
+# class that loses the foreground or crashes the process cannot take the following classes with it, and the phone is
+# woken before each.
+classes=$(gim_real_adb shell am instrument -w -r -e log true -e notClass "$camera_test" "$@" "$test_pkg/$runner" |
+    tr -d '\r' | sed -n 's/^INSTRUMENTATION_STATUS: class=//p' | awk '!seen[$0]++')
+[[ -n $classes ]] || {
+    echo "error: no test classes listed by $test_pkg" >&2
+    exit 1
+}
+echo "test classes: $(paste -sd' ' <<<"$classes") + ${camera_test##*.}"
 status=0
-instrument app "$test_pkg/$runner" -e gimServerUrl "$url" -e timeoutScale "${TIMEOUT_SCALE:-1}" \
-    -e notClass "$camera_test" "$@" || status=$?
-if ((status != GIM_REAL_EXIT_INTERRUPTED && status != GIM_REAL_EXIT_NOT_READY)); then
-    camera=0
-    instrument camera "$test_pkg/$runner" -e gimServerUrl "$url" -e timeoutScale "${TIMEOUT_SCALE:-1}" \
-        -e realCamera true -e class "$camera_test" || camera=$?
-    ((camera == GIM_REAL_EXIT_INTERRUPTED || camera == GIM_REAL_EXIT_NOT_READY || status == 0)) && status=$camera
-fi
+for class in $classes "$camera_test"; do
+    result=0
+    if [[ $class == "$camera_test" ]]; then
+        instrument "${class##*.}" "$test_pkg/$runner" -e gimServerUrl "$url" -e timeoutScale "${TIMEOUT_SCALE:-1}" \
+            -e realCamera true -e class "$class" || result=$?
+    else
+        instrument "${class##*.}" "$test_pkg/$runner" -e gimServerUrl "$url" -e timeoutScale "${TIMEOUT_SCALE:-1}" \
+            -e class "$class" || result=$?
+    fi
+    if ((result == GIM_REAL_EXIT_INTERRUPTED || result == GIM_REAL_EXIT_NOT_READY)); then
+        status=$result
+        break
+    fi
+    ((status)) || status=$result
+done
 
 echo
 echo "summary ($log_dir/summary.txt):"

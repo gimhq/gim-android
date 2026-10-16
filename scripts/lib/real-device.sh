@@ -13,17 +13,23 @@
 # which needs no confirmation on the phone), reset with `pm clear`, and never uninstalled. Updating needs the same
 # signing key as the installed packages, so real-device builds use the persistent debug keystore in
 # GIM_REAL_ANDROID_HOME (see gim_real_gradle_env). A fresh install (package missing) makes HyperOS show its
-# "Install via USB" confirmation; gim_real_install accepts it only under the guard in gim_real_accept_install.
+# "Install via USB" confirmation (HyperOS's name for any adb install, wireless included); gim_real_install accepts
+# it only under the guard in gim_real_accept_install.
 #
-#   gim_real_resolve_serial       set GIM_REAL_SERIAL: an explicit value wins, else the first attached device of model
-#                                 GIM_REAL_MODEL (default 2607DRA18G) in `adb devices -l` (USB or wireless; the serial
-#                                 of a wireless device changes after reconnects). Exits $GIM_REAL_EXIT_NOT_ATTACHED (4)
-#                                 with "device not attached" when there is none. Never connects, pairs or disconnects.
+#   gim_real_resolve_serial       set GIM_REAL_SERIAL: an explicit value wins, else the first online device of model
+#                                 GIM_REAL_MODEL (default 2607DRA18G) in `adb devices -l`. The phone is used over
+#                                 wireless adb only: the serial must be host:port (it changes after reconnects); a USB
+#                                 serial is never used. Exits $GIM_REAL_EXIT_NOT_ATTACHED (4) with "device not attached"
+#                                 or "only a USB serial is attached; wireless adb required". Never runs adb connect,
+#                                 pair, disconnect or usb.
 #   gim_real_attached             whether GIM_REAL_SERIAL is still attached and online (`adb get-state` == device)
 #   gim_real_not_ready            print why the phone cannot run UI tests (screen off / dozing, lock screen shown), or
 #                                 nothing when it can. The scripts never wake or unlock the phone themselves: a person
 #                                 does (or the phone's own stay-awake setup); runs stop with $GIM_REAL_EXIT_NOT_READY (6).
 #   gim_real_require_ready        exit $GIM_REAL_EXIT_NOT_READY with the reason when gim_real_not_ready reports one
+#   gim_real_wake                 before a test run: `input keyevent KEYCODE_WAKEUP` when the screen is not on and
+#                                 `wm dismiss-keyguard` when the lock screen shows (both logged; neither changes a
+#                                 setting). A secure lock screen stays: gim_real_not_ready then still reports it.
 #   gim_real_lock                 take the device lock (mkdir /tmp/.lock-device in the adb container), waiting up to
 #                                 LOCK_WAIT seconds (default 900) while another run holds it
 #   gim_real_unlock               release the lock if this run took it
@@ -42,7 +48,7 @@
 #   gim_real_kill_bg              kill every process started with gim_real_bg (killing the local `docker exec`
 #                                 client would leave it running in the container)
 #
-# No device setting is changed; the only screen input is the guarded install confirmation.
+# No device setting is changed; the only screen input is the guarded install confirmation and gim_real_wake.
 
 GIM_REAL_ADB_CONTAINER=${GIM_REAL_ADB_CONTAINER:-ai-agent-adb}
 GIM_REAL_SERIAL=${GIM_REAL_SERIAL:-}
@@ -67,15 +73,45 @@ gim_real_resolve_serial() {
         echo "error: container $GIM_REAL_ADB_CONTAINER is not running" >&2
         exit "$GIM_REAL_EXIT_NOT_ATTACHED"
     }
-    if [[ -z $GIM_REAL_SERIAL ]]; then
-        GIM_REAL_SERIAL=$(docker exec "$GIM_REAL_ADB_CONTAINER" adb devices -l |
-            awk -v model="model:$GIM_REAL_MODEL" '$2 == "device" { for (i = 3; i <= NF; i++) if ($i == model) { print $1; exit } }')
+    local wireless='^[^:[:space:]]+:[0-9]+$' serials
+    if [[ -n $GIM_REAL_SERIAL ]]; then
+        [[ $GIM_REAL_SERIAL =~ $wireless ]] || {
+            echo "error: GIM_REAL_SERIAL '$GIM_REAL_SERIAL' is not a host:port serial; wireless adb required" >&2
+            exit "$GIM_REAL_EXIT_NOT_ATTACHED"
+        }
+    else
+        serials=$(docker exec "$GIM_REAL_ADB_CONTAINER" adb devices -l |
+            awk -v model="model:$GIM_REAL_MODEL" '$2 == "device" { for (i = 3; i <= NF; i++) if ($i == model) print $1 }')
+        GIM_REAL_SERIAL=$(grep -E "$wireless" <<<"$serials" | head -n 1 || true)
+        if [[ -z $GIM_REAL_SERIAL && -n $serials ]]; then
+            echo "error: only a USB serial is attached ($(paste -sd' ' <<<"$serials"), model $GIM_REAL_MODEL); wireless adb required" >&2
+            exit "$GIM_REAL_EXIT_NOT_ATTACHED"
+        fi
     fi
     if [[ -z $GIM_REAL_SERIAL ]] || ! gim_real_attached; then
         echo "error: device not attached (serial '${GIM_REAL_SERIAL}', model $GIM_REAL_MODEL, adb server in $GIM_REAL_ADB_CONTAINER)" >&2
         exit "$GIM_REAL_EXIT_NOT_ATTACHED"
     fi
     echo "device: $GIM_REAL_SERIAL (model $GIM_REAL_MODEL)"
+}
+
+gim_real_wake() {
+    local why _
+    why=$(gim_real_not_ready)
+    [[ -n $why ]] || return 0
+    if grep -q 'screen is not on' <<<"$why"; then
+        echo "wake: $(date -Is) input keyevent KEYCODE_WAKEUP ($why)"
+        gim_real_adb shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
+        sleep 1
+    fi
+    if grep -q 'lock screen' <<<"$(gim_real_not_ready)"; then
+        echo "wake: $(date -Is) wm dismiss-keyguard"
+        gim_real_adb shell wm dismiss-keyguard >/dev/null 2>&1 || true
+    fi
+    for _ in 1 2 3 4 5; do
+        [[ -z $(gim_real_not_ready) ]] && return 0
+        sleep 1
+    done
 }
 
 # gim_real_require_ready: exits $GIM_REAL_EXIT_NOT_READY when gim_real_not_ready reports a reason.
