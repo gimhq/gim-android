@@ -168,18 +168,19 @@ gim_real_focus() {
 # accept button found by its text in that dump. Returns 0 when nothing needed accepting or it was accepted, 1 when the
 # dialog did not match (the caller cancels the install).
 gim_real_accept_install() {
-    local pkg=$1 deadline=$((SECONDS + 30)) xml node bounds x y
+    local pkg=$1 deadline=$((SECONDS + 30)) seen=0 xml node bounds x y
     ((gim_real_locked)) || return 1
     while ((SECONDS < deadline)); do
         if gim_real_focus | grep -q 'com.miui.securitycenter/com.miui.permcenter.install.AdbInstallActivity'; then
+            seen=1
             xml=$(gim_real_adb exec-out uiautomator dump /dev/tty 2>/dev/null | tr -d '\r')
             if ! grep -qE 'text="GIM"|im\.g\.apps' <<<"$xml"; then
                 echo "auto-accept: install dialog does not name GIM/$pkg; not tapping" >&2
                 return 1
             fi
-            # One <node .../> per line; the accept button by its text, enabled.
+            # One <node .../> per line; the accept button by its text (its label may sit in a child of the button).
             node=$(sed 's/<node /\n<node /g' <<<"$xml" |
-                grep -E 'text="(继续安装|Continue installation|Install|安装)"' | grep 'clickable="true"' | head -n 1)
+                grep -E 'text="(继续安装|Continue installation|Install|安装)"' | head -n 1)
             if [[ -z $node ]] || ! grep -q 'enabled="true"' <<<"$node"; then
                 sleep 1 # countdown or not yet enabled
                 continue
@@ -193,11 +194,15 @@ gim_real_accept_install() {
         fi
         sleep 1
     done
+    if ((seen)); then
+        echo "auto-accept: install dialog for $pkg seen but its accept button never became usable" >&2
+        return 1
+    fi
     return 0
 }
 
 gim_real_install() {
-    local dir=/tmp/$GIM_RUN_LABEL apk dest out pkg fresh install_pid
+    local dir=/tmp/$GIM_RUN_LABEL apk dest out pkg fresh install_pid install_out
     docker exec "$GIM_REAL_ADB_CONTAINER" mkdir -p "$dir"
     for apk in "$@"; do
         dest=$dir/$(basename "$apk")
@@ -208,17 +213,20 @@ gim_real_install() {
         gim_real_adb shell pm path "$pkg" >/dev/null 2>&1 || fresh=1
         if ((fresh)); then
             echo "$pkg is not installed: the phone asks for confirmation"
-            gim_real_adb install -r -t "$dest" >"$dir.install.out" 2>&1 &
+            install_out=$(mktemp)
+            gim_real_adb install -r -t "$dest" >"$install_out" 2>&1 &
             install_pid=$!
             if ! gim_real_accept_install "$pkg"; then
                 # Ends the install session; HyperOS drops its dialog with it.
                 docker exec "$GIM_REAL_ADB_CONTAINER" pkill -f "install -r -t $dest" >/dev/null 2>&1 || true
                 kill "$install_pid" 2>/dev/null || true
+                rm -f "$install_out"
                 echo "blocked: install confirmation for $pkg did not match; install cancelled" >&2
                 exit 3
             fi
             wait "$install_pid" || true
-            out=$(cat "$dir.install.out")
+            out=$(cat "$install_out")
+            rm -f "$install_out"
         else
             out=$(gim_real_adb install -r -t "$dest" 2>&1) || true
         fi
@@ -240,8 +248,7 @@ gim_real_install() {
 
 gim_real_reset() {
     gim_real_adb shell pm clear "$GIM_REAL_APP" >/dev/null 2>&1 && echo "cleared $GIM_REAL_APP"
-    docker exec "$GIM_REAL_ADB_CONTAINER" rm -rf "/tmp/$GIM_RUN_LABEL" "/tmp/$GIM_RUN_LABEL.install.out" \
-        >/dev/null 2>&1 || true
+    docker exec "$GIM_REAL_ADB_CONTAINER" rm -rf "/tmp/$GIM_RUN_LABEL" >/dev/null 2>&1 || true
 }
 
 gim_real_bg() {
