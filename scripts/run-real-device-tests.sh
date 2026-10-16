@@ -38,7 +38,8 @@
 # failing step, plus one by this script per failed test). Exit codes: 0 every test passed; 1 a test failed (or the
 # build / setup failed); 3 the phone cannot be updated unattended (signature mismatch, refused or unverifiable install
 # confirmation); 4 device not attached at the start (or only over USB: wireless adb is required); 5 INTERRUPTED
-# (infra): the device went away or offline during the run, or a class failed while someone touched the phone
+# (infra): the device went away or offline during the run, the hub container was removed / stopped / unhealthy
+# (checked before each class and after a failed one; the run stops), or a class failed while someone touched the phone
 # ("INTERRUPTED (external input)" with the touch times; a class that passes despite touches keeps PASS with a WARN
 # line); 1 outranks this 5 when another class genuinely failed. summary.txt says which. 6 NOT READY
 # (infra): the screen stays off or locked after the wake-up (a secure lock screen needs a person), before a run or when
@@ -46,7 +47,7 @@
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,45p' "$0"
+    sed -n '2,46p' "$0"
     exit 0
 fi
 
@@ -81,6 +82,8 @@ cleanup() {
         status != GIM_REAL_EXIT_NOT_READY)) &&
         [[ -n $GIM_REAL_SERIAL ]] && ((gim_real_locked)) && ! gim_real_attached; then
         interrupted "during setup"
+        status=$GIM_REAL_EXIT_INTERRUPTED
+    elif ((status == 1)) && [[ -n $GIM_REAL_PORT ]] && hub_dead "during setup"; then
         status=$GIM_REAL_EXIT_INTERRUPTED
     fi
     if ((gim_real_locked)); then
@@ -166,6 +169,20 @@ check_external_input() {
     return "$result"
 }
 
+# hub_dead WHEN [CLASS]: when the hub container is gone, stopped or unhealthy, records the interruption (CLASS's FAIL
+# lines become "INTERRUPTED (infra: hub ...)") and returns 0.
+hub_dead() {
+    local dead
+    dead=$(gim_containers_dead "$hub")
+    [[ -n $dead ]] || return 1
+    if [[ -n ${2:-} ]]; then
+        awk -v c=".$2#" -v d="$dead" '
+            index($0, "FAIL ") == 1 && index($0, c) { sub(/^FAIL /, "INTERRUPTED (infra: hub container " d ") ") }
+            { print }' "$log_dir/summary.txt" >"$log_dir/summary.tmp" && mv "$log_dir/summary.tmp" "$log_dir/summary.txt"
+    fi
+    echo "INTERRUPTED (infra): hub container $dead $1; no further classes run" | tee -a "$log_dir/summary.txt"
+}
+
 interrupted() {
     echo "INTERRUPTED (infra): device $GIM_REAL_SERIAL not attached/online $1" | tee -a "$log_dir/summary.txt"
 }
@@ -180,6 +197,7 @@ instrument() {
         interrupted "before the $name run"
         return "$GIM_REAL_EXIT_INTERRUPTED"
     }
+    hub_dead "before the $name run" && return "$GIM_REAL_EXIT_INTERRUPTED"
     gim_real_wake
     if not_ready "before the $name run"; then
         return "$GIM_REAL_EXIT_NOT_READY"
@@ -191,6 +209,7 @@ instrument() {
         "/tmp/$GIM_RUN_LABEL/instrument.pid" adb -s "$GIM_REAL_SERIAL" shell am instrument -w -r "$@" "$target" </dev/null |
         tr -d '\r' | tee -a "$log_dir/instrumentation.txt" | summarize || status=$?
     ((status)) || return 0
+    hub_dead "during the $name run" "$name" && return "$GIM_REAL_EXIT_INTERRUPTED"
     if ! gim_real_attached; then
         interrupted "during the $name run (results above are partial)"
         return "$GIM_REAL_EXIT_INTERRUPTED"
@@ -269,6 +288,7 @@ docker run --rm --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --na
 gim_real_lock
 gim_real_start_hub "$hub" "$repo_root"
 url=$GIM_REAL_HUB_URL
+echo "hub container: $hub"
 
 gim_real_install "$app_apk" "$test_apk"
 gim_real_adb shell pm clear "$app" >/dev/null
@@ -319,7 +339,7 @@ echo
 echo "summary ($log_dir/summary.txt):"
 cat "$log_dir/summary.txt"
 if ((status == GIM_REAL_EXIT_INTERRUPTED)); then
-    echo "real-device run INTERRUPTED (infra): see summary.txt (device went away, or external input on the phone)"
+    echo "real-device run INTERRUPTED (infra): see summary.txt (device went away, hub container gone, or external input)"
 elif ((status == GIM_REAL_EXIT_NOT_READY)); then
     echo "real-device run NOT READY (infra): the phone's screen is off or locked"
 elif ((status)); then
