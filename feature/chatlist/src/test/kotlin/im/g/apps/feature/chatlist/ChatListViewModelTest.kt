@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewModelScope
 import im.g.apps.core.bridge.ChatListDiff
 import im.g.apps.core.bridge.ChatListListener
+import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.ConnectionState
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.fake.DemoData
@@ -128,6 +129,23 @@ class ChatListViewModelTest {
         assertEquals(PreviewSender.You, direct.sender)
         assertEquals("See you then!", direct.preview)
         assertEquals(0, direct.unreadCount)
+    }
+
+    @Test
+    fun rows_follow_the_chat_state() = runTest {
+        val client = demo()
+        val vm = viewModel(client)
+        advanceUntilIdle()
+        assertEquals(ChatState.ACTIVE, vm.row(GROUP_CHAT_ID).state)
+
+        client.leaveChat(GROUP_CHAT_ID)
+        advanceUntilIdle()
+        assertEquals(ChatState.LEAVING, vm.row(GROUP_CHAT_ID).state)
+
+        client.commitLeave(GROUP_CHAT_ID)
+        advanceUntilIdle()
+        assertEquals(ChatState.LEFT, vm.row(GROUP_CHAT_ID).state)
+        assertEquals(ChatState.ACTIVE, vm.row(DIRECT_CHAT_ID).state)
     }
 
     @Test

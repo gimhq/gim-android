@@ -15,8 +15,16 @@
         <item quantity="other">%d people are typing…</item>
     </plurals>
     <string name="chat_member_added">%1$s was added</string>
+    <string name="chat_member_added_by">%1$s added %2$s</string>
+    <string name="chat_member_added_you">%1$s added you</string>
+    <string name="chat_member_you_added">You added %1$s</string>
+    <string name="chat_member_you_were_added">You were added</string>
     <string name="chat_member_removed">%1$s was removed</string>
+    <string name="chat_member_removed_by">%1$s removed %2$s</string>
+    <string name="chat_member_you_removed">You removed %1$s</string>
+    <string name="chat_member_removed_you">You were removed</string>
     <string name="chat_member_left">%1$s left</string>
+    <string name="chat_member_you_left">You left</string>
     <string name="chat_message_deleted">Message deleted</string>
     <string name="chat_message_unsupported">This message can\'t be shown</string>
     <string name="chat_message_edited">edited</string>
@@ -30,6 +38,8 @@
     <string name="chat_composer_placeholder">Message</string>
     <string name="chat_composer_leaving">Leaving…</string>
     <string name="chat_composer_left">You left this group</string>
+    <string name="chat_composer_removed">You were removed from this group</string>
+    <string name="chat_error_not_active">You can\'t send to this group any more</string>
     <string name="chat_error_open_file">Couldn\'t open the file</string>
     <string name="chat_error_retry_later">Try again in %1$s s</string>
     <string name="chat_error_media_unavailable">The sender\'s server isn\'t reachable. Try again later.</string>
@@ -46,7 +56,6 @@
     <string name="composer_action_edit">Edit</string>
     <string name="composer_action_delete">Delete</string>
     <string name="composer_action_retry">Retry</string>
-    <string name="composer_action_cancel_send">Cancel sending</string>
     <string name="composer_react">React with %1$s</string>
     <string name="composer_delete_title">Delete message?</string>
     <string name="composer_delete_body">It will be deleted for everyone in this chat.</string>

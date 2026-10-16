@@ -372,9 +372,11 @@ class ComposerViewModelTest {
             assertFalse(canReply); assertNull(copyText); assertFalse(canEdit)
             assertFalse(canDelete); assertFalse(canReact); assertFalse(canRetry)
         }
+        // A rejected or given-up send offers Retry and Delete (cancelSend) only.
         with(actions(failed)) {
-            assertTrue(canRetry); assertTrue(canEdit); assertTrue(canDelete)
+            assertTrue(canRetry); assertTrue(canDiscard); assertFalse(canEdit); assertFalse(canDelete); assertFalse(canReact)
         }
+        assertFalse(actions(ownText).canDiscard)
 
         vm.retry(failedId)
         runCurrent()

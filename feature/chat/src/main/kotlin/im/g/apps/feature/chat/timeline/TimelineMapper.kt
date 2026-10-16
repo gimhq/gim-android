@@ -45,6 +45,16 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
 
     private data class DateInput(val dayStartMs: Long, val today: LocalDate)
 
+    /** The signed-in user, or another user by display label. */
+    private sealed interface Who {
+        data object You : Who
+
+        data class Named(val name: String) : Who
+    }
+
+    /** A membership change with its user and actor (null if unknown) resolved by user id. */
+    private data class MembershipInput(val change: MembershipChangeKind, val user: Who, val actor: Who?)
+
     private var cache = HashMap<String, Cached>()
 
     fun map(
@@ -53,6 +63,8 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
         imagePaths: Map<String, String>,
         nowMs: Long,
         unavailableMedia: Set<String> = emptySet(),
+        selfUserId: String? = null,
+        names: Map<String, String> = emptyMap(),
     ): ImmutableList<TimelineRowUi> {
         val today = localDate(nowMs)
         val next = HashMap<String, Cached>(items.size)
@@ -74,7 +86,7 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
                     )
                 }
                 is TimelineItem.DateSeparator -> DateInput(item.dayStartMs, today)
-                is TimelineItem.MembershipChange -> item
+                is TimelineItem.MembershipChange -> membershipInput(item, selfUserId, names)
             }
             val row = cache[key]?.takeIf { it.input == input }?.row ?: buildRow(key, input)
             next[key] = Cached(input, row)
@@ -87,7 +99,7 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
     private fun buildRow(key: String, input: Any): TimelineRowUi = when (input) {
         is MessageInput -> messageRow(key, input)
         is DateInput -> DateSeparatorRow(key, dayLabel(input.dayStartMs, input.today))
-        is TimelineItem.MembershipChange -> SystemRow(key, membershipText(input))
+        is MembershipInput -> SystemRow(key, membershipText(input))
         else -> error("unexpected input $input")
     }
 
@@ -150,14 +162,48 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
                 abs(other.sentAtMs - message.sentAtMs) <= GROUPING_WINDOW_MS
         }
 
-        fun membershipText(change: TimelineItem.MembershipChange): UiText = UiText.Res(
-            when (change.change) {
-                MembershipChangeKind.ADDED -> R.string.chat_member_added
-                MembershipChangeKind.REMOVED -> R.string.chat_member_removed
-                MembershipChangeKind.LEFT -> R.string.chat_member_left
-            },
-            persistentListOf(displayNameOrShortId(change.userName)),
-        )
+        /** Resolves [change] by user id only, never by name; an actor that is the user themselves is dropped. */
+        fun membershipInput(
+            change: TimelineItem.MembershipChange,
+            selfUserId: String?,
+            names: Map<String, String>,
+        ): MembershipInput {
+            fun who(userId: String, fallback: String): Who =
+                if (userId == selfUserId) Who.You else Who.Named(displayNameOrShortId(names[userId] ?: fallback))
+            return MembershipInput(
+                change = change.change,
+                user = who(change.userId, change.userName.ifBlank { change.userId }),
+                actor = change.actorUserId?.takeIf { it != change.userId }?.let { who(it, it) },
+            )
+        }
+
+        fun membershipText(input: MembershipInput): UiText {
+            fun res(id: Int, vararg args: String) = UiText.Res(id, persistentListOf(*args))
+            val actor = input.actor
+            return when (val user = input.user) {
+                Who.You -> when (input.change) {
+                    MembershipChangeKind.ADDED -> when (actor) {
+                        is Who.Named -> res(R.string.chat_member_added_you, actor.name)
+                        else -> res(R.string.chat_member_you_were_added)
+                    }
+                    MembershipChangeKind.REMOVED -> res(R.string.chat_member_removed_you)
+                    MembershipChangeKind.LEFT -> res(R.string.chat_member_you_left)
+                }
+                is Who.Named -> when (input.change) {
+                    MembershipChangeKind.ADDED -> when (actor) {
+                        Who.You -> res(R.string.chat_member_you_added, user.name)
+                        is Who.Named -> res(R.string.chat_member_added_by, actor.name, user.name)
+                        null -> res(R.string.chat_member_added, user.name)
+                    }
+                    MembershipChangeKind.REMOVED -> when (actor) {
+                        Who.You -> res(R.string.chat_member_you_removed, user.name)
+                        is Who.Named -> res(R.string.chat_member_removed_by, actor.name, user.name)
+                        null -> res(R.string.chat_member_removed, user.name)
+                    }
+                    MembershipChangeKind.LEFT -> res(R.string.chat_member_left, user.name)
+                }
+            }
+        }
 
         fun SendState.toTick(): TickState = when (this) {
             SendState.Pending -> TickState.PENDING

@@ -3,6 +3,7 @@ package im.g.apps.core.bridge.fake
 import im.g.apps.core.bridge.ChatKind
 import im.g.apps.core.bridge.ChatListDiff
 import im.g.apps.core.bridge.ChatListListener
+import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.ConnectionState
 import im.g.apps.core.bridge.ConnectionStateListener
@@ -40,8 +41,9 @@ import java.time.ZoneId
  * Deterministic in-memory [GimClient] for ViewModel/UI tests, previews and the app until gim-core's
  * bindings are vendored. Follows gim-core's semantics: chat list most recently updated first, timelines
  * oldest first with a [TimelineItem.DateSeparator] before the first item of each local day (in [zone], or in the
- * zone passed to [setLocalTimeZone]). [leaveChat] only submits the leave: the own `Left` change follows after
- * [OutboxDelays.deliveredMs], or on [commitLeave] when `outboxDelays` is null; sends fail meanwhile.
+ * zone passed to [setLocalTimeZone]). [leaveChat] only submits the leave ([ChatState.LEAVING]): the own `Left` change
+ * (and [ChatState.LEFT]) follows after [OutboxDelays.deliveredMs], or on [commitLeave] when `outboxDelays` is null.
+ * Calls that send to or change a chat that is not [ChatState.ACTIVE] throw [GimException.ChatNotActive].
  *
  * All state lives behind one lock and listeners are invoked synchronously on the calling thread, in
  * mutation order. Outbound messages start [SendState.Pending] and advance to Sent, Delivered and Read
@@ -128,6 +130,8 @@ class FakeGimClient(
             refreshTimeline(chat)
             chat.loaded < chat.events.size
         }
+
+        override fun chatState(): ChatState? = synchronized(lock) { chats[chatId]?.let { state(it.id) } }
     }
 
     private class FakeLinkSession(val owner: FakeGimClient, val qr: String) : LinkSession {
@@ -360,7 +364,7 @@ class FakeGimClient(
         val others = invitees.mapNotNull { directory[it] }
         if (invitees.isNotEmpty() && others.isEmpty()) throw GimException.NotFound("users: none of the invitees exist")
         val chat = FakeChat("chat-${nextId++}", ChatKind.GROUP, trimmed, (listOf(me) + others).toMutableList(), clock())
-        others.forEach { chat.events += membership(it, MembershipChangeKind.ADDED) }
+        others.forEach { chat.events += membership(it, MembershipChangeKind.ADDED, actor = me) }
         chat.loaded = chat.events.size
         chat.rendered = render(chat)
         chats[chat.id] = chat
@@ -369,8 +373,9 @@ class FakeGimClient(
     }
 
     override suspend fun addMembers(chatId: String, userIds: List<String>) = synchronized(lock) {
-        me()
+        val me = me()
         val chat = groupChat(chatId)
+        requireActive(chatId)
         if (userIds.isEmpty()) throw GimException.InvalidInput("userIds must not be empty")
         val users = userIds.distinct().mapNotNull { directory[it] }
         if (users.isEmpty()) throw GimException.NotFound("users: none of the users exist")
@@ -378,7 +383,7 @@ class FakeGimClient(
             ?.let { throw GimException.InvalidInput("${it.userId} is already a member") }
         users.forEach {
             chat.members += it
-            appendEvent(chat, membership(it, MembershipChangeKind.ADDED))
+            appendEvent(chat, membership(it, MembershipChangeKind.ADDED, actor = me))
         }
         refreshTimeline(chat)
         publishChat(chat.id)
@@ -387,10 +392,11 @@ class FakeGimClient(
     override suspend fun removeMember(chatId: String, userId: String) = synchronized(lock) {
         val me = me()
         val chat = groupChat(chatId)
+        requireActive(chatId)
         if (userId == me.userId) throw GimException.InvalidInput("use leaveChat to leave")
         val member = chat.members.firstOrNull { it.userId == userId } ?: throw GimException.NotFound("member $userId")
         chat.members.remove(member)
-        appendEvent(chat, membership(member, MembershipChangeKind.REMOVED))
+        appendEvent(chat, membership(member, MembershipChangeKind.REMOVED, actor = me))
         refreshTimeline(chat)
         publishChat(chat.id)
     }
@@ -399,8 +405,9 @@ class FakeGimClient(
         synchronized(lock) {
             me()
             groupChat(chatId)
-            if (chatId in left) throw GimException.InvalidInput("$chatId: already left")
+            if (chatId in left) throw GimException.ChatNotActive(chatId, ChatState.LEFT)
             leaving += chatId
+            publishChat(chatId)
         }
         val delays = outboxDelays ?: return
         scope.launch {
@@ -412,6 +419,7 @@ class FakeGimClient(
     override suspend fun setGroupInfo(chatId: String, name: String?, avatarFilePath: String?) = synchronized(lock) {
         me()
         val chat = groupChat(chatId)
+        requireActive(chatId)
         if (name == null && avatarFilePath == null) throw GimException.InvalidInput("nothing to change")
         val trimmed = name?.trim()
         if (trimmed != null && trimmed.isEmpty()) throw GimException.InvalidInput("name must not be blank")
@@ -450,6 +458,7 @@ class FakeGimClient(
 
     override suspend fun editMessage(chatId: String, messageId: String, newBody: String) = synchronized(lock) {
         me()
+        requireActive(chatId)
         if (newBody.isBlank()) throw GimException.InvalidInput("newBody must not be blank")
         updateMessage(chatId, messageId) { message ->
             if (!message.isOwn || message.content !is MessageContent.Text) {
@@ -461,6 +470,7 @@ class FakeGimClient(
 
     override suspend fun deleteMessage(chatId: String, messageId: String) = synchronized(lock) {
         me()
+        requireActive(chatId)
         updateMessage(chatId, messageId) { message ->
             if (!message.isOwn) throw GimException.InvalidInput("only own messages can be deleted")
             message.copy(content = MessageContent.Deleted, reactions = emptyList())
@@ -469,6 +479,7 @@ class FakeGimClient(
 
     override suspend fun react(chatId: String, messageId: String, emoji: String) = synchronized(lock) {
         me()
+        requireActive(chatId)
         if (emoji.isBlank()) throw GimException.InvalidInput("emoji must not be blank")
         updateMessage(chatId, messageId) { message ->
             requireNotDeleted(message)
@@ -484,6 +495,7 @@ class FakeGimClient(
 
     override suspend fun unreact(chatId: String, messageId: String, emoji: String) = synchronized(lock) {
         me()
+        requireActive(chatId)
         updateMessage(chatId, messageId) { message ->
             requireNotDeleted(message)
             val existing = message.reactions.firstOrNull { it.emoji == emoji && it.own }
@@ -498,6 +510,7 @@ class FakeGimClient(
 
     override suspend fun retrySend(chatId: String, messageId: String) = synchronized(lock) {
         me()
+        requireActive(chatId)
         updateMessage(chatId, messageId) { message ->
             if (message.sendState !is SendState.Failed) throw GimException.InvalidInput("message is not failed")
             message.copy(sendState = SendState.Pending)
@@ -575,6 +588,12 @@ class FakeGimClient(
         chats.values.forEach(::refreshTimeline)
     }
 
+    override suspend fun chatState(chatId: String): ChatState = synchronized(lock) {
+        me()
+        chat(chatId)
+        state(chatId)
+    }
+
     override suspend fun timeline(chatId: String): Timeline = synchronized(lock) {
         me()
         chat(chatId)
@@ -623,7 +642,20 @@ class FakeGimClient(
         val me = me()
         chat.members.removeAll { it.userId == me.userId }
         left += chatId
-        appendEvent(chat, membership(me, MembershipChangeKind.LEFT))
+        appendEvent(chat, membership(me, MembershipChangeKind.LEFT, actor = me))
+        refreshTimeline(chat)
+        publishChat(chatId)
+    }
+
+    /** Member [by] removes the signed-in user from group [chatId]: the chat becomes [ChatState.LEFT]. */
+    fun simulateRemovedBy(chatId: String, by: String) = synchronized(lock) {
+        val chat = groupChat(chatId)
+        val actor = member(chat, by)
+        val me = me()
+        if (!chat.members.removeAll { it.userId == me.userId }) return@synchronized
+        leaving -= chatId
+        left += chatId
+        appendEvent(chat, membership(me, MembershipChangeKind.REMOVED, actor = actor))
         refreshTimeline(chat)
         publishChat(chatId)
     }
@@ -758,13 +790,24 @@ class FakeGimClient(
         return ReplyPreview(message.messageId, message.sender.displayName, previewText(message.content))
     }
 
-    private fun membership(user: UserProfile, change: MembershipChangeKind) =
-        TimelineItem.MembershipChange(user.displayName, change, clock())
+    private fun membership(user: UserProfile, change: MembershipChangeKind, actor: UserProfile?) =
+        TimelineItem.MembershipChange(user.displayName, change, clock(), user.userId, actor?.userId)
+
+    private fun state(chatId: String): ChatState = when (chatId) {
+        in left -> ChatState.LEFT
+        in leaving -> ChatState.LEAVING
+        else -> ChatState.ACTIVE
+    }
+
+    private fun requireActive(chatId: String) {
+        val state = state(chatId)
+        if (state != ChatState.ACTIVE) throw GimException.ChatNotActive(chatId, state)
+    }
 
     private fun enqueue(chatId: String, replyTo: String?, content: (messageId: String) -> MessageContent): String {
         val me = me()
         val chat = chat(chatId)
-        if (chatId in leaving || chatId in left) throw GimException.InvalidInput("$chatId: not a member")
+        requireActive(chatId)
         val reply = replyTo?.let { replyPreview(chat, it) }
         val id = "c-${nextId++}"
         val item = MessageItem(
@@ -894,6 +937,7 @@ class FakeGimClient(
             unreadCount = chat.unread,
             updatedAtMs = maxOf(chat.createdAt, chat.events.lastOrNull()?.let(::eventTime) ?: chat.createdAt),
             memberCount = chat.members.size,
+            state = state(chat.id),
         )
     }
 

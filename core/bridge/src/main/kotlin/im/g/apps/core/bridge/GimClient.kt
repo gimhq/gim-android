@@ -2,15 +2,18 @@ package im.g.apps.core.bridge
 
 /**
  * Kotlin mirror of gim-core's UniFFI `GimClient` (gim-core `bindings/gim-ffi`, contract in
- * `docs/API.md` at gim-core commit 7077421).
+ * `docs/API.md` at gim-core commit d5ead6d).
  *
  * gim-core (Rust) owns storage, networking, sync, outbox, MLS and media crypto; this interface is the only
  * surface the UI layer sees. Features never import `im.g.gimcore`: the real adapter maps the generated
  * bindings onto these types mechanically. Until the bindings are vendored, use
  * [im.g.apps.core.bridge.fake.FakeGimClient].
  *
- * Every suspend method throws [GimException] on failure. Listeners are called on a background thread, in
- * order; see [im.g.apps.core.bridge.flow] for main-safe flows.
+ * Every suspend method throws [GimException] on failure; calls that send to or change a chat that is not
+ * [ChatState.ACTIVE] throw [GimException.ChatNotActive]. Call suspend methods from a real dispatcher
+ * (`Dispatchers.IO`, `Default`, `Main`, `viewModelScope`), never `Dispatchers.Unconfined`. Listeners and hooks are
+ * called on gim-core's single `gim-callbacks` thread, in order: copy the data and return, never call back into
+ * [GimClient] from them; see [im.g.apps.core.bridge.flow] for main-safe flows.
  *
  * ## Mapping (gim-core `im.g.gimcore` -> `im.g.apps.core.bridge`)
  *
@@ -18,14 +21,14 @@ package im.g.apps.core.bridge
  * |---|---|---|
  * | `GimClient` / `GimClientInterface` | [GimClient] | same methods, names, parameters, suspend-ness |
  * | `createClient(config, hooks)` | [GimClientFactory.create] | |
- * | `Timeline` / `TimelineInterface` | [Timeline] | `paginateBackwards(count: UShort)` -> `Int` |
+ * | `Timeline` / `TimelineInterface` | [Timeline] | `paginateBackwards(count: UShort)` -> `Int`; `chatState()` |
  * | `TaskHandle` | [TaskHandle] | Kotlin interface; `close()` cancels like `destroy()` |
  * | `PlatformHooks` | [PlatformHooks] | |
  * | `LinkSession`, `PendingApproval` | [LinkSession], [PendingApproval] | Kotlin interfaces wrapping the native objects |
  * | `DeviceInfo` | [DeviceInfo] | `createdAtMs: ULong` -> `Long` |
  * | `ChatListListener`, `TimelineListener`, `ConnectionStateListener`, `TypingListener`, `LocalTimeZone` | same names | `fun interface` |
  * | `ChatListDiff`, `TimelineDiff` | [ChatListDiff], [TimelineDiff] | `index`/`length: UInt` -> `Int` |
- * | `Session`, `UserProfile`, `ChatKind`, `ChatSummary`, `MessagePreview` | same names | `UInt` -> `Int`, `ULong` -> `Long` |
+ * | `Session`, `UserProfile`, `ChatKind`, `ChatState`, `ChatSummary`, `MessagePreview` | same names | `UInt` -> `Int`, `ULong` -> `Long` |
  * | `TimelineItem`, `MembershipChangeKind`, `MessageItem`, `MessageContent` | same names | `ULong` -> `Long`, `UInt?` -> `Int?` |
  * | `MediaRef`, `ReplyPreview`, `ReactionGroup`, `SendState`, `ConnectionState`, `ClientConfig` | same names | `size: ULong` -> `Long`, `count: UInt` -> `Int` |
  * | `GimException.<Variant>` | [GimException]`.<Variant>` | `status: UShort` -> `Int`, `retryAfterSecs: ULong` -> `Long` |
@@ -145,11 +148,15 @@ interface GimClient {
     suspend fun removeMember(chatId: String, userId: String)
 
     /**
-     * Submits a leave proposal and returns once the hub accepted it; another member commits it, then the timeline
-     * shows the own [MembershipChangeKind.LEFT] change. Until then (also across restarts) sends to the chat fail with
-     * [GimException.InvalidInput].
+     * Submits a leave proposal and returns once the hub accepted it, with the chat [ChatState.LEAVING]; another member
+     * commits it, then the chat is [ChatState.LEFT] and shows the own [MembershipChangeKind.LEFT] change. gim-core
+     * keeps and re-sends the leave across restarts. A leave the hub refuses for good (4xx) returns the chat to
+     * [ChatState.ACTIVE] and throws the rejection; [GimException.ChatNotActive] once left.
      */
     suspend fun leaveChat(chatId: String)
+
+    /** The chat's [ChatState] from local state, no network call; [GimException.NotFound] for an unknown chat. */
+    suspend fun chatState(chatId: String): ChatState
 
     /**
      * Updates the group name and/or avatar and shares them with the members; null leaves a field unchanged, but

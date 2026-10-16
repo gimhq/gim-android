@@ -11,7 +11,10 @@ sealed class GimException(message: String) : Exception(message) {
     /** No session, signed out, or this device was revoked: go to onboarding. */
     class NotRegistered : GimException("not registered")
 
-    /** An argument was rejected, the call does not fit the state, or the payload is too large for the hub. */
+    /**
+     * An argument was rejected, the call does not fit the state, the payload is too large for the hub, or the hub
+     * rejected the request as invalid (400 `validation_failed`, 422). Never parse [reason].
+     */
     class InvalidInput(val reason: String) : GimException("invalid input: $reason")
 
     /** The chat, message, user or media does not exist locally or on the server. */
@@ -23,7 +26,10 @@ sealed class GimException(message: String) : Exception(message) {
     /** The local database or file system failed. */
     class Storage(val reason: String) : GimException("storage error: $reason")
 
-    /** gim-hub answered with a non-success HTTP status (`u16` in gim-core). */
+    /**
+     * gim-hub answered with a non-success HTTP status (`u16` in gim-core). A 4xx (e.g. 403 `not_member`) is a
+     * definite rejection gim-core does not resend; a 5xx, 408 or 429 is resent unchanged.
+     */
     class Server(val status: Int, val reason: String) : GimException("server error $status: $reason")
 
     /** The hub throttles (429) or a remote hub is unavailable (503) after gim-core's own retries; retry later. */
@@ -35,6 +41,13 @@ sealed class GimException(message: String) : Exception(message) {
 
     /** The call is part of the API contract but not implemented yet. */
     class NotImplemented : GimException("not implemented")
+
+    /**
+     * The call sends to or changes a chat this device is leaving ([ChatState.LEAVING]) or has left
+     * ([ChatState.LEFT]): show the chat read-only.
+     */
+    class ChatNotActive(val chatId: String, val state: ChatState) :
+        GimException("chat $chatId is not active: $state")
 
     /** A bug or an unexpected failure inside gim-core or a platform callback. */
     class Internal(val reason: String) : GimException("internal error: $reason")

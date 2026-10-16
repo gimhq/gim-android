@@ -7,10 +7,14 @@ import kotlinx.collections.immutable.persistentListOf
 
 private const val HTTP_BAD_GATEWAY = 502
 
-/** Message for a failed user action: "Try again in N s" when gim-core asks to retry later, else [fallback]. */
+/**
+ * Message for a failed user action: "Try again in N s" when gim-core asks to retry later, a read-only notice when the
+ * chat is leaving or left ([GimException.ChatNotActive]), else [fallback].
+ */
 internal fun GimException.toUiText(@StringRes fallback: Int): UiText = when (this) {
     is GimException.RetryLater ->
         UiText.Res(R.string.chat_error_retry_later, persistentListOf(retryAfterSecs.coerceAtLeast(1).toString()))
+    is GimException.ChatNotActive -> UiText.Res(R.string.chat_error_not_active)
     else -> UiText.Res(fallback)
 }
 

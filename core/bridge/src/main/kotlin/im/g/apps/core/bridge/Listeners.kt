@@ -1,7 +1,9 @@
 package im.g.apps.core.bridge
 
-// Callback interfaces implemented by the app. gim-core calls them on a Rust background thread, in order;
-// copy the data and return quickly. Declared as `fun interface` for lambda ergonomics.
+// Callback interfaces implemented by the app. gim-core calls them (and PlatformHooks / LocalTimeZone) on its single
+// `gim-callbacks` thread, one call at a time, in order: copy the data and return quickly, hop to the main thread or
+// a channel for anything else, and never call back into GimClient (nested calls abort the process on Android).
+// Declared as `fun interface` for lambda ergonomics.
 
 /** Receives chat list changes, most recently updated chat first. The first callback is a `Reset`. */
 fun interface ChatListListener {
@@ -20,7 +22,7 @@ fun interface ConnectionStateListener {
 
 /**
  * The local time zone timeline date separators split calendar days in; mirrors gim-core's `LocalTimeZone`, set with
- * [GimClient.setLocalTimeZone]. Called from a Rust background thread: keep it fast and never call back into
+ * [GimClient.setLocalTimeZone]. Called on gim-core's `gim-callbacks` thread: keep it fast and never call back into
  * [GimClient] from it.
  */
 fun interface LocalTimeZone {
@@ -60,11 +62,14 @@ interface Timeline {
      * the adapter converts.
      */
     suspend fun paginateBackwards(count: Int): Boolean
+
+    /** The chat's current [ChatState] from local state; null while the chat is not known locally. Synchronous. */
+    fun chatState(): ChatState?
 }
 
 /**
- * Services the native app provides to gim-core; mirrors `hooks.rs`. Methods may be called from any
- * thread, so implementations must be fast and thread-safe.
+ * Services the native app provides to gim-core; mirrors `hooks.rs`. Called on gim-core's `gim-callbacks` thread
+ * (shared with every listener), so implementations must be fast, thread-safe and never call into [GimClient].
  */
 interface PlatformHooks {
     /**

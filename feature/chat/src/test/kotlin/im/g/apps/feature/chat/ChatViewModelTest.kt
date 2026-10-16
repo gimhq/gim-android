@@ -153,7 +153,7 @@ class ChatViewModelTest {
         assertNull(mine.senderName)
         assertTrue(mine.outgoing)
         assertEquals("12:11", third.time)
-        assertTrue(vm.rows.any { it is SystemRow && it.text == UiText.Res(R.string.chat_member_added, persistentListOf("Ana Kovač")) })
+        assertTrue(vm.rows.any { it is SystemRow && it.text == UiText.Res(R.string.chat_member_you_added, persistentListOf("Ana Kovač")) })
         assertEquals(mine, vm.rows.first())
     }
 

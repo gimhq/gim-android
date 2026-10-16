@@ -129,7 +129,12 @@ class ComposerScreenTest {
         rule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assertIsNotEnabled()
         rule.onNodeWithText("You left this group", useUnmergedTree = true).assertExists()
 
+        membership = ChatMembership.REMOVED
+        rule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assertIsNotEnabled()
+        rule.onNodeWithText("You were removed from this group", useUnmergedTree = true).assertExists()
+
         membership = ChatMembership.JOINED
         rule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assertIsEnabled()
+        rule.onNodeWithTag(COMPOSER_BANNER_TEST_TAG).assertDoesNotExist()
     }
 }

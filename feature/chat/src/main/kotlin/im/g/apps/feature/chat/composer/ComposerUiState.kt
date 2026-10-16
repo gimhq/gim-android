@@ -19,15 +19,19 @@ sealed interface ComposerMode {
     data class Editing(val messageId: String, val originalText: String) : ComposerMode
 }
 
-/** The signed-in user's membership of the chat, as far as sending goes. */
+/** The signed-in user's membership of the chat, as far as sending goes; from gim-core's `ChatState`. */
 enum class ChatMembership {
+    /** `ChatState.Active`. */
     JOINED,
 
-    /** Left with `leaveChat`; gim-core refuses sends until another member commits it and `Left` shows. */
+    /** `ChatState.Leaving`: `leaveChat` was accepted; nothing can be sent until another member commits it. */
     LEAVING,
 
-    /** The own `Left` change is the latest membership change of the signed-in user. */
+    /** `ChatState.Left` after leaving (or hub-side). */
     LEFT,
+
+    /** `ChatState.Left` whose latest own membership change is a removal by another member. */
+    REMOVED,
 }
 
 /** Actions offered for one long-pressed message; availability is decided by [ComposerViewModel]. */
@@ -42,8 +46,10 @@ data class MessageActionsUi(
     val canReact: Boolean,
     /** Quick reactions the signed-in user already added. */
     val ownReactions: ImmutableSet<String> = persistentSetOf(),
-    /** Retry and Cancel, for messages that failed to send. */
+    /** Retry, for own messages that failed to send (rejected by the hub or out of retries). */
     val canRetry: Boolean,
+    /** Delete a failed own message: removes it from the outbox and the timeline (`cancelSend`). */
+    val canDiscard: Boolean = false,
 )
 
 @Immutable

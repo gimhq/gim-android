@@ -1,7 +1,7 @@
 package im.g.apps.feature.contacts
 
+import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.GimException
-import im.g.apps.core.bridge.InMemoryPendingLeaveStore
 import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.FakeGimClient
@@ -28,12 +28,11 @@ class GroupInfoViewModelTest {
 
     private lateinit var fake: FakeGimClient
     private lateinit var client: TestClient
-    private val pendingLeaves = InMemoryPendingLeaveStore()
 
     private fun TestScope.newViewModel(chatId: String = DemoData.GROUP_CHAT_ID): GroupInfoViewModel {
         fake = demoClient(backgroundScope).also { it.addDirectoryUser(marta) }
         client = TestClient(fake)
-        return GroupInfoViewModel(client, chatId, pendingLeaves, clock = { NOW_MS })
+        return GroupInfoViewModel(client, chatId)
     }
 
     private fun GroupInfoViewModel.memberIds() = state.value.members.map { it.user.userId }
@@ -207,41 +206,41 @@ class GroupInfoViewModelTest {
     }
 
     @Test
-    fun leave_requiresConfirmation_recordsThePendingLeaveAndEmitsLeftChat() = runTest {
+    fun leave_requiresConfirmation_emitsLeftChat_andFollowsTheChatState() = runTest {
         val vm = newViewModel()
         advanceUntilIdle()
         vm.confirmLeave()
         advanceUntilIdle()
-        assertTrue(pendingLeaves.pending.value.isEmpty())
+        assertFalse(vm.state.value.leaving)
 
         vm.requestLeave()
         assertTrue(vm.state.value.confirmingLeave)
         vm.confirmLeave()
         advanceUntilIdle()
         assertEquals(GroupInfoEvent.LeftChat, vm.events.first())
-        assertEquals(mapOf(DemoData.GROUP_CHAT_ID to NOW_MS), pendingLeaves.pending.value)
         assertTrue(vm.state.value.leaving)
         // Another member has not committed the leave yet: the chat stays.
         assertTrue(DemoData.GROUP_CHAT_ID in fake.chatIds())
 
         vm.requestLeave()
         assertFalse(vm.state.value.confirmingLeave)
-        pendingLeaves.remove(DemoData.GROUP_CHAT_ID)
+        fake.commitLeave(DemoData.GROUP_CHAT_ID)
         advanceUntilIdle()
         assertFalse(vm.state.value.leaving)
+        assertTrue(vm.state.value.left)
+        vm.requestLeave()
+        assertFalse(vm.state.value.confirmingLeave)
     }
 
     @Test
-    fun leave_failure_recordsNothing() = runTest {
+    fun chatNotActive_showsTheReadOnlyError() = runTest {
         val vm = newViewModel()
         advanceUntilIdle()
-        fake.leaveChat(DemoData.GROUP_CHAT_ID)
-        fake.commitLeave(DemoData.GROUP_CHAT_ID)
-        vm.requestLeave()
-        vm.confirmLeave()
+        client.removeMemberError = GimException.ChatNotActive(DemoData.GROUP_CHAT_ID, ChatState.LEFT)
+        vm.requestRemove(DemoData.lukas)
+        vm.confirmRemove()
         advanceUntilIdle()
-        assertEquals(GroupInfoEvent.ShowError(ContactsError.InvalidInput), vm.events.first())
-        assertTrue(pendingLeaves.pending.value.isEmpty())
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.ChatNotActive), vm.events.first())
     }
 
     @Test
@@ -260,8 +259,4 @@ class GroupInfoViewModelTest {
     }
 
     private suspend fun FakeGimClient.chatIds(): List<String> = chatListFlow().first().map { it.chatId }
-
-    private companion object {
-        const val NOW_MS = 1_760_000_000_000L
-    }
 }

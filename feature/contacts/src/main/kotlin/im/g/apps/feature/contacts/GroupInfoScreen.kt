@@ -219,7 +219,7 @@ private fun ChatDetails(
         item(key = "leave") {
             TextButton(
                 onClick = actions.onLeave,
-                enabled = !state.busy && !state.leaving,
+                enabled = !state.busy && !state.leaving && !state.left,
                 modifier = Modifier.padding(vertical = 16.dp),
             ) {
                 if (state.leaving) {

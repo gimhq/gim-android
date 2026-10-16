@@ -73,6 +73,7 @@ class InteropTest {
     private val run = args.getString("interopRun").orEmpty()
     private val serverUrl = args.getString("gimServerUrl") ?: DEFAULT_SERVER_URL
     private val aliceName = args.getString("aliceName").orEmpty()
+    private val bobName = args.getString("bobName").orEmpty()
     private val aliceHandle = args.getString("aliceHandle").orEmpty()
     private val aliceUserId = args.getString("aliceUserId").orEmpty()
     private val androidHandle = args.getString("androidHandle").orEmpty()
@@ -204,7 +205,7 @@ class InteropTest {
         compose.waitFor(hasTestTag(TAG_COMPOSER))
 
         // g. bob removes alice; messages keep flowing between bob and the app.
-        compose.waitFor(hasText(string(ChatR.string.chat_member_removed, aliceName)))
+        compose.waitFor(hasText(string(ChatR.string.chat_member_removed_by, bobName, aliceName)))
         compose.waitForText(text("Bob after removal"))
         send(text("Android after removal"))
         rendezvous.mark("android-after-removal")

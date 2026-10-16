@@ -28,6 +28,9 @@ sealed interface ContactsError {
 
     data object NotSupported : ContactsError
 
+    /** The chat is leaving or left (`ChatNotActive`): it is read-only. */
+    data object ChatNotActive : ContactsError
+
     data object Unknown : ContactsError
 }
 
@@ -39,6 +42,7 @@ internal fun GimException.toContactsError(): ContactsError = when (this) {
     is GimException.Server -> ContactsError.Server
     is GimException.RetryLater -> ContactsError.RetryLater(retryAfterSecs.coerceAtLeast(1))
     is GimException.NotImplemented -> ContactsError.NotSupported
+    is GimException.ChatNotActive -> ContactsError.ChatNotActive
     is GimException.Crypto,
     is GimException.Storage,
     is GimException.Cancelled,
@@ -62,6 +66,7 @@ internal fun ContactsError.message(context: Context): String = when (this) {
     ContactsError.Server -> context.getString(R.string.contacts_error_server)
     is ContactsError.RetryLater -> context.getString(R.string.contacts_error_retry_later, seconds)
     ContactsError.NotSupported -> context.getString(R.string.contacts_error_not_supported)
+    ContactsError.ChatNotActive -> context.getString(R.string.contacts_error_chat_not_active)
     ContactsError.Unknown -> context.getString(R.string.contacts_error_unknown)
 }
 

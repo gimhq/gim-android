@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.designsystem.theme.GimTheme
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Assert.assertEquals
@@ -56,6 +57,22 @@ class ChatListScreenTest {
         rule.onNodeWithText("Lukas Berger").assertExists()
         rule.onNodeWithText("You: See you then!").assertExists()
         rule.onNodeWithText("0").assertDoesNotExist()
+    }
+
+    @Test
+    fun leaving_and_left_rows_show_their_state_instead_of_the_preview() {
+        show(
+            ChatListUiState(
+                rows = persistentListOf(
+                    rows[0].copy(state = ChatState.LEAVING),
+                    rows[1].copy(id = "chat-x", title = "Old Crew", state = ChatState.LEFT),
+                ),
+            ),
+        )
+
+        rule.onNodeWithText("Leaving…").assertExists()
+        rule.onNodeWithText("You are no longer a member").assertExists()
+        rule.onNodeWithText("Nikos: Table booked").assertDoesNotExist()
     }
 
     @Test
