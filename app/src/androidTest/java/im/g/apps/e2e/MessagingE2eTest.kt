@@ -16,7 +16,6 @@ import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
@@ -43,6 +42,7 @@ import androidx.test.espresso.intent.Intents.intending
 import androidx.test.espresso.intent.matcher.IntentMatchers.isInternal
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import im.g.apps.GimApplication
 import im.g.apps.MainActivity
 import im.g.apps.core.bridge.ClientConfig
 import im.g.apps.core.bridge.GimClient
@@ -50,6 +50,7 @@ import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.MessageContent
 import im.g.apps.core.bridge.MessageItem
 import im.g.apps.core.bridge.PlatformHooks
+import im.g.apps.core.bridge.SendState
 import im.g.apps.core.bridge.TimelineItem
 import im.g.apps.core.bridge.flow.chatListFlow
 import im.g.apps.core.bridge.flow.itemsFlow
@@ -76,6 +77,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.hamcrest.CoreMatchers.not
 import org.junit.After
@@ -270,6 +272,8 @@ class MessagingE2eTest {
         waitForText("chat list after user not found", string(ChatListR.string.chatlist_title))
         assertFalse(exists(hasText(UNKNOWN_USER_ID.removePrefix("u").take(8), substring = true)))
 
+        rejectedSendShowsFailedThenRemoved(peer)
+
         // Leave the group: "Leaving…" with the composer disabled until the peer commits the leave, then `Left`.
         compose.onNode(hasText(groupName) and hasClickAction()).performClick()
         waitFor("group chat reopened", hasTestTag(TAG_COMPOSER))
@@ -281,11 +285,16 @@ class MessagingE2eTest {
         val confirmLeave = hasText(string(ContactsR.string.contacts_leave)) and hasClickAction()
         waitFor("leave confirmation", confirmLeave)
         compose.onNode(confirmLeave).performClick()
-        waitFor("composer shows leaving") { composerShows(string(ChatR.string.chat_composer_leaving)) }
+        waitFor("composer shows leaving", hasTestTag(TAG_BANNER) and hasText(string(ChatR.string.chat_composer_leaving)))
         compose.onNodeWithTag(TAG_COMPOSER).assertIsNotEnabled()
+        // The chat list row shows the state too.
+        compose.onNodeWithContentDescription(string(ChatR.string.chat_back)).performClick()
+        waitForText("chat list shows leaving", string(ChatListR.string.chatlist_state_leaving))
+        compose.onNode(hasText(groupName) and hasClickAction()).performClick()
+        waitFor("group chat reopened while leaving", hasTestTag(TAG_COMPOSER))
         runBlocking { peer.startSync() }
-        waitForText("app shows its own left change", string(ChatR.string.chat_member_left, appName))
-        waitFor("composer shows left") { composerShows(string(ChatR.string.chat_composer_left)) }
+        waitForText("app shows its own left change", string(ChatR.string.chat_member_you_left))
+        waitFor("composer shows left", hasTestTag(TAG_BANNER) and hasText(string(ChatR.string.chat_composer_left)))
         compose.onNodeWithTag(TAG_COMPOSER).assertIsNotEnabled()
 
         // Sign out through the chat list overflow menu.
@@ -302,6 +311,64 @@ class MessagingE2eTest {
         compose.onNode(signOut).performClick()
         waitForText("onboarding after sign-out", string(OnboardingR.string.onboarding_welcome_title))
         assertFalse(keystoreHasAlias())
+    }
+
+    /**
+     * A send the hub rejects with 403 `not_member` shows Failed at once, with Retry and Delete: the peer creates a
+     * second group with the app user and removes it while the app's sync is stopped, so the app still believes it is a
+     * member when it sends. Once sync resumes the removal arrives: "You were removed" and a read-only composer.
+     */
+    private fun rejectedSendShowsFailedThenRemoved(peer: GimClient) {
+        val app = appClient()
+        val appUserId = checkNotNull(app.userId())
+        val removedGroup = "E2E removed $suffix"
+        val welcome = "Welcome aboard $suffix"
+        val chatId = runBlocking {
+            peer.createGroupChat(removedGroup, listOf(appUserId)).also { peer.sendText(it, welcome, null) }
+        }
+        val row = hasText(removedGroup) and hasClickAction()
+        waitFor("app lists the second group", row)
+        compose.onNode(row).performClick()
+        waitForText("app shows the peer welcome", welcome)
+
+        // Hold the app's sync (and with it the removal), then the peer removes the app user.
+        runBlocking { withContext(Dispatchers.IO) { app.stopSync() } }
+        peerWait("peer removes the app user") { peer.removeMember(chatId, appUserId) }
+
+        val doomed = "Anyone here $suffix"
+        compose.onNodeWithTag(TAG_COMPOSER).performTextInput(doomed)
+        compose.onNodeWithContentDescription(string(ChatR.string.composer_send)).performClick()
+        waitFor("app shows the rejected send as failed", hasContentDescription(string(DesignR.string.gim_tick_failed)))
+        val failed = appMessages(app, chatId).await("app message is failed") {
+            it.isOwn && (it.content as? MessageContent.Text)?.body == doomed && it.sendState is SendState.Failed
+        }
+        val reason = (failed.sendState as SendState.Failed).reason
+        Log.i(LOG_TAG, "rejected send failed with: $reason")
+        assertTrue("send failed with '$reason', not the hub's 403 not_member", "403 not_member" in reason)
+
+        // Retry and Delete are offered; Delete drops the message.
+        compose.onNode(hasText(doomed) and hasClickAction()).performTouchInput { longClick() }
+        waitForText("failed message actions", string(ChatR.string.composer_action_retry))
+        val delete = hasText(string(ChatR.string.composer_action_delete)) and hasClickAction()
+        waitFor("delete offered for the failed message", delete)
+        compose.onNode(delete).performClick()
+        waitFor("failed message deleted") { !exists(hasText(doomed)) }
+
+        // Sync resumes: the removal arrives and the chat becomes read-only.
+        runBlocking { withContext(Dispatchers.IO) { app.startSync() } }
+        waitForText("app shows its removal", string(ChatR.string.chat_member_removed_you))
+        waitFor("composer shows removed", hasTestTag(TAG_BANNER) and hasText(string(ChatR.string.chat_composer_removed)))
+        compose.onNodeWithTag(TAG_COMPOSER).assertIsNotEnabled()
+        compose.onNodeWithContentDescription(string(ChatR.string.chat_back)).performClick()
+        waitForText("chat list shows the removed group as left", string(ChatListR.string.chatlist_state_left))
+    }
+
+    /** The app's own gim-core client (the test runs in the app process). */
+    private fun appClient(): GimClient =
+        checkNotNull((compose.activity.application as GimApplication).container.manager.client.value)
+
+    private fun appMessages(app: GimClient, chatId: String): StateFlow<ImmutableList<TimelineItem>> = runBlocking {
+        app.timeline(chatId).itemsFlow().stateIn(peerScope, SharingStarted.Eagerly, persistentListOf())
     }
 
     /** Messages of [chatId] as the peer sees them, kept current by one timeline subscription. */
@@ -349,12 +416,6 @@ class MessagingE2eTest {
     private fun exists(matcher: SemanticsMatcher) = compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty()
 
     private fun SemanticsNodeInteraction.isEnabled() = SemanticsProperties.Disabled !in fetchSemanticsNode().config
-
-    /** Whether the composer field (or its placeholder) shows [text]. */
-    private fun composerShows(text: String) = compose
-        .onAllNodes(hasText(text) and hasAnyAncestor(hasTestTag(TAG_COMPOSER)), useUnmergedTree = true)
-        .fetchSemanticsNodes().isNotEmpty() ||
-        exists(hasTestTag(TAG_COMPOSER) and hasText(text))
 
     /** Replaces the text of the field tagged [tag] and waits until the field holds exactly [value]. */
     private fun enterText(field: String, tag: String, value: String) {
@@ -525,5 +586,6 @@ class MessagingE2eTest {
         const val TAG_HANDLE = "onboarding_handle"
         const val TAG_CLAIM_HANDLE = "onboarding_claim_handle"
         const val TAG_COMPOSER = "composer-input"
+        const val TAG_BANNER = "composer-membership-banner"
     }
 }

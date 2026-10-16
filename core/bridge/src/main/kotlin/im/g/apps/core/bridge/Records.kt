@@ -51,7 +51,20 @@ data class ChatSummary(
     val unreadCount: Int,
     val updatedAtMs: Long,
     val memberCount: Int,
+    val state: ChatState = ChatState.ACTIVE,
 )
+
+/** Where this device stands in a chat; read from local state, so right from the first callback after a restart. */
+enum class ChatState {
+    /** A member; messages can be sent. */
+    ACTIVE,
+
+    /** [GimClient.leaveChat] was accepted by the hub; nothing can be sent until another member commits the removal. */
+    LEAVING,
+
+    /** Removed: after leaving, by another member, or hub-side. History is kept; nothing can be sent. */
+    LEFT,
+}
 
 /** Last message shown in a chat list row. */
 data class MessagePreview(
@@ -73,6 +86,10 @@ sealed class TimelineItem {
         val userName: String,
         val change: MembershipChangeKind,
         val atMs: Long,
+        /** The user who joined or left; the own user id for the signed-in user's own `Left`. */
+        val userId: String,
+        /** Who caused it: the adder or remover, the user themselves for `Left`; null if unknown. */
+        val actorUserId: String?,
     ) : TimelineItem()
 }
 
@@ -81,7 +98,7 @@ val TimelineItem.key: String
     get() = when (this) {
         is TimelineItem.Message -> item.messageId
         is TimelineItem.DateSeparator -> "date-$dayStartMs"
-        is TimelineItem.MembershipChange -> "member-$atMs-$userName-$change"
+        is TimelineItem.MembershipChange -> "member-$atMs-$userId-$change"
     }
 
 enum class MembershipChangeKind { ADDED, REMOVED, LEFT }

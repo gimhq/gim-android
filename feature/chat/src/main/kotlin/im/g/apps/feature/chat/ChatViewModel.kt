@@ -84,11 +84,17 @@ class ChatViewModel(
     )
 
     private val mapper = TimelineMapper(zone, locale)
+
+    /** The signed-in user's id; read once, off the main thread, by [buildState]. */
+    private val selfUserId by lazy { client.userId() }
     private val timeline = viewModelScope.async { client.timeline(chatId) }
     private val isLoadingOlder = MutableStateFlow(false)
     private val hasMoreOlder = MutableStateFlow(true)
     private val imagePaths = MutableStateFlow(persistentMapOf<String, String>())
     private val avatarPath = MutableStateFlow<String?>(null)
+
+    /** Names of members by user id, for membership rows; former members keep theirs. */
+    private val memberNames = MutableStateFlow(persistentMapOf<String, String>())
 
     /** Messages whose attachment the uploader's hub could not serve for now; their rows offer a retry. */
     private val unavailableMedia = MutableStateFlow(persistentSetOf<String>())
@@ -112,7 +118,8 @@ class ChatViewModel(
         client.typingFlow(chatId),
         summary,
         extras,
-    ) { items, typing, summary, extras -> buildState(items, typing, summary, extras) }
+        memberNames,
+    ) { items, typing, summary, extras, members -> buildState(items, typing, summary, extras, members) }
         .flowOn(defaultDispatcher)
         .stateIn(viewModelScope, SharingStarted.Eagerly, ChatUiState())
 
@@ -125,6 +132,17 @@ class ChatViewModel(
                     client.markRead(chatId, messageId)
                 } catch (_: GimException) {
                     if (lastReadRequest == messageId) lastReadRequest = null
+                }
+            }
+        }
+        viewModelScope.launch {
+            // gim-core has no members listener: re-query when the member count changes.
+            summary.map { it?.memberCount }.distinctUntilChanged().collect {
+                try {
+                    val members = client.chatMembers(chatId)
+                    memberNames.value = memberNames.value.putAll(members.associate { it.userId to it.displayLabel })
+                } catch (_: GimException) {
+                    // Rows fall back to the names in the timeline.
                 }
             }
         }
@@ -247,6 +265,7 @@ class ChatViewModel(
         typing: List<String>,
         summary: ChatSummary?,
         extras: Extras,
+        members: Map<String, String>,
     ): ChatUiState {
         val messages = items.mapNotNull { (it as? TimelineItem.Message)?.item }
         snapshot = Snapshot(messages, summary?.unreadCount ?: 0)
@@ -264,12 +283,32 @@ class ChatViewModel(
                 avatarPath = extras.avatarPath,
                 isGroup = isGroup,
             ),
-            items = mapper.map(items, isGroup, extras.imagePaths, clock(), extras.unavailableMedia),
+            items = mapper.map(
+                items,
+                isGroup,
+                extras.imagePaths,
+                clock(),
+                extras.unavailableMedia,
+                selfUserId,
+                knownNames(items) + members,
+            ),
             isLoadingOlder = extras.isLoadingOlder,
             hasMoreOlder = extras.hasMoreOlder,
             typingLabel = typingLabel,
             unreadCount = summary?.unreadCount ?: 0,
         )
+    }
+
+    /** Names of users seen in [items], by user id: message senders and membership changes. */
+    private fun knownNames(items: List<TimelineItem>): Map<String, String> = buildMap {
+        for (item in items) {
+            when (item) {
+                is TimelineItem.Message -> put(item.item.sender.userId, item.item.sender.displayLabel)
+                is TimelineItem.MembershipChange ->
+                    if (item.userName.isNotBlank()) putIfAbsent(item.userId, item.userName)
+                is TimelineItem.DateSeparator -> Unit
+            }
+        }
     }
 
     private fun typingLabel(userIds: List<String>, messages: List<MessageItem>): UiText? {

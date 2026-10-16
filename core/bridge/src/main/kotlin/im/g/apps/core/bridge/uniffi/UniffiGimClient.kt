@@ -1,6 +1,7 @@
 package im.g.apps.core.bridge.uniffi
 
 import im.g.apps.core.bridge.ChatListListener
+import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.ClientConfig
 import im.g.apps.core.bridge.ConnectionStateListener
 import im.g.apps.core.bridge.DeviceInfo
@@ -92,6 +93,8 @@ internal class UniffiGimClient(private val inner: im.g.gimcore.GimClient) : GimC
 
     override suspend fun leaveChat(chatId: String) = core { inner.leaveChat(chatId) }
 
+    override suspend fun chatState(chatId: String): ChatState = core { inner.chatState(chatId).toMirror() }
+
     override suspend fun setGroupInfo(chatId: String, name: String?, avatarFilePath: String?) =
         core { inner.setGroupInfo(chatId, name, avatarFilePath) }
 
@@ -175,6 +178,8 @@ internal class UniffiTimeline(private val inner: im.g.gimcore.Timeline) : Timeli
 
     override suspend fun paginateBackwards(count: Int): Boolean =
         core { inner.paginateBackwards(count.toPaginationCount()) }
+
+    override fun chatState(): ChatState? = core { inner.chatState()?.toMirror() }
 }
 
 /** gim-core takes a `u16`: negative counts are rejected, larger ones clamped. */

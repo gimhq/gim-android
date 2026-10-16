@@ -55,4 +55,5 @@
     <string name="contacts_leave">Leave</string>
     <string name="contacts_leaving">Leaving…</string>
     <string name="contacts_leave_group_confirm">Leave this group? You will stop receiving its messages.</string>
+    <string name="contacts_error_chat_not_active">You are no longer a member of this group</string>
 </resources>

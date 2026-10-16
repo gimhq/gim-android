@@ -104,6 +104,7 @@ class ChatListViewModel(
             preview = last?.text.orEmpty(),
             time = timeFormatter.format(updatedAtMs),
             unreadCount = unreadCount,
+            state = state,
         )
     }
 

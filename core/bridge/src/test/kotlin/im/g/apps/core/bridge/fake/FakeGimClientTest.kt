@@ -1,6 +1,7 @@
 package im.g.apps.core.bridge.fake
 
 import im.g.apps.core.bridge.ChatListDiff
+import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.ChatListListener
 import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.ConnectionState
@@ -456,7 +457,7 @@ class FakeGimClientTest {
         assertEquals(
             listOf(
                 TimelineItem.DateSeparator(dayStart(2026, 7, 12)),
-                TimelineItem.MembershipChange(lukas.displayName, MembershipChangeKind.ADDED, base),
+                TimelineItem.MembershipChange(lukas.displayName, MembershipChangeKind.ADDED, base, lukas.userId, me.userId),
             ),
             timeline.items,
         )
@@ -471,6 +472,10 @@ class FakeGimClientTest {
             listOf(ana.displayName, nikos.displayName),
             added.values.map { (it as TimelineItem.MembershipChange).userName },
         )
+        assertEquals(
+            listOf(me.userId, me.userId),
+            added.values.map { (it as TimelineItem.MembershipChange).actorUserId },
+        )
         assertGimError<GimException.InvalidInput> { client.addMembers(groupId, listOf(ana.userId)) }
         assertGimError<GimException.NotFound> { client.addMembers(groupId, listOf("u-nobody")) }
         val skipped = timeline.batches.size
@@ -479,7 +484,9 @@ class FakeGimClientTest {
 
         client.removeMember(groupId, nikos.userId)
         assertEquals(
-            TimelineDiff.PushBack(TimelineItem.MembershipChange(nikos.displayName, MembershipChangeKind.REMOVED, base)),
+            TimelineDiff.PushBack(
+                TimelineItem.MembershipChange(nikos.displayName, MembershipChangeKind.REMOVED, base, nikos.userId, me.userId),
+            ),
             timeline.batches.last().single(),
         )
         assertGimError<GimException.InvalidInput> { client.removeMember(groupId, me.userId) }
@@ -499,22 +506,52 @@ class FakeGimClientTest {
         assertGimError<GimException.InvalidInput> { client.setGroupInfo(groupId, " ", null) }
         assertEquals("Adriatic Crew", chats.chat(groupId).name)
 
-        // leaveChat only submits the leave: nothing changes until another member commits it, sends fail meanwhile.
+        // leaveChat only submits the leave: the chat is Leaving until another member commits it, sends fail meanwhile.
+        assertEquals(ChatState.ACTIVE, client.chatState(groupId))
         val beforeLeave = timeline.batches.size
         client.leaveChat(groupId)
         assertEquals(beforeLeave, timeline.batches.size)
-        assertGimError<GimException.InvalidInput> { client.sendText(groupId, "Still here?", null) }
+        assertEquals(ChatState.LEAVING, client.chatState(groupId))
+        assertEquals(ChatState.LEAVING, chats.chat(groupId).state)
+        assertEquals(ChatState.LEAVING, client.timeline(groupId).chatState())
+        assertNotActive(groupId, ChatState.LEAVING) { client.sendText(groupId, "Still here?", null) }
+        assertNotActive(groupId, ChatState.LEAVING) { client.setGroupInfo(groupId, "Renamed", null) }
+        // Leaving again re-sends the leave.
+        client.leaveChat(groupId)
 
         client.commitLeave(groupId)
         assertEquals(
-            TimelineDiff.PushBack(TimelineItem.MembershipChange(me.displayName, MembershipChangeKind.LEFT, base)),
+            TimelineDiff.PushBack(TimelineItem.MembershipChange(me.displayName, MembershipChangeKind.LEFT, base, me.userId, me.userId)),
             timeline.batches.last().single(),
         )
         // Like gim-core, the left chat stays in the list.
         assertTrue(groupId in chats.ids)
+        assertEquals(ChatState.LEFT, chats.chat(groupId).state)
         assertEquals(listOf(lukas, ana), client.chatMembers(groupId))
-        assertGimError<GimException.InvalidInput> { client.sendText(groupId, "Still here?", null) }
-        assertGimError<GimException.InvalidInput> { client.leaveChat(groupId) }
+        assertNotActive(groupId, ChatState.LEFT) { client.sendText(groupId, "Still here?", null) }
+        assertNotActive(groupId, ChatState.LEFT) { client.addMembers(groupId, listOf(nikos.userId)) }
+        assertNotActive(groupId, ChatState.LEFT) { client.leaveChat(groupId) }
+    }
+
+    @Test
+    fun removal_by_another_member_makes_the_chat_left() = runTest {
+        val client = demo()
+        val chats = client.recordChats()
+        val timeline = client.record(GROUP_CHAT_ID)
+        client.simulateRemovedBy(GROUP_CHAT_ID, by = ana.userId)
+        assertEquals(
+            TimelineItem.MembershipChange(me.displayName, MembershipChangeKind.REMOVED, base, me.userId, ana.userId),
+            timeline.items.last(),
+        )
+        assertEquals(ChatState.LEFT, chats.chat(GROUP_CHAT_ID).state)
+        assertEquals(ChatState.LEFT, client.chatState(GROUP_CHAT_ID))
+        assertNotActive(GROUP_CHAT_ID, ChatState.LEFT) { client.sendText(GROUP_CHAT_ID, "hello?", null) }
+    }
+
+    private suspend fun assertNotActive(chatId: String, state: ChatState, block: suspend () -> Unit) {
+        val e = assertGimError<GimException.ChatNotActive> { block() }
+        assertEquals(chatId, e.chatId)
+        assertEquals(state, e.state)
     }
 
     @Test
@@ -525,7 +562,7 @@ class FakeGimClientTest {
         assertFalse(timeline.items.any { it is TimelineItem.MembershipChange && it.change == MembershipChangeKind.LEFT })
         advanceTimeBy(201)
         assertEquals(
-            TimelineItem.MembershipChange(me.displayName, MembershipChangeKind.LEFT, base + 200),
+            TimelineItem.MembershipChange(me.displayName, MembershipChangeKind.LEFT, base + 200, me.userId, me.userId),
             timeline.items.last(),
         )
     }

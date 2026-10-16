@@ -78,9 +78,9 @@ internal fun MessageActionsContent(
         if (actions.canReply) ActionRow(R.string.composer_action_reply) { callbacks.onReply(id) }
         actions.copyText?.let { text -> ActionRow(R.string.composer_action_copy) { callbacks.onCopy(text) } }
         if (actions.canEdit) ActionRow(R.string.composer_action_edit) { callbacks.onEdit(id) }
-        if (actions.canRetry) {
-            ActionRow(R.string.composer_action_retry) { callbacks.onRetry(id) }
-            ActionRow(R.string.composer_action_cancel_send) { callbacks.onCancelSend(id) }
+        if (actions.canRetry) ActionRow(R.string.composer_action_retry) { callbacks.onRetry(id) }
+        if (actions.canDiscard) {
+            ActionRow(R.string.composer_action_delete, MaterialTheme.colorScheme.error) { callbacks.onCancelSend(id) }
         }
         if (actions.canDelete) {
             ActionRow(R.string.composer_action_delete, MaterialTheme.colorScheme.error) { callbacks.onDelete(id) }

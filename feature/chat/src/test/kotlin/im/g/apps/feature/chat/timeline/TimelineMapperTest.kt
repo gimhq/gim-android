@@ -22,6 +22,10 @@ import java.time.format.FormatStyle
 import java.util.Locale
 
 class TimelineMapperTest {
+    private companion object {
+        const val SELF = "u-self"
+        val NAMES = mapOf("u-ana" to "Ana", "u-bob" to "Bob", SELF to "Sofia")
+    }
 
     private val ana = UserProfile("u-ana", "ana", "Ana Kovač")
     private val athens = ZoneId.of("Europe/Athens")
@@ -50,6 +54,57 @@ class TimelineMapperTest {
 
     private fun map(now: String, vararg items: TimelineItem, isGroup: Boolean = false, unavailable: Set<String> = emptySet()) =
         TimelineMapper(athens, Locale.UK).map(items.toList(), isGroup, emptyMap(), ms(now), unavailable)
+
+    private fun membershipText(
+        change: MembershipChangeKind,
+        userId: String,
+        actorUserId: String?,
+        userName: String = userId,
+        names: Map<String, String> = NAMES,
+    ): UiText {
+        val item = TimelineItem.MembershipChange(userName, change, ms("2026-10-15T07:00:00Z"), userId, actorUserId)
+        val rows = TimelineMapper(athens, Locale.UK)
+            .map(listOf(item), isGroup = true, emptyMap(), ms("2026-10-15T09:00:00Z"), emptySet(), SELF, names)
+        return (rows.single() as SystemRow).text
+    }
+
+    private fun res(id: Int, vararg args: String) = UiText.Res(id, persistentListOf(*args))
+
+    @Test
+    fun membershipChanges_renderFromUserIds() {
+        val ana = "u-ana"
+        val bob = "u-bob"
+        assertEquals(res(R.string.chat_member_removed_by, "Ana", "Bob"), membershipText(MembershipChangeKind.REMOVED, bob, ana))
+        assertEquals(res(R.string.chat_member_added_by, "Bob", "Ana"), membershipText(MembershipChangeKind.ADDED, ana, bob))
+        assertEquals(res(R.string.chat_member_you_added, "Bob"), membershipText(MembershipChangeKind.ADDED, bob, SELF))
+        assertEquals(res(R.string.chat_member_you_removed, "Bob"), membershipText(MembershipChangeKind.REMOVED, bob, SELF))
+        assertEquals(res(R.string.chat_member_added_you, "Ana"), membershipText(MembershipChangeKind.ADDED, SELF, ana))
+        assertEquals(res(R.string.chat_member_removed_you), membershipText(MembershipChangeKind.REMOVED, SELF, ana))
+        assertEquals(res(R.string.chat_member_you_left), membershipText(MembershipChangeKind.LEFT, SELF, SELF))
+        assertEquals(res(R.string.chat_member_left, "Bob"), membershipText(MembershipChangeKind.LEFT, bob, bob))
+        // Unknown actor: no "by".
+        assertEquals(res(R.string.chat_member_added, "Bob"), membershipText(MembershipChangeKind.ADDED, bob, null))
+        assertEquals(res(R.string.chat_member_removed, "Bob"), membershipText(MembershipChangeKind.REMOVED, bob, null))
+    }
+
+    @Test
+    fun membershipChanges_neverMatchTheOwnUserByName() {
+        // Another user with the signed-in user's display name is not "you", and the own change is "you" even while
+        // gim-core still shows the bare user id as its name.
+        assertEquals(
+            res(R.string.chat_member_left, "Sofia"),
+            membershipText(MembershipChangeKind.LEFT, "u-other", "u-other", userName = "Sofia", names = emptyMap()),
+        )
+        assertEquals(
+            res(R.string.chat_member_you_left),
+            membershipText(MembershipChangeKind.LEFT, SELF, SELF, userName = SELF, names = emptyMap()),
+        )
+        // Names come from the lookup by id first, then from the change itself.
+        assertEquals(
+            res(R.string.chat_member_removed_by, "Ana", "Lukas"),
+            membershipText(MembershipChangeKind.REMOVED, "u-lukas", "u-ana", userName = "Lukas", names = mapOf("u-ana" to "Ana")),
+        )
+    }
 
     @Test
     fun coreSeparators_areKeptAndKeyedByTheirDayStart() {
@@ -119,7 +174,7 @@ class TimelineMapperTest {
         val rows = map(
             "2026-10-15T09:00:00Z",
             separator("2026-10-15"),
-            TimelineItem.MembershipChange(remoteId, MembershipChangeKind.ADDED, ms("2026-10-15T07:00:00Z")),
+            TimelineItem.MembershipChange(remoteId, MembershipChangeKind.ADDED, ms("2026-10-15T07:00:00Z"), remoteId, null),
             message("m1", "2026-10-15T08:00:00Z", sender = remote),
             isGroup = true,
         )
