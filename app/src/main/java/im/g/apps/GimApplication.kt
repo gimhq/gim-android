@@ -13,6 +13,7 @@ class GimApplication : Application() {
         super.onCreate()
         container = AppContainer(this)
         container.sync.start()
+        container.push.start()
         registerTimeZoneChangedReceiver(this, container::onTimeZoneChanged)
         ProcessLifecycleOwner.get().lifecycle.addObserver(
             object : DefaultLifecycleObserver {

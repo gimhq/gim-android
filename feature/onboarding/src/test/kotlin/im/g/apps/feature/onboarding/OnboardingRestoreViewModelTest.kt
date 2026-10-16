@@ -336,7 +336,8 @@ class OnboardingRestoreViewModelTest {
             assertEquals(OnboardingEvent.Finished, awaitItem())
         }
         assertEquals(listOf(UNREACHABLE_URL, SERVER_URL), local.clients)
-        assertEquals(0, local.signOuts)
+        // The client for the first URL is signed out before the next one opens the same data dir (store lock).
+        assertEquals(1, local.signOuts)
         assertEquals(SERVER_URL, store.get())
     }
 

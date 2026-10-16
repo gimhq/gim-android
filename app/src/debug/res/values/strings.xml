@@ -1,0 +1,4 @@
+<resources>
+    <string name="push_mock_channel">Push mock</string>
+    <string name="push_mock_polling">Polling the push mock</string>
+</resources>

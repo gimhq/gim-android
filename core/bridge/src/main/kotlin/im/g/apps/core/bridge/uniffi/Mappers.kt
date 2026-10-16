@@ -5,6 +5,7 @@ import im.g.apps.core.bridge.ChatListDiff
 import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.ClientConfig
+import im.g.apps.core.bridge.ClientMode
 import im.g.apps.core.bridge.ConnectionState
 import im.g.apps.core.bridge.DeviceInfo
 import im.g.apps.core.bridge.GimException
@@ -15,6 +16,9 @@ import im.g.apps.core.bridge.MembershipChangeKind
 import im.g.apps.core.bridge.MessageContent
 import im.g.apps.core.bridge.MessageItem
 import im.g.apps.core.bridge.MessagePreview
+import im.g.apps.core.bridge.NotificationContent
+import im.g.apps.core.bridge.NotificationKind
+import im.g.apps.core.bridge.PushRegistration
 import im.g.apps.core.bridge.ReactionGroup
 import im.g.apps.core.bridge.ReplyPreview
 import im.g.apps.core.bridge.SendState
@@ -180,7 +184,42 @@ internal fun im.g.gimcore.ConnectionState.toMirror(): ConnectionState = when (th
     im.g.gimcore.ConnectionState.SYNCING -> ConnectionState.SYNCING
 }
 
-internal fun ClientConfig.toCore() = im.g.gimcore.ClientConfig(serverUrl = serverUrl)
+internal fun ClientConfig.toCore() = im.g.gimcore.ClientConfig(serverUrl = serverUrl, mode = mode.toCore())
+
+internal fun ClientMode.toCore(): im.g.gimcore.ClientMode = when (this) {
+    ClientMode.APP -> im.g.gimcore.ClientMode.APP
+    ClientMode.EXTENSION -> im.g.gimcore.ClientMode.EXTENSION
+}
+
+internal fun PushRegistration.toCore() = im.g.gimcore.PushRegistration(
+    provider = provider,
+    token = token,
+    appId = appId,
+    sandbox = sandbox,
+    p256dh = p256dh,
+    auth = auth,
+)
+
+internal fun im.g.gimcore.NotificationKind.toMirror(): NotificationKind = when (this) {
+    im.g.gimcore.NotificationKind.MESSAGE -> NotificationKind.MESSAGE
+    im.g.gimcore.NotificationKind.REACTION -> NotificationKind.REACTION
+    im.g.gimcore.NotificationKind.INVITE -> NotificationKind.INVITE
+    im.g.gimcore.NotificationKind.MEMBERSHIP -> NotificationKind.MEMBERSHIP
+    im.g.gimcore.NotificationKind.GENERIC -> NotificationKind.GENERIC
+}
+
+internal fun im.g.gimcore.NotificationContent.toMirror() = NotificationContent(
+    chatId = chatId,
+    chatTitle = chatTitle,
+    senderUserId = senderUserId,
+    senderDisplayName = senderDisplayName,
+    body = body,
+    messageId = messageId,
+    collapseId = collapseId,
+    kind = kind.toMirror(),
+    shouldDisplay = shouldDisplay,
+    timestamp = timestamp.toLong(),
+)
 
 internal fun im.g.gimcore.ChatListDiff.toMirror(): ChatListDiff = when (this) {
     is im.g.gimcore.ChatListDiff.Append -> ChatListDiff.Append(values.map { it.toMirror() })

@@ -12,8 +12,10 @@ import im.g.apps.core.bridge.HubInfo
 import im.g.apps.core.bridge.HubListListener
 import im.g.apps.core.bridge.LinkSession
 import im.g.apps.core.bridge.LocalTimeZone
+import im.g.apps.core.bridge.NotificationContent
 import im.g.apps.core.bridge.PendingApproval
 import im.g.apps.core.bridge.PlatformHooks
+import im.g.apps.core.bridge.PushRegistration
 import im.g.apps.core.bridge.Session
 import im.g.apps.core.bridge.TaskHandle
 import im.g.apps.core.bridge.Timeline
@@ -81,6 +83,14 @@ internal class UniffiGimClient(private val inner: im.g.gimcore.GimClient) : GimC
     override suspend fun releaseHandle() = core { inner.releaseHandle() }
 
     override suspend fun signOut() = core { inner.signOut() }
+
+    override suspend fun registerPush(registration: PushRegistration) =
+        core { inner.registerPush(registration.toCore()) }
+
+    override suspend fun unregisterPush() = core { inner.unregisterPush() }
+
+    override suspend fun processPush(payload: String): NotificationContent =
+        core { inner.processPush(payload).toMirror() }
 
     override suspend fun startSync() = core { inner.startSync() }
 

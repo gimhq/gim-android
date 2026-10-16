@@ -18,6 +18,10 @@
 #   TIMEOUT_SCALE     instrumentation argument timeoutScale (multiplies the test's per-step waits)
 #   GIM_HUB2=1        also start hub B (federated with hub A, at http://10.0.2.2:8081, see scripts/lib/device.sh)
 #                     and pass its URL as instrumentation argument gimServerUrl2
+#   GIM_PUSH_MOCK=0   do not start gim-push-mock (default 1: built from the pinned gim-hub commit, run in the hub's
+#                     network namespace on :8090 as every hub's push webhook with a shared random secret; the app
+#                     reaches it at http://10.0.2.2:8090, passed as instrumentation argument gimPushMockUrl, which
+#                     PushE2eTest needs and otherwise skips)
 #
 # Flow:
 #   1. Builds (once) ai-agent/gim-android-emulator: ghcr.io/cirruslabs/android-sdk:35 plus the emulator
@@ -36,7 +40,7 @@
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,35p' "$0"
+    sed -n '2,39p' "$0"
     exit 0
 fi
 
@@ -49,6 +53,7 @@ gradle_cache=${GRADLE_CACHE:-/srv/.tmp/cache/gradle}
 server_url=$GIM_EMULATOR_SERVER_URL
 hub=ai-agent-gim-hub-$run_id
 hub2=${hub}2
+push_mock=ai-agent-gim-push-mock-$run_id
 runner=ai-agent-gim-android-device-$run_id
 
 gim_check_host_paths "$repo_root"
@@ -61,19 +66,28 @@ log_dir=$repo_root/.tmp/device-tests
 mkdir -p "$log_dir"
 
 cleanup() {
-    docker rm -f "$runner" "$hub2" "$hub" >/dev/null 2>&1 || true
+    docker rm -f "$runner" "$push_mock" "$hub2" "$hub" >/dev/null 2>&1 || true
     gim_cleanup_hubs "$repo_root"
 }
 trap cleanup EXIT INT TERM
 
 gim_ensure_emulator_image
 hub_args=()
+if [[ ${GIM_PUSH_MOCK:-1} == 1 ]]; then
+    gim_ensure_push_mock_image "$repo_root"
+    # The mock joins the hub's network namespace below, so the hubs reach it on loopback.
+    gim_push_prepare http://127.0.0.1:8090/push
+fi
 if [[ ${GIM_HUB2:-0} == 1 ]]; then
     gim_start_hub "$hub" "$repo_root" fed
     gim_start_hub2 "$hub" "$hub2" "$repo_root"
     hub_args=("-Pandroid.testInstrumentationRunnerArguments.gimServerUrl2=$GIM_EMULATOR_SERVER_URL2")
 else
     gim_start_hub "$hub" "$repo_root"
+fi
+if [[ ${GIM_PUSH_MOCK:-1} == 1 ]]; then
+    gim_start_push_mock "$push_mock" "$repo_root" --network "container:$hub"
+    hub_args+=("-Pandroid.testInstrumentationRunnerArguments.gimPushMockUrl=http://10.0.2.2:8090")
 fi
 
 mkdir -p "$gradle_cache"
@@ -102,5 +116,6 @@ if ((status)); then
     echo "device tests failed (exit $status); gim-hub log tail:" >&2
     docker logs --tail 50 "$hub" >&2 || true
     [[ ${GIM_HUB2:-0} != 1 ]] || { echo "gim-hub B log tail:" >&2; docker logs --tail 50 "$hub2" >&2 || true; }
+    [[ ${GIM_PUSH_MOCK:-1} != 1 ]] || { echo "gim-push-mock log tail:" >&2; docker logs --tail 20 "$push_mock" >&2 || true; }
 fi
 exit "$status"

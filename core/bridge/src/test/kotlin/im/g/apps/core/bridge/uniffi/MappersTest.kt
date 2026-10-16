@@ -5,6 +5,7 @@ import im.g.apps.core.bridge.ChatListDiff
 import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.ClientConfig
+import im.g.apps.core.bridge.ClientMode
 import im.g.apps.core.bridge.ConnectionState
 import im.g.apps.core.bridge.DeviceInfo
 import im.g.apps.core.bridge.GimException
@@ -15,6 +16,9 @@ import im.g.apps.core.bridge.MembershipChangeKind
 import im.g.apps.core.bridge.MessageContent
 import im.g.apps.core.bridge.MessageItem
 import im.g.apps.core.bridge.MessagePreview
+import im.g.apps.core.bridge.NotificationContent
+import im.g.apps.core.bridge.NotificationKind
+import im.g.apps.core.bridge.PushRegistration
 import im.g.apps.core.bridge.ReactionGroup
 import im.g.apps.core.bridge.ReplyPreview
 import im.g.apps.core.bridge.SendState
@@ -261,7 +265,63 @@ class MappersTest {
 
     @Test
     fun clientConfig() {
-        assertEquals(im.g.gimcore.ClientConfig("https://gim.example"), ClientConfig("https://gim.example").toCore())
+        assertEquals(
+            im.g.gimcore.ClientConfig("https://gim.example", im.g.gimcore.ClientMode.APP),
+            ClientConfig("https://gim.example").toCore(),
+        )
+        assertEquals(
+            im.g.gimcore.ClientConfig("https://gim.example", im.g.gimcore.ClientMode.EXTENSION),
+            ClientConfig("https://gim.example", ClientMode.EXTENSION).toCore(),
+        )
+    }
+
+    @Test
+    fun pushRegistration() {
+        assertEquals(
+            im.g.gimcore.PushRegistration("fcm", "token", "im.g.apps", false, "p256", "auth"),
+            PushRegistration("fcm", "token", "im.g.apps", false, "p256", "auth").toCore(),
+        )
+        assertEquals(
+            im.g.gimcore.PushRegistration("fcm", "token", null, null, null, null),
+            PushRegistration("fcm", "token").toCore(),
+        )
+        val shown = PushRegistration("fcm", "secret-token", p256dh = "key", auth = "auth-secret").toString()
+        assertTrue(shown, "secret-token" !in shown && "auth-secret" !in shown && "key" !in shown)
+    }
+
+    @Test
+    fun notificationContent() {
+        assertEquals(NotificationKind.MESSAGE, im.g.gimcore.NotificationKind.MESSAGE.toMirror())
+        assertEquals(NotificationKind.REACTION, im.g.gimcore.NotificationKind.REACTION.toMirror())
+        assertEquals(NotificationKind.INVITE, im.g.gimcore.NotificationKind.INVITE.toMirror())
+        assertEquals(NotificationKind.MEMBERSHIP, im.g.gimcore.NotificationKind.MEMBERSHIP.toMirror())
+        assertEquals(NotificationKind.GENERIC, im.g.gimcore.NotificationKind.GENERIC.toMirror())
+        assertEquals(
+            NotificationContent(
+                chatId = "c1",
+                chatTitle = "Crew",
+                senderUserId = "u1",
+                senderDisplayName = "Alice",
+                body = "Hello",
+                messageId = "m1",
+                collapseId = "k1",
+                kind = NotificationKind.MESSAGE,
+                shouldDisplay = true,
+                timestamp = 9_000_000_000_000L,
+            ),
+            im.g.gimcore.NotificationContent(
+                chatId = "c1",
+                chatTitle = "Crew",
+                senderUserId = "u1",
+                senderDisplayName = "Alice",
+                body = "Hello",
+                messageId = "m1",
+                collapseId = "k1",
+                kind = im.g.gimcore.NotificationKind.MESSAGE,
+                shouldDisplay = true,
+                timestamp = 9_000_000_000_000UL,
+            ).toMirror(),
+        )
     }
 
     @Test

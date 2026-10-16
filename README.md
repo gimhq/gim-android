@@ -54,6 +54,29 @@ The onboarding server field is prefilled from `BuildConfig.DEFAULT_HUB_URL`, res
 
 `10.0.2.2` is the emulator's alias for the host loopback.
 
+## Push
+
+M2 integrates no push platform (no FCM, UnifiedPush or Play services). `PushController` (`app/.../push`) registers
+a `PushProvider`'s registration with gim-core while signed in (again for every new token), runs the provider's
+receiver and hands each payload to `processPush` on the app's own client (never a second client on the data dir),
+showing a notification only when `shouldDisplay`: one channel per kind (Messages, Reactions, Chat invitations,
+Other), tag = chat id, id = collapse id (the same message pushed by several hubs replaces one notification), tap
+opens the chat. `POST_NOTIFICATIONS` is asked once push is registered (Android 13+). Before sign-out the
+registration is removed from the hubs (gim-core's sign-out does so too; failures are only logged).
+
+- **Release builds:** no provider, no push; the mock code below is not in the APK.
+- **Debug builds:** `MockPushProvider` for gim-hub's `gim-push-mock` (provider `mock-android`, random token per
+  install). Off until a mock base URL is set: the debug preference `debug_push_mock_url` (PushE2eTest sets it from
+  its `gimPushMockUrl` argument) or, as the default, Gradle property `gim.pushMockUrl` / env `GIM_PUSH_MOCK_URL`.
+  It long-polls `GET /deliveries?token=&since=&wait=30` in the app scope (first call skips older deliveries) and
+  holds a `specialUse` foreground service meanwhile, so polling goes on while the app is in the background and
+  sync is stopped.
+
+`scripts/run-device-tests.sh` and `scripts/run-real-device-tests.sh` start `gim-push-mock` (built from the pinned
+hub commit, `Dockerfile.push-mock`) as every hub's push webhook with a random shared secret and pass its URL as
+`gimPushMockUrl` (emulator `http://10.0.2.2:8090` in the hub's network namespace; phone
+`http://GIM_REAL_LAN_HOST:<port>` from 18190). `GIM_PUSH_MOCK=0` turns it off; `PushE2eTest` then skips.
+
 ## Onboarding
 
 New accounts follow gim-core's identity model: Welcome (hub address) -> **Create new account** -> display name
@@ -96,7 +119,7 @@ comes from the `gimServerUrl` instrumentation argument, default `http://10.0.2.2
 ### CLI x Android interop
 
 `scripts/e2e-interop.sh` runs two gim CLI users (alice, bob; `gim-cli` built from gim-core `GIM_CORE_REF`,
-default `5877765`) and the app (`app/src/androidTest/.../interop/InteropTest`, real UI and gim-core) against the
+default `f8db42c`) and the app (`app/src/androidTest/.../interop/InteropTest`, real UI and gim-core) against the
 pinned gim-hub on the same emulator setup as the device tests. alice and bob create identities and claim handles
 with `gim register`; the app goes through onboarding (create identity, acknowledge the recovery code, claim a
 handle). Steps: DM both ways with read receipts, bob's group of three, text and images both ways, reply,
@@ -161,13 +184,13 @@ script and CI follow it.
 - `core/bridge/src/main/kotlin/im/g/gimcore/gim_core.kt` (UniFFI bindings)
 
 The vendored version and source commit are pinned in `GIM_CORE_VERSION` at the repo root (currently gim-core
-`5877765`, tested against gim-hub `50b3401` from `e2e/GIM_HUB_VERSION`). Refresh them from a gim-core checkout, or
+`f8db42c`, tested against gim-hub `bd8c9ca` from `e2e/GIM_HUB_VERSION`). Refresh them from a gim-core checkout, or
 from a clean export of a commit (then `--commit` with its full sha is required):
 
 ```bash
 scripts/sync-gim-core.sh [--build] [--commit SHA] [GIM_CORE_DIR]   # default /srv/gimhq/im-client/core
 
-sha=$(git -C /srv/gimhq/im-client/core rev-parse 5877765)
+sha=$(git -C /srv/gimhq/im-client/core rev-parse f8db42c)
 mkdir -p .tmp/gim-core-$sha && git -C /srv/gimhq/im-client/core archive $sha | tar -x -m -C .tmp/gim-core-$sha
 SKIP_IMAGE_BUILD=1 scripts/sync-gim-core.sh --build --commit $sha .tmp/gim-core-$sha
 ```

@@ -26,6 +26,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            // gim-push-mock base URL MockPushProvider polls when no debug setting overrides it: -P/gradle.properties
+            // `gim.pushMockUrl`, else env GIM_PUSH_MOCK_URL; empty (default) leaves push off. Debug builds only.
+            val pushMockUrl = providers.gradleProperty("gim.pushMockUrl").orNull?.takeIf { it.isNotBlank() }
+                ?: providers.environmentVariable("GIM_PUSH_MOCK_URL").orNull.orEmpty()
+            val pushMockUrlLiteral = pushMockUrl.trim().replace("\\", "\\\\").replace("\"", "\\\"")
+            buildConfigField("String", "PUSH_MOCK_URL", "\"$pushMockUrlLiteral\"")
+        }
         release {
             isMinifyEnabled = true
             // Release keys and store publishing are out of scope for M2; sign with the debug key.
