@@ -11,15 +11,24 @@
 #   LOG_DIR         run log directory, default /tmp/gim-interop-<timestamp>
 #   GRADLE_CACHE    Gradle user home, default /srv/.tmp/cache/gradle
 #   CARGO_CACHE     CARGO_HOME, default /srv/.tmp/cache/cargo
-#   CARGO_TARGET    cargo target dir of gim-cli, default /srv/.tmp/cache/cargo-target/gim-cli
+#   CARGO_TARGET    cargo target dir of gim-cli, default /srv/.tmp/cache/cargo-target/gim-cli-<core sha12> (one per
+#                   core commit: cargo would treat artifacts of another commit's workspace crates as fresh)
 #   REBUILD_IMAGE=1 rebuild the emulator image (see scripts/lib/device.sh)
-#   GIM_DEVICE=real run on the test phone attached to the ai-agent-adb container instead of an emulator (see
-#                   scripts/lib/real-device.sh for GIM_REAL_SERIAL, GIM_REAL_NET=lan|reverse, GIM_REAL_LAN_HOST and the
-#                   package rules): builds first (pinned debug keystore), then takes the device lock, starts gim-hub
-#                   (published on the host in lan mode, in ai-agent-adb's network namespace in reverse mode) with the
+#   GIM_DEVICE=real run on the test phone attached to the gim-adb-host container instead of an emulator (see
+#                   scripts/lib/real-device.sh for GIM_REAL_SERIAL / GIM_REAL_MODEL, GIM_REAL_NET=lan|reverse,
+#                   GIM_REAL_LAN_HOST and the package rules). Exit 4: device not attached at the start; exit 5:
+#                   INTERRUPTED (infra), the device went away or offline during the run (checked after every step
+#                   and on any failure), not a scenario failure. Before the test starts the phone is woken
+#                   (KEYCODE_WAKEUP / `wm dismiss-keyguard`, no setting changes); exit 6: NOT READY (infra), the
+#                   screen is still off or locked then, or when a step failed (a secure lock screen needs a person): builds first (pinned debug keystore), then takes the device lock, starts gim-hub
+#                   (published on the host in lan mode, in gim-adb-host's network namespace in reverse mode) with the
 #                   CLI container in the hub's namespace, updates im.g.apps and im.g.apps.test in place and
 #                   `pm clear`s im.g.apps before and after the run (never uninstalls). logcat is limited to the
 #                   app's UID; a failure saves screenshot.png.
+#
+# Exit codes: 0 all steps passed; 1 a step failed; 5 INTERRUPTED (infra): a container of this run (hub, emulator, CLI)
+# was removed or stopped by someone else, or the hub's /healthz stopped answering (checked after every step and on
+# any failure); in real mode also 4 / 5 / 6 as described above.
 #
 # Outputs (in LOG_DIR, printed at start and end): script.log, hub.log, gradle.log, cargo.log,
 # emulator.log, logcat.txt, markers.log (test step markers), instrumentation.txt (am instrument -r),
@@ -44,7 +53,7 @@
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,41p' "$0"
+    sed -n '2,52p' "$0"
     exit 0
 fi
 
@@ -64,7 +73,7 @@ core_repo=${GIM_CORE_REPO:-/srv/gimhq/im-client/core}
 core_ref=${GIM_CORE_REF:-7077421}
 gradle_cache=${GRADLE_CACHE:-/srv/.tmp/cache/gradle}
 cargo_cache=${CARGO_CACHE:-/srv/.tmp/cache/cargo}
-cargo_target=${CARGO_TARGET:-/srv/.tmp/cache/cargo-target/gim-cli}
+cargo_target=${CARGO_TARGET:-}
 log_dir=${LOG_DIR:-/tmp/gim-interop-$(date +%Y%m%d-%H%M%S)}
 prefix=ai-agent-gim-interop-$run
 hub=$prefix-hub
@@ -85,8 +94,11 @@ mkdir -p "$log_dir"
 exec > >(tee -a "$log_dir/script.log") 2>&1
 echo "run log: $log_dir"
 echo "run id: $run, gim-core ref: $core_ref, device: $device"
+[[ $device == emulator ]] || gim_real_resolve_serial
 
 passed=()
+live=()
+interrupted_exit=5
 bg_pids=()
 instrument_pid=
 
@@ -110,6 +122,12 @@ dump_logs() {
 cleanup() {
     local status=$?
     trap - EXIT INT TERM
+    if [[ $device == real ]] && ((status == 1)) && [[ -n $GIM_REAL_SERIAL ]] && ! gim_real_attached; then
+        echo "INTERRUPTED (infra): device $GIM_REAL_SERIAL not attached/online"
+        status=$interrupted_exit
+    elif ((status == 1)) && containers_dead "(at exit)"; then
+        status=$interrupted_exit
+    fi
     ((${#bg_pids[@]})) && kill "${bg_pids[@]}" 2>/dev/null || true
     docker logs "$hub" >"$log_dir/hub.log" 2>&1 || true
     docker exec "$emu" cat /tmp/emulator.log >"$log_dir/emulator.log" 2>/dev/null || true
@@ -132,7 +150,33 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# Containers this run started (hub, emulator, CLI) and that the scenario needs; one removed or stopped by someone else,
+# or a hub whose /healthz stops answering, is an infrastructure interruption (exit 5), not a scenario result.
+containers_dead() {
+    ((${#live[@]})) || return 1
+    local dead
+    dead=$(gim_containers_dead "${live[@]}" | paste -sd',')
+    [[ -n $dead ]] || return 1
+    echo "INTERRUPTED (infra): container $dead $1 (passed so far: ${#passed[@]})" >&2
+}
+
+check_containers() {
+    containers_dead "$1" || return 0
+    exit "$interrupted_exit"
+}
+
+# On the phone, a lost transport is an infrastructure interruption (exit 5), not a scenario result.
+check_attached() {
+    [[ $device == real ]] || return 0
+    [[ -n $GIM_REAL_SERIAL ]] && ! gim_real_attached || return 0
+    echo "INTERRUPTED (infra): device $GIM_REAL_SERIAL not attached/online $1 (passed so far: ${#passed[@]})" >&2
+    exit "$interrupted_exit"
+}
+
 fail() {
+    check_containers "($*)"
+    check_attached "($*)"
+    [[ $device == emulator ]] || gim_real_require_ready
     echo "error: $*" >&2
     exit 1
 }
@@ -140,6 +184,8 @@ fail() {
 pass() {
     passed+=("$1")
     echo "PASS $1"
+    check_containers "after: $1"
+    check_attached "after: $1"
 }
 
 # --- CLI helpers --------------------------------------------------------------------------------------
@@ -232,6 +278,7 @@ signal() {
 if [[ $device == emulator ]]; then
     gim_ensure_emulator_image
     gim_start_hub "$hub" "$repo_root"
+    live+=("$hub")
     url=http://127.0.0.1:8080
     app_url=$GIM_EMULATOR_SERVER_URL
     cli_network=container:$hub
@@ -241,6 +288,7 @@ if [[ $device == emulator ]]; then
         --device /dev/kvm --network "container:$hub" \
         -v "$repo_root:$repo_root:ro" \
         "$GIM_EMULATOR_IMAGE" sleep infinity >/dev/null
+    live+=("$emu")
     docker exec "$emu" bash -c "$GIM_EMULATOR_BOOT" >"$log_dir/emulator-boot.log" 2>&1 &
     boot_pid=$!
     bg_pids+=("$boot_pid")
@@ -248,11 +296,13 @@ fi
 
 echo "building gim-cli at $core_ref"
 core_sha=$(git -C "$core_repo" rev-parse --short=12 "$core_ref^{commit}")
+cargo_target=${cargo_target:-/srv/.tmp/cache/cargo-target/gim-cli-$core_sha}
 core_src=$repo_root/.tmp/gim-core-$core_sha
 if [[ ! -f $core_src/.exported ]]; then
     rm -rf "$core_src"
     mkdir -p "$core_src"
-    git -C "$core_repo" archive "$core_sha" | tar -x -C "$core_src"
+    # -m: extraction time as mtime, so cargo never takes the commit-time sources for older than its artifacts.
+    git -C "$core_repo" archive "$core_sha" | tar -x -m -C "$core_src"
     touch "$core_src/.exported"
 fi
 mkdir -p "$cargo_cache" "$cargo_target" "$work"
@@ -266,6 +316,7 @@ cp "$cargo_target/debug/gim" "$work/gim"
 start_cli() {
     docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$cli" --network "$cli_network" \
         -v "$work:$work" -w "$work" rust:1 sleep infinity >/dev/null
+    live+=("$cli")
 }
 # On the phone the hub starts once the builds are done and the device lock is held; the CLI follows it.
 [[ $device == real ]] || start_cli
@@ -293,6 +344,7 @@ if [[ $device == emulator ]]; then
 else
     gim_real_lock
     gim_real_start_hub "$hub" "$repo_root"
+    live+=("$hub")
     app_url=$GIM_REAL_HUB_URL
     if [[ $GIM_REAL_NET == reverse ]]; then
         cli_network=container:$GIM_REAL_ADB_CONTAINER
@@ -319,6 +371,8 @@ cli_ok bob --server "$url" register "$bob" "$bob_name"
 expect ".handle == \"$bob\"" "bob registered"
 
 if [[ $device == real ]]; then
+    gim_real_wake
+    gim_real_require_ready
     # Never clear the phone's log buffer: read from now on, and only the app's UID.
     since=$(adb_ shell date "'+%m-%d %H:%M:%S.000'" | tr -d '\r')
     app_uid=$(adb_ shell pm list packages -U im.g.apps | tr -d '\r' | sed -nE 's/^package:im\.g\.apps uid:([0-9]+)$/\1/p')

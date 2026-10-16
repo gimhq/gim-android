@@ -7,7 +7,6 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
@@ -22,8 +21,6 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToString
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import im.g.apps.GimApplication
@@ -34,7 +31,9 @@ import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.PlatformHooks
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
 import im.g.apps.testing.awaitServerReachable
+import im.g.apps.testing.clickWhenSettled
 import im.g.apps.testing.dismissSystemDialogs
+import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
 import java.io.File
 import java.util.UUID
@@ -88,6 +87,7 @@ class DevicesE2eTest {
 
     @Test
     fun listsLinkedDeviceAndRevokesIt() {
+        keepScreenOn(instrumentation, compose.activity)
         awaitServerReachable(instrumentation.targetContext, serverUrl)
         if (!dismissSystemDialogs(instrumentation, timeoutMs) { appHasFocus() }) {
             Log.w(LOG_TAG, "app window still has no focus; continuing")
@@ -96,13 +96,13 @@ class DevicesE2eTest {
         // Onboarding: create identity, acknowledge the recovery code, skip the handle -> chat list.
         waitFor("onboarding shown", hasText(string(OnboardingR.string.onboarding_welcome_title)))
         enterText("hub address", TAG_SERVER_URL, serverUrl)
-        click("create new account", TAG_CREATE_ACCOUNT)
+        click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
         waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))
         enterText("display name", TAG_DISPLAY_NAME, "Devices $suffix")
         click("create account", TAG_SUBMIT)
         waitFor("recovery code shown", hasTestTag(TAG_RECOVERY_CODE))
         compose.onNodeWithTag(TAG_CODE_SAVED).performScrollTo().performClick()
-        click("recovery code continue", TAG_CODE_CONTINUE)
+        click("recovery code continue", TAG_CODE_CONTINUE, next = hasTestTag(TAG_SKIP_HANDLE))
         waitFor("handle step", hasTestTag(TAG_SKIP_HANDLE))
         click("skip handle", TAG_SKIP_HANDLE)
         waitFor("chat list", hasText(string(ChatListR.string.chatlist_title)))
@@ -190,16 +190,9 @@ class DevicesE2eTest {
         }
     }
 
-    /** Hides the soft keyboard, then clicks the enabled, displayed button tagged [tag]. */
-    private fun click(button: String, tag: String) {
-        instrumentation.runOnMainSync {
-            val window = compose.activity.window
-            WindowCompat.getInsetsController(window, window.decorView).hide(WindowInsetsCompat.Type.ime())
-        }
-        compose.waitForIdle()
-        Log.i(LOG_TAG, "clicking $button")
-        compose.onNodeWithTag(tag).performScrollTo().assertIsDisplayed().assertIsEnabled().performClick()
-    }
+    /** Clicks the enabled, displayed button tagged [tag] once the layout has settled; see [clickWhenSettled]. */
+    private fun click(button: String, tag: String, next: SemanticsMatcher? = null) =
+        compose.clickWhenSettled(LOG_TAG, button, tag, timeoutMs, next)
 
     private fun appHasFocus(): Boolean {
         var focused = false

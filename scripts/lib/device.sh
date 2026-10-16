@@ -8,6 +8,9 @@
 #                                 ROOT/e2e/GIM_HUB_VERSION (checkout: GIM_HUB_SRC, default
 #                                 /srv/gimhq/im-client/hub) with the hub's own Dockerfile; sets GIM_HUB_IMAGE
 #   gim_start_hub NAME ROOT       run that image as NAME with an ephemeral /data (tmpfs), wait for /healthz
+#   gim_containers_dead NAME...   print "NAME <state>" for each container that is missing or not running, and
+#                                 "NAME unhealthy" for a gim-hub (name ending in -hub) whose /healthz does not answer;
+#                                 nothing when all are fine. Containers removed by someone else mid-run show up here.
 #   GIM_EMULATOR_BOOT             bash code, run inside the emulator image (with --device /dev/kvm): boots
 #                                 the AVD headless, waits for sys.boot_completed, disables animations.
 #                                 Reads these container env vars (defaults match the image's pixel_6 AVD):
@@ -79,6 +82,18 @@ gim_ensure_hub_image() {
         -t "$GIM_HUB_IMAGE" "$tmp" || status=$?
     rm -rf "$tmp"
     return "$status"
+}
+
+gim_containers_dead() {
+    local name state
+    for name in "$@"; do
+        state=$(docker inspect -f '{{.State.Status}}' "$name" 2>/dev/null) || state=gone
+        if [[ $state != running ]]; then
+            echo "$name $state"
+        elif [[ $name == *-hub ]] && ! docker exec "$name" gim-hub healthcheck >/dev/null 2>&1; then
+            echo "$name unhealthy"
+        fi
+    done
 }
 
 gim_start_hub() {

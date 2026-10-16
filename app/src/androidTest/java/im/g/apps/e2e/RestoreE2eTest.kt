@@ -5,8 +5,6 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -14,12 +12,9 @@ import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToString
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import im.g.apps.GimApplication
@@ -30,7 +25,9 @@ import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.PlatformHooks
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
 import im.g.apps.testing.awaitServerReachable
+import im.g.apps.testing.clickWhenSettled
 import im.g.apps.testing.dismissSystemDialogs
+import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
 import java.io.File
 import java.util.UUID
@@ -88,6 +85,7 @@ class RestoreE2eTest {
 
     @Test
     fun restoresFromRecoveryCodeAndRevokesTheLostDevice() {
+        keepScreenOn(instrumentation, compose.activity)
         awaitServerReachable(instrumentation.targetContext, serverUrl)
         if (!dismissSystemDialogs(instrumentation, timeoutMs) { appHasFocus() }) {
             Log.w(LOG_TAG, "app window still has no focus; continuing")
@@ -104,7 +102,7 @@ class RestoreE2eTest {
         // App: Welcome -> Restore with recovery code -> form.
         waitFor("onboarding shown", hasText(string(OnboardingR.string.onboarding_welcome_title)))
         enterText("hub address", TAG_SERVER_URL, serverUrl)
-        click("restore with recovery code", TAG_RESTORE)
+        click("restore with recovery code", TAG_RESTORE, next = hasTestTag(TAG_USER_ID))
         waitFor("restore form shown", hasTestTag(TAG_USER_ID))
         enterText("user id", TAG_USER_ID, userId)
         // Typed the way people copy it from paper: lowercase, spaces instead of dashes.
@@ -165,16 +163,9 @@ class RestoreE2eTest {
         }
     }
 
-    /** Hides the soft keyboard, then clicks the enabled, displayed button tagged [tag]. */
-    private fun click(button: String, tag: String) {
-        instrumentation.runOnMainSync {
-            val window = compose.activity.window
-            WindowCompat.getInsetsController(window, window.decorView).hide(WindowInsetsCompat.Type.ime())
-        }
-        compose.waitForIdle()
-        Log.i(LOG_TAG, "clicking $button")
-        compose.onNodeWithTag(tag).performScrollTo().assertIsDisplayed().assertIsEnabled().performClick()
-    }
+    /** Clicks the enabled, displayed button tagged [tag] once the layout has settled; see [clickWhenSettled]. */
+    private fun click(button: String, tag: String, next: SemanticsMatcher? = null) =
+        compose.clickWhenSettled(LOG_TAG, button, tag, timeoutMs, next)
 
     private fun appHasFocus(): Boolean {
         var focused = false
