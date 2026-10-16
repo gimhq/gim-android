@@ -42,6 +42,10 @@
 #                                 with GIM_HUB_PUBLIC_URL=GIM_REAL_HUB_URL, wait for /healthz; sets GIM_REAL_PORT and
 #                                 GIM_REAL_HUB_URL (the phone's URL, the one every client uses)
 #   gim_real_stop_hub NAME        remove the reverse (reverse mode) and the hub container NAME
+#   gim_real_start_push_mock NAME ROOT
+#                                 lan mode only, before gim_real_start_hub: run gim-push-mock as NAME publishing a free
+#                                 host port from 18190 up; sets GIM_REAL_PUSH_MOCK_URL (the phone's URL) and, through
+#                                 gim_push_prepare, the hub's webhook to the mock's address on the docker bridge
 #   gim_real_install APK...       copy the APKs into the adb container (/tmp/$GIM_RUN_LABEL) and `install -r -t`
 #                                 them. Exits 3 ("blocked") on a signature mismatch with the installed package or
 #                                 when the phone refuses the install.
@@ -199,7 +203,7 @@ gim_real_start_hub() {
         lan)
             # The host's free ports are not visible from here; let the daemon refuse taken ones.
             for port in $(seq 18080 18179); do
-                if out=$(docker run "${run_args[@]}" -p "$port:8080" -e GIM_HUB_LISTEN=0.0.0.0:8080 \
+                if out=$(docker run "${run_args[@]}" "${GIM_HUB_PUSH_ARGS[@]}" -p "$port:8080" -e GIM_HUB_LISTEN=0.0.0.0:8080 \
                     -e "GIM_HUB_PUBLIC_URL=http://$GIM_REAL_LAN_HOST:$port" "$GIM_HUB_IMAGE" 2>&1); then
                     GIM_REAL_PORT=$port
                     break
@@ -249,6 +253,36 @@ gim_real_stop_hub() {
         gim_real_adb reverse --remove "tcp:$GIM_REAL_PORT" >/dev/null 2>&1 || true
     fi
     docker rm -f "$name" >/dev/null 2>&1 || true
+}
+
+gim_real_start_push_mock() {
+    local name=$1 root=$2 port out ip
+    gim_ensure_push_mock_image "$root"
+    GIM_PUSH_MOCK_SECRET=
+    gim_push_prepare placeholder
+    GIM_REAL_PUSH_MOCK_URL=
+    for port in $(seq 18190 18279); do
+        if out=$(docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$name" \
+            -p "$port:8090" -e GIM_PUSH_MOCK_LISTEN=0.0.0.0:8090 -e "GIM_PUSH_MOCK_SECRET=$GIM_PUSH_MOCK_SECRET" \
+            "$GIM_PUSH_MOCK_IMAGE" 2>&1); then
+            GIM_REAL_PUSH_MOCK_URL=http://$GIM_REAL_LAN_HOST:$port
+            break
+        fi
+        docker rm -f "$name" >/dev/null 2>&1 || true
+        grep -qiE 'already allocated|address already in use' <<<"$out" || {
+            echo "error: starting gim-push-mock failed: $out" >&2
+            return 1
+        }
+    done
+    [[ -n $GIM_REAL_PUSH_MOCK_URL ]] || {
+        echo "error: no free port in 18190-18279 for gim-push-mock" >&2
+        return 1
+    }
+    gim_wait_push_mock_healthy "$name" || return 1
+    # Both containers sit on the default bridge; the hub reaches the mock by its address there.
+    ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$name")
+    gim_push_prepare "http://$ip:8090/push"
+    echo "gim-push-mock at $GIM_REAL_PUSH_MOCK_URL (hub webhook http://$ip:8090/push)"
 }
 
 gim_real_focus() {

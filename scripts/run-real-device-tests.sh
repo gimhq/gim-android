@@ -22,6 +22,9 @@
 #   LOG_DIR             run log directory, default /tmp/gim-realdevice-<timestamp>
 #   GRADLE_CACHE        Gradle user home on the host, default /srv/.tmp/cache/gradle
 #   GIM_HUB_SRC         gim-hub checkout the image is exported from, default /srv/gimhq/im-client/hub
+#   GIM_PUSH_MOCK=0     do not start gim-push-mock (default 1, lan mode only: built from the pinned gim-hub commit,
+#                       published on a free host port from 18190, the hub's push webhook with a random shared secret;
+#                       its phone URL is passed as instrumentation argument gimPushMockUrl, which PushE2eTest needs)
 #
 # Flow:
 #   1. Builds the debug and androidTest APKs in ghcr.io/cirruslabs/android-sdk:35 with the pinned debug keystore.
@@ -50,7 +53,7 @@
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,49p' "$0"
+    sed -n '2,52p' "$0"
     exit 0
 fi
 
@@ -66,6 +69,7 @@ gim_check_host_paths "$repo_root"
 gradle_cache=${GRADLE_CACHE:-/srv/.tmp/cache/gradle}
 log_dir=${LOG_DIR:-/tmp/gim-realdevice-$(date +%Y%m%d-%H%M%S)}
 hub=ai-agent-$GIM_RUN_LABEL-hub
+push_mock=ai-agent-$GIM_RUN_LABEL-push
 app_apk=$repo_root/app/build/outputs/apk/debug/app-debug.apk
 test_apk=$repo_root/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 app=$GIM_REAL_APP
@@ -94,10 +98,12 @@ cleanup() {
         pull_test_screenshots
         gim_real_reset
         docker logs "$hub" >"$log_dir/hub.log" 2>&1 || true
+        docker logs "$push_mock" >"$log_dir/push-mock.log" 2>&1 || true
         gim_real_stop_hub "$hub"
+        docker rm -f "$push_mock" >/dev/null 2>&1 || true
         gim_real_unlock
     else
-        docker rm -f "$hub" >/dev/null 2>&1 || true
+        docker rm -f "$hub" "$push_mock" >/dev/null 2>&1 || true
     fi
     echo "finished (exit $status) after ${SECONDS}s; run log: $log_dir"
     exit "$status"
@@ -308,6 +314,11 @@ docker run --rm --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --na
 }
 
 gim_real_lock
+push_args=()
+if [[ ${GIM_PUSH_MOCK:-1} == 1 && $GIM_REAL_NET == lan ]]; then
+    gim_real_start_push_mock "$push_mock" "$repo_root"
+    push_args=(-e gimPushMockUrl "$GIM_REAL_PUSH_MOCK_URL")
+fi
 gim_real_start_hub "$hub" "$repo_root"
 url=$GIM_REAL_HUB_URL
 echo "hub container: $hub"
@@ -339,7 +350,7 @@ for class in $classes "$camera_test"; do
             -e realCamera true -e class "$class" || result=$?
     else
         instrument "${class##*.}" "$test_pkg/$runner" -e gimServerUrl "$url" -e timeoutScale "${TIMEOUT_SCALE:-1}" \
-            -e class "$class" || result=$?
+            "${push_args[@]}" -e class "$class" || result=$?
     fi
     if ((result == GIM_REAL_EXIT_INTERRUPTED || result == GIM_REAL_EXIT_NOT_READY)); then
         status=$result

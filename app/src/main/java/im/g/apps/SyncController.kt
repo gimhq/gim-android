@@ -7,6 +7,8 @@ import im.g.apps.core.bridge.GimException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -21,7 +23,10 @@ class SyncController(
     private val scope: CoroutineScope,
 ) {
     private val foreground = MutableStateFlow(false)
-    private val signedIn = MutableStateFlow(false)
+    private val _signedIn = MutableStateFlow(false)
+
+    /** Whether a session is known to exist, between [onSignedIn] and [onSignedOut]. */
+    val signedIn: StateFlow<Boolean> = _signedIn.asStateFlow()
 
     fun start() {
         scope.launch {
@@ -30,7 +35,7 @@ class SyncController(
             }
         }
         scope.launch {
-            combine(manager.client, foreground, signedIn, ::Triple).collectLatest { (client, foreground, signedIn) ->
+            combine(manager.client, foreground, _signedIn, ::Triple).collectLatest { (client, foreground, signedIn) ->
                 if (client != null && signedIn) client.setSyncing(foreground)
             }
         }
@@ -42,12 +47,12 @@ class SyncController(
 
     /** Call once a session is known to exist (restored at launch or created by onboarding). */
     fun onSignedIn() {
-        signedIn.value = true
+        _signedIn.value = true
     }
 
     /** Call before signing out: stops sync on the current client until the next [onSignedIn]. */
     suspend fun onSignedOut() {
-        signedIn.value = false
+        _signedIn.value = false
         manager.client.value?.setSyncing(false)
     }
 

@@ -161,7 +161,7 @@ script and CI follow it.
 - `core/bridge/src/main/kotlin/im/g/gimcore/gim_core.kt` (UniFFI bindings)
 
 The vendored version and source commit are pinned in `GIM_CORE_VERSION` at the repo root (currently gim-core
-`f8db42c`, tested against gim-hub `50b3401` from `e2e/GIM_HUB_VERSION`). Refresh them from a gim-core checkout, or
+`f8db42c`, tested against gim-hub `bd8c9ca` from `e2e/GIM_HUB_VERSION`). Refresh them from a gim-core checkout, or
 from a clean export of a commit (then `--commit` with its full sha is required):
 
 ```bash
