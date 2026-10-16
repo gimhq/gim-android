@@ -5,7 +5,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
-    <application>
+    <!-- The mock runs on plain http (test hubs); gim-core's own HTTP stack is not subject to this policy. -->
+    <application android:usesCleartextTraffic="true">
         <service
             android:name=".push.MockPushService"
             android:exported="false"

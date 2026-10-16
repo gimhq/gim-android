@@ -54,6 +54,29 @@ The onboarding server field is prefilled from `BuildConfig.DEFAULT_HUB_URL`, res
 
 `10.0.2.2` is the emulator's alias for the host loopback.
 
+## Push
+
+M2 integrates no push platform (no FCM, UnifiedPush or Play services). `PushController` (`app/.../push`) registers
+a `PushProvider`'s registration with gim-core while signed in (again for every new token), runs the provider's
+receiver and hands each payload to `processPush` on the app's own client (never a second client on the data dir),
+showing a notification only when `shouldDisplay`: one channel per kind (Messages, Reactions, Chat invitations,
+Other), tag = chat id, id = collapse id (the same message pushed by several hubs replaces one notification), tap
+opens the chat. `POST_NOTIFICATIONS` is asked once push is registered (Android 13+). Before sign-out the
+registration is removed from the hubs (gim-core's sign-out does so too; failures are only logged).
+
+- **Release builds:** no provider, no push; the mock code below is not in the APK.
+- **Debug builds:** `MockPushProvider` for gim-hub's `gim-push-mock` (provider `mock-android`, random token per
+  install). Off until a mock base URL is set: the debug preference `debug_push_mock_url` (PushE2eTest sets it from
+  its `gimPushMockUrl` argument) or, as the default, Gradle property `gim.pushMockUrl` / env `GIM_PUSH_MOCK_URL`.
+  It long-polls `GET /deliveries?token=&since=&wait=30` in the app scope (first call skips older deliveries) and
+  holds a `specialUse` foreground service meanwhile, so polling goes on while the app is in the background and
+  sync is stopped.
+
+`scripts/run-device-tests.sh` and `scripts/run-real-device-tests.sh` start `gim-push-mock` (built from the pinned
+hub commit, `Dockerfile.push-mock`) as every hub's push webhook with a random shared secret and pass its URL as
+`gimPushMockUrl` (emulator `http://10.0.2.2:8090` in the hub's network namespace; phone
+`http://GIM_REAL_LAN_HOST:<port>` from 18190). `GIM_PUSH_MOCK=0` turns it off; `PushE2eTest` then skips.
+
 ## Onboarding
 
 New accounts follow gim-core's identity model: Welcome (hub address) -> **Create new account** -> display name
