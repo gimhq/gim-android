@@ -70,6 +70,8 @@ class ChatListViewModel(
         )
     }
         .flowOn(defaultDispatcher)
+        // Non-fusible step: without it stateIn adopts flowOn's dispatcher and writes the StateFlow off main.
+        .onEach {}
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), ChatListUiState())
 
     private fun requestThumbnails(chats: List<ChatSummary>) {

@@ -45,6 +45,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
@@ -121,6 +122,8 @@ class ChatViewModel(
         memberNames,
     ) { items, typing, summary, extras, members -> buildState(items, typing, summary, extras, members) }
         .flowOn(defaultDispatcher)
+        // Non-fusible step: without it stateIn adopts flowOn's dispatcher and writes the StateFlow off main.
+        .onEach {}
         .stateIn(viewModelScope, SharingStarted.Eagerly, ChatUiState())
 
     val events: Flow<ChatEvent> = _events.receiveAsFlow()

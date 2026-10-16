@@ -1,5 +1,9 @@
 package im.g.apps.feature.chat
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewModelScope
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.MediaRef
@@ -17,9 +21,17 @@ import im.g.apps.feature.chat.timeline.TimelineRowUi
 import im.g.apps.feature.chat.timeline.UiText
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -28,6 +40,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -45,7 +58,10 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.util.Collections
 import java.util.Locale
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelTest {
@@ -69,14 +85,16 @@ class ChatViewModelTest {
     private fun TestScope.demoClient(pageSize: Int = FakeGimClient.DEFAULT_PAGE_SIZE) =
         FakeGimClient.withDemoData(backgroundScope, clock, zone, outboxDelays = null, pageSize = pageSize)
 
-    private fun TestScope.viewModel(client: GimClient, chatId: String): ChatViewModel {
+    private fun TestScope.viewModel(client: GimClient, chatId: String): ChatViewModel =
+        ChatViewModel(client, chatId, mediaPaths(), clock, zone, dispatcher, Locale.UK).also { runCurrent() }
+
+    private fun mediaPaths(): MediaPathProvider {
         val mediaDir = tmp.newFolder()
-        val paths = object : MediaPathProvider {
+        return object : MediaPathProvider {
             override fun thumbnailPath(media: MediaRef) = File(mediaDir, "${media.messageId}.thumb").path
             override fun mediaPath(media: MediaRef, fileName: String?) =
                 File(mediaDir, fileName ?: media.messageId).path
         }
-        return ChatViewModel(client, chatId, paths, clock, zone, dispatcher, Locale.UK).also { runCurrent() }
     }
 
     private val ChatViewModel.rows get() = uiState.value.items
@@ -430,6 +448,58 @@ class ChatViewModelTest {
         advanceUntilIdle()
         assertFalse(vm.messages.single { it.key == file.key }.mediaUnavailable)
     }
+
+    @Test
+    fun uiState_isWrittenOnMainThread_whileMappingRunsOnDefaultDispatcher() {
+        val main = Executors.newSingleThreadExecutor { Thread(it, "test-main") }.asCoroutineDispatcher()
+        val default = Executors.newSingleThreadExecutor { Thread(it, "test-default") }.asCoroutineDispatcher()
+        val clientScope = CoroutineScope(SupervisorJob() + default)
+        val store = ViewModelStore()
+        var vmJob: Job? = null
+        Dispatchers.setMain(main)
+        try {
+            runBlocking {
+                val client = FakeGimClient.withDemoData(clientScope, clock, zone, outboxDelays = null)
+                val vm = store.own(
+                    ChatViewModel(client, DemoData.DIRECT_CHAT_ID, mediaPaths(), clock, zone, default, Locale.UK),
+                )
+                vmJob = vm.viewModelScope.coroutineContext.job
+                val writers = Collections.synchronizedList(mutableListOf<String>())
+                val pingShown = CompletableDeferred<Unit>()
+                val suspended = AtomicBoolean(false)
+                // Once suspended, an unconfined collector resumes on the thread that wrote the StateFlow.
+                val collector = launch(Dispatchers.Unconfined) {
+                    vm.uiState.collect { state ->
+                        if (!suspended.get()) return@collect
+                        writers += Thread.currentThread().name.substringBefore(" @")
+                        if (state.items.any { (it as? MessageRow)?.body == "ping" }) pingShown.complete(Unit)
+                    }
+                }
+                suspended.set(true)
+                client.simulateIncoming(DemoData.DIRECT_CHAT_ID, "ping", from = DemoData.lukas.userId)
+                withTimeout(10_000) { pingShown.await() }
+                collector.cancel()
+                assertEquals(writers.map { "test-main" }, writers.toList())
+            }
+        } finally {
+            store.clear()
+            // Let the cancelled viewModelScope finish on this Main before tearDown resets it.
+            runBlocking { withTimeout(10_000) { vmJob?.join() } }
+            clientScope.cancel()
+            main.close()
+            default.close()
+        }
+    }
+
+    /** Registers [vm] in this store so [ViewModelStore.clear] cancels its viewModelScope. */
+    private inline fun <reified T : ViewModel> ViewModelStore.own(vm: T): T =
+        ViewModelProvider(
+            this,
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <V : ViewModel> create(modelClass: Class<V>): V = vm as V
+            },
+        )[T::class.java]
 
     /** Records markRead and pagination calls; pagination waits for [gate] when given. */
     private class CountingClient(

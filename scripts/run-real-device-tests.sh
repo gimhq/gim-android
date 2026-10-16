@@ -26,11 +26,13 @@
 # Flow:
 #   1. Builds the debug and androidTest APKs in ghcr.io/cirruslabs/android-sdk:35 with the pinned debug keystore.
 #   2. Takes the device lock, starts gim-hub (ai-agent/gim-hub:<sha12>) on a free port from 18080 (GIM_REAL_NET).
-#   3. Updates im.g.apps and im.g.apps.test in place (`install -r -t`), clears im.g.apps, grants it CAMERA and runs
-#      one `am instrument -w -r` per test class (gimServerUrl, timeoutScale; listed with the runner's `-e log true`
-#      dry run), CameraScannerE2eTest (realCamera=true) last, so a class that loses the foreground or crashes the
-#      process cannot hide the other results. Before each run the phone is woken (`input keyevent KEYCODE_WAKEUP` if
-#      the screen is off, `wm dismiss-keyguard` if the lock screen shows; no setting changes).
+#   3. Updates im.g.apps and im.g.apps.test in place (`install -r -t`) and runs one `am instrument -w -r` per test
+#      class (gimServerUrl, timeoutScale; listed with the runner's `-e log true` dry run), CameraScannerE2eTest
+#      (realCamera=true) last, so a class that loses the foreground or crashes the process cannot hide the other
+#      results. Each class starts after `pm clear im.g.apps` (CAMERA re-granted when the clear drops it), so a class
+#      that fails while signed in cannot leave the next one starting signed in. Before each run the phone is woken
+#      (`input keyevent KEYCODE_WAKEUP` if the screen is off, `wm dismiss-keyguard` if the lock screen shows; no
+#      setting changes).
 #   4. Always: `pm clear im.g.apps` (packages stay installed), removes the reverse, the hub container and the lock.
 #
 # Outputs (LOG_DIR): summary.txt (PASS/FAIL/SKIP per test with durations), instrumentation.txt (raw `-r` output),
@@ -47,7 +49,7 @@
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,46p' "$0"
+    sed -n '2,48p' "$0"
     exit 0
 fi
 
@@ -187,6 +189,24 @@ interrupted() {
     echo "INTERRUPTED (infra): device $GIM_REAL_SERIAL not attached/online $1" | tee -a "$log_dir/summary.txt"
 }
 
+# clear_app NAME: `pm clear im.g.apps` so the class starts signed out with empty data, then re-grants CAMERA when the
+# clear dropped it. Returns 1 when the clear fails.
+clear_app() {
+    local out perms
+    out=$(gim_real_adb shell pm clear "$app" 2>&1 | tr -d '\r')
+    if [[ $out != *Success* ]]; then
+        echo "FAIL $1: pm clear $app failed: $out" | tee -a "$log_dir/summary.txt"
+        return 1
+    fi
+    perms=$(gim_real_adb shell dumpsys package "$app")
+    if [[ $perms == *'android.permission.CAMERA: granted=true'* ]]; then
+        echo "cleared $app before $1 (CAMERA still granted)"
+    else
+        gim_real_adb shell pm grant "$app" android.permission.CAMERA
+        echo "cleared $app before $1 (CAMERA re-granted)"
+    fi
+}
+
 # instrument NAME TARGET ARGS...: runs `am instrument -w -r ARGS TARGET`, appends the raw output to
 # instrumentation.txt and one line per test to summary.txt; returns 1 when a test failed or the run broke, 5 when
 # the device went away (before or during the run).
@@ -202,6 +222,7 @@ instrument() {
     if not_ready "before the $name run"; then
         return "$GIM_REAL_EXIT_NOT_READY"
     fi
+    clear_app "$name" | tee -a "$log_dir/instrumentation.txt" || return 1
     echo "== $name: am instrument -w -r $* $target" | tee -a "$log_dir/instrumentation.txt"
     # Like gim_real_bg, but bounded: the pid file lets cleanup stop the container-side adb after a timeout.
     # shellcheck disable=SC2016 # expanded by the container's sh
@@ -291,8 +312,6 @@ url=$GIM_REAL_HUB_URL
 echo "hub container: $hub"
 
 gim_real_install "$app_apk" "$test_apk"
-gim_real_adb shell pm clear "$app" >/dev/null
-gim_real_adb shell pm grant "$app" android.permission.CAMERA
 
 uids=$(gim_real_adb shell pm list packages -U "$app" | tr -d '\r' | sed -nE 's/.* uid:([0-9]+).*/\1/p' | sort -u | paste -sd,)
 since=$(gim_real_adb shell date "'+%m-%d %H:%M:%S.000'" | tr -d '\r')
