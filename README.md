@@ -125,7 +125,9 @@ running, after a UI dump shows the dialog names GIM, by tapping the accept butto
   (`summary.txt` with PASS/FAIL/SKIP and duration per test, `instrumentation.txt`, `logcat.txt` limited to the
   app's UIDs, `hub.log`, `screenshots/`). Exit codes: 0 passed, 1 test (or build/setup) failure, 3 the phone could
   not be updated unattended (signature mismatch, refused confirmation), 4 device not attached, 5 INTERRUPTED: the
-  device went away or offline during the run, or a class failed while someone touched the phone (an infrastructure
+  device went away or offline during the run, the hub container stopped, vanished or failed `/healthz` (checked
+  before each class and after each failure; no further classes run; `e2e-interop.sh` does the same for its hub,
+  emulator and CLI containers), or a class failed while someone touched the phone (an infrastructure
   problem, recorded in `summary.txt`). Touches are found as MIUIInput events on the app's windows in the class's run
   window (Compose test clicks never log them; taps right after the tests' own system-dialog dismissals are
   attributed to those): a failed class becomes `INTERRUPTED (external input)` with the touch times, a passed one
