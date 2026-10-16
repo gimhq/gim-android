@@ -196,6 +196,79 @@ enum class ConnectionState {
 data class ClientConfig(
     /** Base URL of gim-hub, `http://` or `https://`. */
     val serverUrl: String,
+    /** The process kind; the app always creates [ClientMode.APP] clients. */
+    val mode: ClientMode = ClientMode.APP,
+)
+
+/** What the process creating the client is; gim-core's `ClientMode`. */
+enum class ClientMode {
+    /** The app. */
+    APP,
+
+    /**
+     * An app extension on the app's data directory: no sync loop ([GimClient.startSync] fails), no maintenance, push
+     * registration is left to the app, and a local database that cannot be opened fails creation instead of being
+     * reset.
+     */
+    EXTENSION,
+}
+
+/**
+ * The device's push registration on its hubs; every field is opaque to the hub and passed to the push server.
+ * [toString] leaves out the token and the Web Push keys.
+ */
+data class PushRegistration(
+    /** Push platform (`fcm`, `unifiedpush`, ...): 1-64 characters of `a-z 0-9 . _ -`. */
+    val provider: String,
+    /** Platform token: 1-4096 bytes without control characters. */
+    val token: String,
+    /** App identifier: 1-255 characters of `A-Z a-z 0-9 . - _ :`. */
+    val appId: String? = null,
+    /** Platform sandbox flag. */
+    val sandbox: Boolean? = null,
+    /** Web Push `p256dh` key: 1-256 characters of base64url. */
+    val p256dh: String? = null,
+    /** Web Push `auth` secret: 1-256 characters of base64url. */
+    val auth: String? = null,
+) {
+    override fun toString(): String = "PushRegistration(provider=$provider, appId=$appId, sandbox=$sandbox, ..)"
+}
+
+/** What a notification is about. */
+enum class NotificationKind {
+    /** A text or media message (also the silent edit or delete of one). */
+    MESSAGE,
+
+    /** A reaction to a message; [NotificationContent.messageId] is the reacted-to message. */
+    REACTION,
+
+    /** The user was added to a chat. */
+    INVITE,
+
+    /** A member was added to or removed from a chat; never displayed. */
+    MEMBERSHIP,
+
+    /** Content unknown: show [NotificationContent.body] ("New message"). */
+    GENERIC,
+}
+
+/** What to show for a push, from [GimClient.processPush]. */
+data class NotificationContent(
+    val chatId: String?,
+    /** Group name, or the other user's name for a direct chat. */
+    val chatTitle: String?,
+    val senderUserId: String?,
+    val senderDisplayName: String?,
+    /** The text, the media caption, "Photo" or "File: <name>"; "reacted <emoji>"; "New message" for generic content. */
+    val body: String,
+    val messageId: String?,
+    /** Use as the notification identifier (FCM `tag`): every hub of the user may push the same message. */
+    val collapseId: String?,
+    val kind: NotificationKind,
+    /** False: show nothing (own messages, edits, deletes, receipts, membership changes, already read). */
+    val shouldDisplay: Boolean,
+    /** When the message was sent, or now. */
+    val timestamp: Long,
 )
 
 /** One device of a user. */

@@ -2,7 +2,7 @@ package im.g.apps.core.bridge
 
 /**
  * Kotlin mirror of gim-core's UniFFI `GimClient` (gim-core `bindings/gim-ffi`, contract in
- * `docs/API.md` at gim-core commit 5877765).
+ * `docs/API.md` at gim-core commit f8db42c).
  *
  * gim-core (Rust) owns storage, networking, sync, outbox, MLS and media crypto; this interface is the only
  * surface the UI layer sees. Features never import `im.g.gimcore`: the real adapter maps the generated
@@ -32,7 +32,9 @@ package im.g.apps.core.bridge
  * | `ChatListDiff`, `TimelineDiff` | [ChatListDiff], [TimelineDiff] | `index`/`length: UInt` -> `Int` |
  * | `Session`, `UserProfile`, `ChatKind`, `ChatState`, `ChatSummary`, `MessagePreview` | same names | `UInt` -> `Int`, `ULong` -> `Long` |
  * | `TimelineItem`, `MembershipChangeKind`, `MessageItem`, `MessageContent` | same names | `ULong` -> `Long`, `UInt?` -> `Int?` |
- * | `MediaRef`, `ReplyPreview`, `ReactionGroup`, `SendState`, `ConnectionState`, `ClientConfig` | same names | `size: ULong` -> `Long`, `count: UInt` -> `Int` |
+ * | `MediaRef`, `ReplyPreview`, `ReactionGroup`, `SendState`, `ConnectionState` | same names | `size: ULong` -> `Long`, `count: UInt` -> `Int` |
+ * | `ClientConfig`, `ClientMode` | [ClientConfig], [ClientMode] | `mode: ClientMode?` -> non-null, default [ClientMode.APP] |
+ * | `PushRegistration`, `NotificationKind`, `NotificationContent` | same names | `timestamp: ULong` -> `Long` |
  * | `GimException.<Variant>` | [GimException]`.<Variant>` | `status: UShort` -> `Int`, `retryAfterSecs: ULong` -> `Long`, `groupCount: UInt` -> `Int` |
  *
  * Enum constants keep UniFFI's Kotlin spelling (`ChatKind.DIRECT`, `ConnectionState.CONNECTED`, ...).
@@ -132,8 +134,33 @@ interface GimClient {
     /** Releases the claimed handle; [GimException.InvalidInput] if none is claimed. */
     suspend fun releaseHandle()
 
-    /** Stops sync and deletes the session, local data and keystore secrets. Create a new client afterwards. */
+    /**
+     * Removes the push registration from the hubs (best effort, a few seconds at most), stops sync and deletes the
+     * session, local data and keystore secrets. Create a new client afterwards.
+     */
     suspend fun signOut()
+
+    /**
+     * Registers this device for push on every hub of the user and keeps the registration on the device; gim-core
+     * sends it again by itself to hubs added, re-verified or reconnected later. Call it with every new platform
+     * token; before onboarding it is only stored. [GimException.InvalidInput] for a malformed field,
+     * [GimException.Server] (400) if a hub rejects it.
+     */
+    suspend fun registerPush(registration: PushRegistration)
+
+    /**
+     * Removes the push registration from every hub, then from this device; throws the first hub failure, the local
+     * copy is removed anyway. [signOut] does this too (best effort).
+     */
+    suspend fun unregisterPush()
+
+    /**
+     * Turns a received push data payload (the JSON object as delivered) into notification content, in at most about
+     * 15 s. [GimException.InvalidInput] only if [payload] is not a JSON object; content that cannot be read comes back
+     * as [NotificationKind.GENERIC] "New message" with [NotificationContent.shouldDisplay] set. Show nothing unless
+     * [NotificationContent.shouldDisplay].
+     */
+    suspend fun processPush(payload: String): NotificationContent
 
     /**
      * Starts the background sync loop (WebSocket stream with a long-poll fallback) and the outbox sender. After a

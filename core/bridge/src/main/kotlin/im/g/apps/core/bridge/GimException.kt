@@ -23,7 +23,10 @@ sealed class GimException(message: String) : Exception(message) {
     /** MLS or media encryption/decryption failed. */
     class Crypto(val reason: String) : GimException("crypto error: $reason")
 
-    /** The local database or file system failed. */
+    /**
+     * The local database or file system failed; also "store is locked by another process" when another client on the
+     * same data dir held `<dataDir>/gim.lock` past the timeout (nothing was changed; retry later).
+     */
     class Storage(val reason: String) : GimException("storage error: $reason")
 
     /**
