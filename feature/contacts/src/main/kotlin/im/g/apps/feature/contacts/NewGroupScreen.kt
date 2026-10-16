@@ -38,6 +38,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import im.g.apps.core.bridge.UserProfile
+import im.g.apps.core.bridge.displayLabel
 import im.g.apps.core.designsystem.theme.GimTheme
 import kotlinx.collections.immutable.persistentListOf
 
@@ -55,7 +56,7 @@ fun NewGroupRoute(
         viewModel.events.collect { event ->
             when (event) {
                 is NewGroupEvent.OpenChat -> currentOnOpenChat(event.chatId)
-                is NewGroupEvent.ShowError -> snackbarHostState.showSnackbar(context.getString(event.error.messageRes))
+                is NewGroupEvent.ShowError -> snackbarHostState.showSnackbar(event.error.message(context))
             }
         }
     }
@@ -140,11 +141,11 @@ private fun MembersStep(
     } else {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             state.members.forEach { member ->
-                val description = stringResource(R.string.contacts_remove_selected, member.displayName)
+                val description = stringResource(R.string.contacts_remove_selected, member.displayLabel)
                 InputChip(
                     selected = false,
                     onClick = { onRemoveMember(member.userId) },
-                    label = { Text(member.displayName) },
+                    label = { Text(member.displayLabel) },
                     trailingIcon = { CrossGlyph(LocalContentColor.current) },
                     modifier = Modifier.semantics { contentDescription = description },
                 )

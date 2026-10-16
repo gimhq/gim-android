@@ -10,6 +10,7 @@ import im.g.apps.core.bridge.DeviceInfo
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.LinkSession
+import im.g.apps.core.bridge.LocalTimeZone
 import im.g.apps.core.bridge.MediaRef
 import im.g.apps.core.bridge.MembershipChangeKind
 import im.g.apps.core.bridge.MessageContent
@@ -38,7 +39,9 @@ import java.time.ZoneId
 /**
  * Deterministic in-memory [GimClient] for ViewModel/UI tests, previews and the app until gim-core's
  * bindings are vendored. Follows gim-core's semantics: chat list most recently updated first, timelines
- * oldest first with a [TimelineItem.DateSeparator] before the first item of each local day (in [zone]).
+ * oldest first with a [TimelineItem.DateSeparator] before the first item of each local day (in [zone], or in the
+ * zone passed to [setLocalTimeZone]). [leaveChat] only submits the leave: the own `Left` change follows after
+ * [OutboxDelays.deliveredMs], or on [commitLeave] when `outboxDelays` is null; sends fail meanwhile.
  *
  * All state lives behind one lock and listeners are invoked synchronously on the calling thread, in
  * mutation order. Outbound messages start [SendState.Pending] and advance to Sent, Delivered and Read
@@ -143,6 +146,9 @@ class FakeGimClient(
     private val ownDevices = mutableListOf<DeviceInfo>()
     private val recoverable = HashMap<String, Pair<UserProfile, String>>()
     private var startedLink: FakeLinkSession? = null
+    private var localTimeZone: LocalTimeZone? = null
+    private val leaving = HashSet<String>()
+    private val left = HashSet<String>()
     private var linkAwaitingConfirm = false
     private val approvals = HashSet<String>()
     private var connection = ConnectionState.OFFLINE
@@ -289,6 +295,8 @@ class FakeGimClient(
         linkAwaitingConfirm = false
         syncing = false
         chats.clear()
+        leaving.clear()
+        left.clear()
         media.clear()
         outbox.clear()
         doomed.clear()
@@ -348,7 +356,9 @@ class FakeGimClient(
         val me = me()
         val trimmed = name.trim()
         if (trimmed.isEmpty()) throw GimException.InvalidInput("name must not be blank")
-        val others = memberUserIds.filter { it != me.userId }.distinct().map(::user)
+        val invitees = memberUserIds.filter { it != me.userId }.distinct()
+        val others = invitees.mapNotNull { directory[it] }
+        if (invitees.isNotEmpty() && others.isEmpty()) throw GimException.NotFound("users: none of the invitees exist")
         val chat = FakeChat("chat-${nextId++}", ChatKind.GROUP, trimmed, (listOf(me) + others).toMutableList(), clock())
         others.forEach { chat.events += membership(it, MembershipChangeKind.ADDED) }
         chat.loaded = chat.events.size
@@ -362,7 +372,8 @@ class FakeGimClient(
         me()
         val chat = groupChat(chatId)
         if (userIds.isEmpty()) throw GimException.InvalidInput("userIds must not be empty")
-        val users = userIds.distinct().map(::user)
+        val users = userIds.distinct().mapNotNull { directory[it] }
+        if (users.isEmpty()) throw GimException.NotFound("users: none of the users exist")
         users.firstOrNull { u -> chat.members.any { it.userId == u.userId } }
             ?.let { throw GimException.InvalidInput("${it.userId} is already a member") }
         users.forEach {
@@ -384,14 +395,18 @@ class FakeGimClient(
         publishChat(chat.id)
     }
 
-    override suspend fun leaveChat(chatId: String) = synchronized(lock) {
-        val me = me()
-        val chat = groupChat(chatId)
-        chat.members.removeAll { it.userId == me.userId }
-        appendEvent(chat, membership(me, MembershipChangeKind.LEFT))
-        refreshTimeline(chat)
-        chats.remove(chatId)
-        publishChat(chatId)
+    override suspend fun leaveChat(chatId: String) {
+        synchronized(lock) {
+            me()
+            groupChat(chatId)
+            if (chatId in left) throw GimException.InvalidInput("$chatId: already left")
+            leaving += chatId
+        }
+        val delays = outboxDelays ?: return
+        scope.launch {
+            delay(delays.deliveredMs)
+            commitLeave(chatId)
+        }
     }
 
     override suspend fun setGroupInfo(chatId: String, name: String?, avatarFilePath: String?) = synchronized(lock) {
@@ -555,6 +570,11 @@ class FakeGimClient(
         register(chatListRegs, null, listener)
     }
 
+    override fun setLocalTimeZone(zone: LocalTimeZone?) = synchronized(lock) {
+        localTimeZone = zone
+        chats.values.forEach(::refreshTimeline)
+    }
+
     override suspend fun timeline(chatId: String): Timeline = synchronized(lock) {
         me()
         chat(chatId)
@@ -595,6 +615,18 @@ class FakeGimClient(
 
     /** The account [waitLink] signs in as. */
     @Volatile var linkedUser: UserProfile = UserProfile("u-linked", "linked", "Linked Account")
+
+    /** Another member commits the pending [leaveChat] of [chatId]: the own `Left` change appears. */
+    fun commitLeave(chatId: String) = synchronized(lock) {
+        if (!leaving.remove(chatId)) return@synchronized
+        val chat = chats[chatId] ?: return@synchronized
+        val me = me()
+        chat.members.removeAll { it.userId == me.userId }
+        left += chatId
+        appendEvent(chat, membership(me, MembershipChangeKind.LEFT))
+        refreshTimeline(chat)
+        publishChat(chatId)
+    }
 
     /** Makes the next outbound send (or retry) end in [SendState.Failed] with [reason]. */
     fun failNextSend(reason: String = "Simulated send failure") = synchronized(lock) { failNextReason = reason }
@@ -732,6 +764,7 @@ class FakeGimClient(
     private fun enqueue(chatId: String, replyTo: String?, content: (messageId: String) -> MessageContent): String {
         val me = me()
         val chat = chat(chatId)
+        if (chatId in leaving || chatId in left) throw GimException.InvalidInput("$chatId: not a member")
         val reply = replyTo?.let { replyPreview(chat, it) }
         val id = "c-${nextId++}"
         val item = MessageItem(
@@ -792,8 +825,12 @@ class FakeGimClient(
         chat.loaded++
     }
 
-    private fun dayStart(ms: Long): Long =
-        Instant.ofEpochMilli(ms).atZone(zone).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
+    private fun dayStart(ms: Long): Long {
+        val local = localTimeZone ?: return Instant.ofEpochMilli(ms).atZone(zone).toLocalDate().atStartOfDay(zone)
+            .toInstant().toEpochMilli()
+        val offsetMs = local.utcOffsetSecs(ms) * 1_000L
+        return Math.floorDiv(ms + offsetMs, DAY_MS) * DAY_MS - offsetMs
+    }
 
     /** Loaded events with a date separator before the first item of each local day. */
     private fun render(chat: FakeChat): List<TimelineItem> {
@@ -882,6 +919,7 @@ class FakeGimClient(
 
     companion object {
         const val DEFAULT_PAGE_SIZE = 20
+        private const val DAY_MS = 86_400_000L
 
         private val HANDLE_PATTERN = Regex("[a-z0-9_]{3,32}")
         private const val LINK_PREFIX = "gimlink:fake:"

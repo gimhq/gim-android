@@ -473,6 +473,9 @@ class FakeGimClientTest {
         )
         assertGimError<GimException.InvalidInput> { client.addMembers(groupId, listOf(ana.userId)) }
         assertGimError<GimException.NotFound> { client.addMembers(groupId, listOf("u-nobody")) }
+        val skipped = timeline.batches.size
+        assertGimError<GimException.InvalidInput> { client.addMembers(groupId, listOf("u-nobody", ana.userId)) }
+        assertEquals(skipped, timeline.batches.size)
 
         client.removeMember(groupId, nikos.userId)
         assertEquals(
@@ -496,14 +499,66 @@ class FakeGimClientTest {
         assertGimError<GimException.InvalidInput> { client.setGroupInfo(groupId, " ", null) }
         assertEquals("Adriatic Crew", chats.chat(groupId).name)
 
+        // leaveChat only submits the leave: nothing changes until another member commits it, sends fail meanwhile.
+        val beforeLeave = timeline.batches.size
         client.leaveChat(groupId)
+        assertEquals(beforeLeave, timeline.batches.size)
+        assertGimError<GimException.InvalidInput> { client.sendText(groupId, "Still here?", null) }
+
+        client.commitLeave(groupId)
         assertEquals(
             TimelineDiff.PushBack(TimelineItem.MembershipChange(me.displayName, MembershipChangeKind.LEFT, base)),
             timeline.batches.last().single(),
         )
-        assertTrue(chats.batches.last().single() is ChatListDiff.Remove)
-        assertFalse(groupId in chats.ids)
-        assertGimError<GimException.NotFound> { client.chatMembers(groupId) }
+        // Like gim-core, the left chat stays in the list.
+        assertTrue(groupId in chats.ids)
+        assertEquals(listOf(lukas, ana), client.chatMembers(groupId))
+        assertGimError<GimException.InvalidInput> { client.sendText(groupId, "Still here?", null) }
+        assertGimError<GimException.InvalidInput> { client.leaveChat(groupId) }
+    }
+
+    @Test
+    fun leave_is_committed_after_the_outbox_delay_in_automatic_mode() = runTest {
+        val client = demo(manualOutbox = false)
+        val timeline = client.record(GROUP_CHAT_ID)
+        client.leaveChat(GROUP_CHAT_ID)
+        assertFalse(timeline.items.any { it is TimelineItem.MembershipChange && it.change == MembershipChangeKind.LEFT })
+        advanceTimeBy(201)
+        assertEquals(
+            TimelineItem.MembershipChange(me.displayName, MembershipChangeKind.LEFT, base + 200),
+            timeline.items.last(),
+        )
+    }
+
+    @Test
+    fun invitations_of_unknown_users_fail_with_not_found_and_create_nothing() = runTest {
+        val client = demo()
+        val chats = client.recordChats()
+        val before = chats.ids
+        assertGimError<GimException.NotFound> { client.createDirectChat("u-nobody") }
+        assertGimError<GimException.NotFound> { client.createGroupChat("Ghosts", listOf("u-nobody", "u-nobody-2")) }
+        assertEquals(before, chats.ids)
+
+        // Unknown invitees next to known ones are skipped.
+        val group = client.createGroupChat("Mixed", listOf("u-nobody", ana.userId))
+        assertEquals(listOf(me, ana), client.chatMembers(group))
+    }
+
+    @Test
+    fun local_time_zone_moves_the_date_separators() = runTest {
+        val client = demo()
+        val timeline = client.record(DIRECT_CHAT_ID)
+        val athens = timeline.items.filterIsInstance<TimelineItem.DateSeparator>().map { it.dayStartMs }
+        assertEquals(listOf(dayStart(2026, 7, 10), dayStart(2026, 7, 11), dayStart(2026, 7, 12)), athens)
+
+        // UTC-10: every Athens day start (21:00Z the day before) moves to that UTC day's 10:00Z.
+        client.setLocalTimeZone { -10 * 3600 }
+        val shifted = timeline.items.filterIsInstance<TimelineItem.DateSeparator>().map { it.dayStartMs }
+        assertTrue(shifted.isNotEmpty())
+        assertTrue(shifted.all { Math.floorMod(it, 86_400_000L) == 10 * 3_600_000L })
+
+        client.setLocalTimeZone(null)
+        assertEquals(athens, timeline.items.filterIsInstance<TimelineItem.DateSeparator>().map { it.dayStartMs })
     }
 
     @Test

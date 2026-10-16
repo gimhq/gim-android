@@ -10,6 +10,8 @@ import im.g.apps.core.bridge.ChatKind
 import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.InMemoryPendingLeaveStore
+import im.g.apps.core.bridge.PendingLeaveStore
 import im.g.apps.core.bridge.TimelineItem
 import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.flow.chatListFlow
@@ -51,6 +53,8 @@ data class GroupInfoUiState(
     val addMemberDialog: AddMemberDialogState? = null,
     val pendingRemoval: UserProfile? = null,
     val confirmingLeave: Boolean = false,
+    /** The leave was submitted and the own `Left` change has not arrived yet. */
+    val leaving: Boolean = false,
     /** Draft of the rename dialog; null when it is closed. */
     val renameDraft: String? = null,
     val busy: Boolean = false,
@@ -72,7 +76,7 @@ data class GroupInfoUiState(
 sealed interface GroupInfoEvent {
     data class ShowError(val error: ContactsError) : GroupInfoEvent
 
-    /** The signed-in user left the group; close the chat. */
+    /** The leave was submitted; back to the chat, which shows it until the own `Left` change arrives. */
     data object LeftChat : GroupInfoEvent
 }
 
@@ -80,11 +84,14 @@ sealed interface GroupInfoEvent {
  * Details of one chat: the chat list row (observed through [chatListFlow]) plus [GimClient.chatMembers].
  * gim-core has no members listener, so the member list is re-queried whenever the chat's row changes,
  * the chat's timeline gains a membership change, or after this screen's own add/remove calls.
- * Groups support rename, add/remove member and leave; direct chats are read-only.
+ * Groups support rename, add/remove member and leave; direct chats are read-only. A submitted leave is recorded in
+ * [pendingLeaves] until the chat shows the own `Left` change.
  */
 class GroupInfoViewModel(
     private val client: GimClient,
     private val chatId: String,
+    private val pendingLeaves: PendingLeaveStore = InMemoryPendingLeaveStore(),
+    private val clock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
     private val _state = MutableStateFlow(GroupInfoUiState())
     val state: StateFlow<GroupInfoUiState> = _state.asStateFlow()
@@ -106,6 +113,11 @@ class GroupInfoViewModel(
             launch { observeChat() }
             launch { observeMembershipChanges() }
         }
+        viewModelScope.launch {
+            pendingLeaves.pending.map { chatId in it }.distinctUntilChanged().collect { leaving ->
+                _state.update { it.copy(leaving = leaving) }
+            }
+        }
     }
 
     // region Add member
@@ -124,7 +136,7 @@ class GroupInfoViewModel(
     fun addMember(user: UserProfile) {
         if (!_state.value.canAdd(user)) return
         _state.update { it.copy(addMemberDialog = null) }
-        mutate { client.addMembers(chatId, listOf(user.userId)) }
+        mutate(error = GimException::toInviteError) { client.addMembers(chatId, listOf(user.userId)) }
     }
 
     // endregion
@@ -170,7 +182,7 @@ class GroupInfoViewModel(
     // region Leave
 
     fun requestLeave() {
-        if (!_state.value.isGroup) return
+        if (!_state.value.isGroup || _state.value.leaving) return
         _state.update { it.copy(confirmingLeave = true) }
     }
 
@@ -179,7 +191,9 @@ class GroupInfoViewModel(
         _state.update { it.copy(confirmingLeave = false, busy = true) }
         viewModelScope.launch {
             try {
+                val requestedAtMs = clock()
                 client.leaveChat(chatId)
+                pendingLeaves.add(chatId, requestedAtMs)
                 _events.send(GroupInfoEvent.LeftChat)
             } catch (e: GimException) {
                 _events.send(GroupInfoEvent.ShowError(e.toContactsError()))
@@ -198,14 +212,18 @@ class GroupInfoViewModel(
         }
     }
 
-    private fun mutate(refreshMembers: Boolean = true, action: suspend () -> Unit) {
+    private fun mutate(
+        refreshMembers: Boolean = true,
+        error: (GimException) -> ContactsError = GimException::toContactsError,
+        action: suspend () -> Unit,
+    ) {
         _state.update { it.copy(busy = true) }
         viewModelScope.launch {
             try {
                 action()
                 if (refreshMembers) memberRefreshes.trySend(Unit)
             } catch (e: GimException) {
-                _events.send(GroupInfoEvent.ShowError(e.toContactsError()))
+                _events.send(GroupInfoEvent.ShowError(error(e)))
             } finally {
                 _state.update { it.copy(busy = false) }
             }
@@ -254,6 +272,10 @@ class GroupInfoViewModel(
     }
 }
 
-fun groupInfoViewModelFactory(client: GimClient, chatId: String): ViewModelProvider.Factory = viewModelFactory {
-    initializer { GroupInfoViewModel(client, chatId) }
+fun groupInfoViewModelFactory(
+    client: GimClient,
+    chatId: String,
+    pendingLeaves: PendingLeaveStore,
+): ViewModelProvider.Factory = viewModelFactory {
+    initializer { GroupInfoViewModel(client, chatId, pendingLeaves) }
 }

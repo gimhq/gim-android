@@ -105,4 +105,31 @@ class ComposerScreenTest {
         rule.onNodeWithContentDescription("Cancel reply").performClick()
         rule.onNodeWithText("Nikos").assertDoesNotExist()
     }
+
+    @Test
+    fun leavingAndLeft_disableTheInputWithTheirLabel() {
+        var membership by mutableStateOf(ChatMembership.LEAVING)
+        rule.setContent {
+            GimTheme {
+                Composer(
+                    state = ComposerUiState(membership = membership),
+                    onDraftChange = {},
+                    onSend = {},
+                    onCancelMode = {},
+                    onAttachPhoto = {},
+                    onAttachFile = {},
+                )
+            }
+        }
+        rule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assertIsNotEnabled()
+        rule.onNodeWithText("Leaving…", useUnmergedTree = true).assertExists()
+        rule.onNodeWithContentDescription("Attach").assertIsNotEnabled()
+
+        membership = ChatMembership.LEFT
+        rule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assertIsNotEnabled()
+        rule.onNodeWithText("You left this group", useUnmergedTree = true).assertExists()
+
+        membership = ChatMembership.JOINED
+        rule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assertIsEnabled()
+    }
 }

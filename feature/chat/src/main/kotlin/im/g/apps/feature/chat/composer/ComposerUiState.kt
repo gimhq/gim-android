@@ -19,6 +19,17 @@ sealed interface ComposerMode {
     data class Editing(val messageId: String, val originalText: String) : ComposerMode
 }
 
+/** The signed-in user's membership of the chat, as far as sending goes. */
+enum class ChatMembership {
+    JOINED,
+
+    /** Left with `leaveChat`; gim-core refuses sends until another member commits it and `Left` shows. */
+    LEAVING,
+
+    /** The own `Left` change is the latest membership change of the signed-in user. */
+    LEFT,
+}
+
 /** Actions offered for one long-pressed message; availability is decided by [ComposerViewModel]. */
 @Immutable
 data class MessageActionsUi(
@@ -46,11 +57,14 @@ data class ComposerUiState(
     /** An attachment is being copied and handed to the client. */
     val isAttaching: Boolean = false,
     val quickReactions: ImmutableList<String> = QUICK_REACTIONS,
+    val membership: ChatMembership = ChatMembership.JOINED,
 ) {
-    val canSend: Boolean get() = draft.isNotBlank()
+    val isMember: Boolean get() = membership == ChatMembership.JOINED
+
+    val canSend: Boolean get() = draft.isNotBlank() && isMember
 
     /** Attachments are not offered while editing. */
-    val canAttach: Boolean get() = mode !is ComposerMode.Editing && !isAttaching
+    val canAttach: Boolean get() = mode !is ComposerMode.Editing && !isAttaching && isMember
 }
 
 /** One-shot events from [ComposerViewModel]. */

@@ -28,7 +28,12 @@
     <string name="chat_image">Photo</string>
     <string name="chat_file_open">Open %1$s</string>
     <string name="chat_composer_placeholder">Message</string>
+    <string name="chat_composer_leaving">Leaving…</string>
+    <string name="chat_composer_left">You left this group</string>
     <string name="chat_error_open_file">Couldn\'t open the file</string>
+    <string name="chat_error_retry_later">Try again in %1$s s</string>
+    <string name="chat_error_media_unavailable">The sender\'s server isn\'t reachable. Try again later.</string>
+    <string name="chat_media_retry">Retry download</string>
     <string name="composer_send">Send</string>
     <string name="composer_save">Save changes</string>
     <string name="composer_attach">Attach</string>

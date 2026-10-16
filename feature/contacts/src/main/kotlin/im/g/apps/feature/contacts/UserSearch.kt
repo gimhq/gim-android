@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-/** Result of a handle lookup. */
+/** Result of a handle lookup, or a typed user id. */
 @Immutable
 sealed interface UserSearchState {
     /** The query is shorter than [MIN_HANDLE_LENGTH]. */
@@ -21,6 +21,7 @@ sealed interface UserSearchState {
     /** Waiting for the debounce or for [GimClient.findUser]. */
     data object Searching : UserSearchState
 
+    /** A user found by handle, or a typed user id taken as is (the hub checks it when the chat is created). */
     data class Found(val user: UserProfile) : UserSearchState
 
     data class NotFound(val handle: String) : UserSearchState
@@ -33,6 +34,11 @@ internal const val MIN_HANDLE_LENGTH = 3
 
 /** Lowercase handle without surrounding blanks or a leading '@'. */
 internal fun normalizeHandle(input: String): String = input.trim().removePrefix("@").lowercase()
+
+/** A gim user id: "u" + 55 base32 characters. Users are addressed by id everywhere; remote ones may lack a handle. */
+private val USER_ID_PATTERN = Regex("^u[a-z2-7]{54}[aiqy]$")
+
+internal fun isUserId(value: String): Boolean = USER_ID_PATTERN.matches(value)
 
 /**
  * Debounced handle lookup shared by the contacts ViewModels: every distinct normalized query of at least
@@ -65,7 +71,11 @@ internal class UserSearch(
     }
 
     private suspend fun lookUp(handle: String): UserSearchState = try {
-        client.findUser(handle)?.let(UserSearchState::Found) ?: UserSearchState.NotFound(handle)
+        if (isUserId(handle)) {
+            UserSearchState.Found(UserProfile(handle, handle = "", displayName = ""))
+        } else {
+            client.findUser(handle)?.let(UserSearchState::Found) ?: UserSearchState.NotFound(handle)
+        }
     } catch (e: GimException) {
         UserSearchState.Error(e.toContactsError())
     }

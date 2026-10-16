@@ -20,6 +20,24 @@ data class UserProfile(
     val displayName: String,
 )
 
+/** A gim user id: "u" + 55 base32 characters. */
+private val USER_ID_PATTERN = Regex("^u[a-z2-7]{54}[aiqy]$")
+
+private const val SHORT_USER_ID_LENGTH = 8
+
+/** The first 8 characters of [userId] after its leading "u"; shown for users without a known name. */
+fun shortUserId(userId: String): String = userId.removePrefix("u").take(SHORT_USER_ID_LENGTH)
+
+/**
+ * A name as gim-core reports it, shortened to [shortUserId] when it is a bare user id (gim-core falls back to the
+ * user id until a directory lookup resolves the name, and remote users may have no handle).
+ */
+fun displayNameOrShortId(name: String): String = if (USER_ID_PATTERN.matches(name)) shortUserId(name) else name
+
+/** The display name, falling back to a [shortUserId] when it is empty or just the user id. */
+val UserProfile.displayLabel: String
+    get() = if (displayName.isBlank() || displayName == userId) shortUserId(userId) else displayNameOrShortId(displayName)
+
 enum class ChatKind { DIRECT, GROUP }
 
 /** One row of the chat list. */

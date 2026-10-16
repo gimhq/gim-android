@@ -59,13 +59,14 @@ class OnboardingViewModelTest {
     }
 
     /**
-     * Models gim-core's local state, shared by every client (one data dir): `createIdentity` stores the identity
-     * before its first hub call, so a hub in [down] fails it with `Network` and leaves an identity behind that fails
-     * every later attempt (`Crypto`, "identity already exists") until `signOut` wipes it.
+     * Models gim-core's onboarding retry: a hub in [down] fails `createIdentity` with `Network`, and the call discards
+     * what the attempt stored, so the same client can call it again; every successful call creates a new user and
+     * returns its code (recorded in [codes]). [signOuts] counts `signOut` calls, which a retry must not need.
      */
     private class CoreLocalState(val down: MutableSet<String>) {
-        var leftoverIdentity = false
         val clients = mutableListOf<String>()
+        val codes = mutableListOf<String>()
+        var signOuts = 0
     }
 
     private fun TestScope.coreFactory(local: CoreLocalState) = GimClientFactory { config, _ ->
@@ -73,16 +74,12 @@ class OnboardingViewModelTest {
         local.clients += config.serverUrl
         object : GimClient by fake {
             override suspend fun createIdentity(displayName: String): String {
-                if (local.leftoverIdentity) throw GimException.Crypto("identity already exists")
-                if (config.serverUrl in local.down) {
-                    local.leftoverIdentity = true
-                    throw GimException.Network("connection refused")
-                }
-                return fake.createIdentity(displayName)
+                if (config.serverUrl in local.down) throw GimException.Network("connection refused")
+                return fake.createIdentity(displayName).also { local.codes += it }
             }
 
             override suspend fun signOut() {
-                local.leftoverIdentity = false
+                local.signOuts++
                 fake.signOut()
             }
         }
@@ -325,14 +322,16 @@ class OnboardingViewModelTest {
         vm.submitDisplayName()
         advanceUntilIdle()
         assertEquals(OnboardingError.CannotReachServer, vm.state.value.error)
-        assertFalse(local.leftoverIdentity)
 
         local.down.clear()
         vm.submitDisplayName()
         advanceUntilIdle()
         assertNull(vm.state.value.error)
         assertEquals(OnboardingStep.RECOVERY_CODE, vm.state.value.step)
-        assertEquals(listOf(SERVER_URL, SERVER_URL), local.clients)
+        assertEquals(local.codes.single(), vm.state.value.recoveryCode)
+        // The same client retries: no sign-out, no second client.
+        assertEquals(listOf(SERVER_URL), local.clients)
+        assertEquals(0, local.signOuts)
     }
 
     @Test
@@ -353,7 +352,9 @@ class OnboardingViewModelTest {
         advanceUntilIdle()
         assertNull(vm.state.value.error)
         assertEquals(OnboardingStep.RECOVERY_CODE, vm.state.value.step)
+        assertEquals(local.codes.single(), vm.state.value.recoveryCode)
         assertEquals(listOf(UNREACHABLE_URL, SERVER_URL), local.clients)
+        assertEquals(0, local.signOuts)
         assertEquals(SERVER_URL, store.get())
     }
 

@@ -1,6 +1,7 @@
 package im.g.apps.feature.chat
 
 import im.g.apps.core.bridge.GimClient
+import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.MediaRef
 import im.g.apps.core.bridge.Timeline
 import im.g.apps.core.bridge.UserProfile
@@ -359,6 +360,75 @@ class ChatViewModelTest {
         vm.retry(vm.message("See you then!").key)
 
         assertEquals(ChatEvent.Error(UiText.Res(R.string.composer_error_retry)), vm.events.first())
+    }
+
+    /** `fetchMedia` fails with each of [failures] in turn, then succeeds. */
+    private class FlakyMediaClient(private val delegate: FakeGimClient, vararg failures: GimException) : GimClient by delegate {
+        private val pending = ArrayDeque(failures.toList())
+        var fetches = 0
+
+        override suspend fun fetchMedia(chatId: String, messageId: String, destPath: String): String {
+            fetches++
+            pending.removeFirstOrNull()?.let { throw it }
+            return delegate.fetchMedia(chatId, messageId, destPath)
+        }
+    }
+
+    @Test
+    fun imageFromAnUnreachableHub_offersARetryThatRefetches() = test {
+        val client = FlakyMediaClient(demoClient(), GimException.RetryLater(503, 20, "peer_unavailable"))
+        val vm = viewModel(client, DemoData.DIRECT_CHAT_ID)
+        val image = vm.messages.single { it.image != null }
+        assertFalse(image.mediaUnavailable)
+
+        vm.onImageNeeded(image.key)
+        advanceUntilIdle()
+        assertTrue(vm.messages.single { it.key == image.key }.mediaUnavailable)
+
+        vm.retryMedia(image.key)
+        advanceUntilIdle()
+        val retried = vm.messages.single { it.key == image.key }
+        assertFalse(retried.mediaUnavailable)
+        assertTrue(File(retried.image!!.path!!).isFile)
+        assertEquals(2, client.fetches)
+    }
+
+    @Test
+    fun fileRefusedByTheUploadersHub_offersARetry() = test {
+        val client = FlakyMediaClient(demoClient(), GimException.Server(502, "peer_refused"))
+        val vm = viewModel(client, DemoData.DIRECT_CHAT_ID)
+        val file = vm.messages.single { it.file != null }
+
+        vm.onOpenFile(file.key)
+        assertEquals(ChatEvent.Error(UiText.Res(R.string.chat_error_media_unavailable)), vm.events.first())
+        advanceUntilIdle()
+        assertTrue(vm.messages.single { it.key == file.key }.mediaUnavailable)
+
+        vm.retryMedia(file.key)
+        assertTrue(vm.events.first() is ChatEvent.OpenFile)
+        advanceUntilIdle()
+        assertFalse(vm.messages.single { it.key == file.key }.mediaUnavailable)
+    }
+
+    @Test
+    fun openFile_retryLater_showsTheWait_otherFailuresStayGeneric() = test {
+        val client = FlakyMediaClient(
+            demoClient(),
+            GimException.RetryLater(503, 7, "peer_unavailable"),
+            GimException.NotFound("blob"),
+        )
+        val vm = viewModel(client, DemoData.DIRECT_CHAT_ID)
+        val file = vm.messages.single { it.file != null }
+
+        vm.onOpenFile(file.key)
+        assertEquals(
+            ChatEvent.Error(UiText.Res(R.string.chat_error_retry_later, persistentListOf("7"))),
+            vm.events.first(),
+        )
+        vm.retryMedia(file.key)
+        assertEquals(ChatEvent.Error(UiText.Res(R.string.chat_error_open_file)), vm.events.first())
+        advanceUntilIdle()
+        assertFalse(vm.messages.single { it.key == file.key }.mediaUnavailable)
     }
 
     /** Records markRead and pagination calls; pagination waits for [gate] when given. */
