@@ -8,6 +8,8 @@ import im.g.apps.core.bridge.ClientConfig
 import im.g.apps.core.bridge.ConnectionState
 import im.g.apps.core.bridge.DeviceInfo
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.HubInfo
+import im.g.apps.core.bridge.HubState
 import im.g.apps.core.bridge.MediaRef
 import im.g.apps.core.bridge.MembershipChangeKind
 import im.g.apps.core.bridge.MessageContent
@@ -107,6 +109,25 @@ class MappersTest {
         )
         // u64 converts bit-for-bit.
         assertEquals(-1L, im.g.gimcore.DeviceInfo("d3", ULong.MAX_VALUE, false, false).toMirror().createdAtMs)
+    }
+
+    @Test
+    fun hubInfo() {
+        assertEquals(
+            HubInfo("ha", "http://10.0.2.2:8080", HubState.VERIFIED, 0, isPrimary = true, isHome = true, signedIn = true),
+            im.g.gimcore.HubInfo(
+                "ha", "http://10.0.2.2:8080", im.g.gimcore.HubState.VERIFIED, 0u,
+                isPrimary = true, isHome = true, signedIn = true,
+            ).toMirror(),
+        )
+        assertEquals(
+            HubInfo("hb", null, HubState.UNVERIFIED, 255, isPrimary = false, isHome = false, signedIn = false),
+            im.g.gimcore.HubInfo(
+                "hb", null, im.g.gimcore.HubState.UNVERIFIED, 255u,
+                isPrimary = false, isHome = false, signedIn = false,
+            ).toMirror(),
+        )
+        assertEquals(HubState.REMOVED, im.g.gimcore.HubState.REMOVED.toMirror())
     }
 
     @Test
@@ -305,6 +326,14 @@ class MappersTest {
             im.g.gimcore.GimException.ChatNotActive("c1", im.g.gimcore.ChatState.LEFT),
             GimException.ChatNotActive("c1", ChatState.LEFT),
         )
+        check(im.g.gimcore.GimException.HubNotVerified("relay"), GimException.HubNotVerified("relay"))
+        check(im.g.gimcore.GimException.HubOwnsGroups("hb", 2u), GimException.HubOwnsGroups("hb", 2))
+        check(im.g.gimcore.GimException.LastHub("ha"), GimException.LastHub("ha"))
+        check(im.g.gimcore.GimException.HomeHub("ha"), GimException.HomeHub("ha"))
+        check(im.g.gimcore.GimException.HubNotDrained("hb", "1 message"), GimException.HubNotDrained("hb", "1 message"))
+        val owns = im.g.gimcore.GimException.HubOwnsGroups("hb", 3u).toMirror() as GimException.HubOwnsGroups
+        assertEquals("hb", owns.hubId)
+        assertEquals(3, owns.groupCount)
         val notActive = im.g.gimcore.GimException.ChatNotActive("c1", im.g.gimcore.ChatState.LEAVING).toMirror()
         assertEquals("c1", (notActive as GimException.ChatNotActive).chatId)
         assertEquals(ChatState.LEAVING, notActive.state)
@@ -336,6 +365,11 @@ class MappersTest {
             GimException.ChatNotActive("c1", ChatState.LEAVING),
             im.g.gimcore.GimException.ChatNotActive("c1", im.g.gimcore.ChatState.LEAVING),
         )
+        check(GimException.HubNotVerified("relay"), im.g.gimcore.GimException.HubNotVerified("relay"))
+        check(GimException.HubOwnsGroups("hb", 2), im.g.gimcore.GimException.HubOwnsGroups("hb", 2u))
+        check(GimException.LastHub("ha"), im.g.gimcore.GimException.LastHub("ha"))
+        check(GimException.HomeHub("ha"), im.g.gimcore.GimException.HomeHub("ha"))
+        check(GimException.HubNotDrained("hb", "busy"), im.g.gimcore.GimException.HubNotDrained("hb", "busy"))
     }
 
     @Test

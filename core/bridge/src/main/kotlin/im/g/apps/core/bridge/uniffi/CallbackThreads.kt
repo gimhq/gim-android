@@ -25,6 +25,7 @@ internal object CallbackThreads {
     internal val vtableHolders: List<Class<*>> = listOf(
         im.g.gimcore.uniffiCallbackInterfaceChatListListener::class.java,
         im.g.gimcore.uniffiCallbackInterfaceConnectionStateListener::class.java,
+        im.g.gimcore.uniffiCallbackInterfaceHubListListener::class.java,
         im.g.gimcore.uniffiCallbackInterfaceLocalTimeZone::class.java,
         im.g.gimcore.uniffiCallbackInterfacePlatformHooks::class.java,
         im.g.gimcore.uniffiCallbackInterfaceTimelineListener::class.java,

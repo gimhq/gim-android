@@ -101,6 +101,20 @@ class GimClientFlowsTest {
     }
 
     @Test
+    fun hub_list_flow_emits_current_hubs_then_changes() = runTest {
+        val client = demo()
+        client.hubListFlow().test {
+            val home = awaitItem().single()
+            assertTrue(home.isHome && home.isPrimary)
+            client.addHub("https://hub-b.example.eu")
+            assertEquals(listOf(home.hubId, FakeGimClient.fakeHubId("https://hub-b.example.eu")), awaitItem().map { it.hubId })
+            cancelAndIgnoreRemainingEvents()
+        }
+        advanceUntilIdle()
+        assertEquals(0, client.activeSubscriptions)
+    }
+
+    @Test
     fun timeline_flow_keeps_every_diff_in_order_under_foreign_thread_callbacks() = runBlocking {
         val client = FakeGimClient.withDemoData(scope = this, clock = { base }, zone = zone, outboxDelays = null)
         val timeline = client.timeline(DIRECT_CHAT_ID)

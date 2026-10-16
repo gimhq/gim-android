@@ -2,7 +2,7 @@ package im.g.apps.core.bridge
 
 /**
  * Kotlin mirror of gim-core's UniFFI `GimClient` (gim-core `bindings/gim-ffi`, contract in
- * `docs/API.md` at gim-core commit d5ead6d).
+ * `docs/API.md` at gim-core commit 5877765).
  *
  * gim-core (Rust) owns storage, networking, sync, outbox, MLS and media crypto; this interface is the only
  * surface the UI layer sees. Features never import `im.g.gimcore`: the real adapter maps the generated
@@ -10,7 +10,8 @@ package im.g.apps.core.bridge
  * [im.g.apps.core.bridge.fake.FakeGimClient].
  *
  * Every suspend method throws [GimException] on failure; calls that send to or change a chat that is not
- * [ChatState.ACTIVE] throw [GimException.ChatNotActive]. Call suspend methods from a real dispatcher
+ * [ChatState.ACTIVE] throw [GimException.ChatNotActive]. Sign-in on a hub whose URL does not match the URL the hub
+ * proves throws [GimException.HubNotVerified]. Call suspend methods from a real dispatcher
  * (`Dispatchers.IO`, `Default`, `Main`, `viewModelScope`), never `Dispatchers.Unconfined`. Listeners and hooks are
  * called on gim-core's single `gim-callbacks` thread, in order: copy the data and return, never call back into
  * [GimClient] from them; see [im.g.apps.core.bridge.flow] for main-safe flows.
@@ -26,12 +27,13 @@ package im.g.apps.core.bridge
  * | `PlatformHooks` | [PlatformHooks] | |
  * | `LinkSession`, `PendingApproval` | [LinkSession], [PendingApproval] | Kotlin interfaces wrapping the native objects |
  * | `DeviceInfo` | [DeviceInfo] | `createdAtMs: ULong` -> `Long` |
- * | `ChatListListener`, `TimelineListener`, `ConnectionStateListener`, `TypingListener`, `LocalTimeZone` | same names | `fun interface` |
+ * | `HubInfo`, `HubState` | [HubInfo], [HubState] | `priority: UByte` -> `Int` |
+ * | `ChatListListener`, `TimelineListener`, `ConnectionStateListener`, `TypingListener`, `HubListListener`, `LocalTimeZone` | same names | `fun interface` |
  * | `ChatListDiff`, `TimelineDiff` | [ChatListDiff], [TimelineDiff] | `index`/`length: UInt` -> `Int` |
  * | `Session`, `UserProfile`, `ChatKind`, `ChatState`, `ChatSummary`, `MessagePreview` | same names | `UInt` -> `Int`, `ULong` -> `Long` |
  * | `TimelineItem`, `MembershipChangeKind`, `MessageItem`, `MessageContent` | same names | `ULong` -> `Long`, `UInt?` -> `Int?` |
  * | `MediaRef`, `ReplyPreview`, `ReactionGroup`, `SendState`, `ConnectionState`, `ClientConfig` | same names | `size: ULong` -> `Long`, `count: UInt` -> `Int` |
- * | `GimException.<Variant>` | [GimException]`.<Variant>` | `status: UShort` -> `Int`, `retryAfterSecs: ULong` -> `Long` |
+ * | `GimException.<Variant>` | [GimException]`.<Variant>` | `status: UShort` -> `Int`, `retryAfterSecs: ULong` -> `Long`, `groupCount: UInt` -> `Int` |
  *
  * Enum constants keep UniFFI's Kotlin spelling (`ChatKind.DIRECT`, `ConnectionState.CONNECTED`, ...).
  */
@@ -90,6 +92,36 @@ interface GimClient {
 
     /** Revokes another own device; [GimException.InvalidInput] for the current device. */
     suspend fun revokeDevice(deviceId: String)
+
+    /**
+     * The hubs of the user's hosting record known to this device, primary first (priority, then hub id), including
+     * removed ones. With a single hub: the home hub.
+     */
+    suspend fun hubs(): List<HubInfo>
+
+    /**
+     * Adds the hub at [url] (entered by the user on this device) to the hosting record, listed last (least
+     * preferred), and returns it; adding a listed hub again only records [url] for it on this device.
+     * [GimException.InvalidInput] for a URL that is not `http(s)://host…` or does not serve a gim hub,
+     * [GimException.Network] if it cannot be reached, [GimException.HubNotVerified] if it does not prove the hub at
+     * that URL.
+     */
+    suspend fun addHub(url: String): HubInfo
+
+    /**
+     * Removes a hub from the hosting record. [GimException.HomeHub] for the home hub, [GimException.LastHub] for the
+     * only listed hub, [GimException.HubOwnsGroups] if the hub owns chats of this user unless [confirmOwnedGroups],
+     * [GimException.HubNotDrained] while something sent through it is not settled, [GimException.InvalidInput] for a
+     * hub that is not listed.
+     */
+    suspend fun removeHub(hubId: String, confirmOwnedGroups: Boolean)
+
+    /**
+     * Makes a listed hub the primary one (priority 0, the others follow in their order); nothing happens for the
+     * current primary. Every hub whose priority changes must be reachable from this device ([HubInfo.signedIn]),
+     * else [GimException.InvalidInput], as for a hub that is not listed.
+     */
+    suspend fun setPrimaryHub(hubId: String)
 
     /** Changes the display name; [GimException.InvalidInput] if empty. */
     suspend fun setDisplayName(name: String)
@@ -226,6 +258,9 @@ interface GimClient {
 
     /** Subscribes to typing notifications of one chat; the first callback carries the current set. */
     suspend fun typing(chatId: String, listener: TypingListener): TaskHandle
+
+    /** Subscribes to the user's hubs; the first callback carries the current [hubs]. */
+    suspend fun hubList(listener: HubListListener): TaskHandle
 }
 
 /**

@@ -3,6 +3,8 @@ package im.g.apps.core.bridge.uniffi
 import im.g.apps.core.bridge.ChatListDiff
 import im.g.apps.core.bridge.ConnectionState
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.HubInfo
+import im.g.apps.core.bridge.HubState
 import im.g.apps.core.bridge.TimelineDiff
 import im.g.apps.core.bridge.TimelineItem
 import im.g.apps.core.bridge.fake.FakePlatformHooks
@@ -47,6 +49,18 @@ class AdaptersTest {
         val typing = mutableListOf<List<String>>()
         TypingListenerAdapter { typing += it }.onUpdate(listOf("u1", "u2"))
         assertEquals(listOf(listOf("u1", "u2")), typing)
+    }
+
+    @Test
+    fun hubListListenerForwardsMappedHubs() {
+        val received = mutableListOf<List<HubInfo>>()
+        HubListListenerAdapter { received += it }.onUpdate(
+            listOf(im.g.gimcore.HubInfo("ha", "http://hub-a:8080", im.g.gimcore.HubState.VERIFIED, 0u, true, true, true)),
+        )
+        assertEquals(
+            listOf(listOf(HubInfo("ha", "http://hub-a:8080", HubState.VERIFIED, 0, true, true, true))),
+            received,
+        )
     }
 
     @Test

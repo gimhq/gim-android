@@ -662,6 +662,7 @@ private fun FieldError.messageRes(): Int = when (this) {
 @Composable
 private fun OnboardingError.message(): String = when (this) {
     OnboardingError.CannotReachServer -> stringResource(R.string.onboarding_error_cannot_reach_server)
+    OnboardingError.HubNotVerified -> stringResource(R.string.onboarding_error_hub_not_verified)
     is OnboardingError.TryAgainLater ->
         pluralStringResource(R.plurals.onboarding_error_try_again_later, seconds.toInt(), seconds)
     OnboardingError.LinkTimedOut -> stringResource(R.string.onboarding_error_link_timed_out)

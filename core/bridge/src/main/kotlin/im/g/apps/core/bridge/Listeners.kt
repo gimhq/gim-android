@@ -36,6 +36,14 @@ fun interface TypingListener {
 }
 
 /**
+ * Receives the user's hubs (see [GimClient.hubs]) whenever they may have changed: added, removed, verified,
+ * reprioritized, or a URL shared by another own device. The first callback carries the current list.
+ */
+fun interface HubListListener {
+    fun onUpdate(hubs: List<HubInfo>)
+}
+
+/**
  * Keeps a listener subscription alive; mirrors gim-core's `TaskHandle`. [cancel] or [close] ends the
  * subscription (both idempotent); no callback is delivered afterwards.
  */

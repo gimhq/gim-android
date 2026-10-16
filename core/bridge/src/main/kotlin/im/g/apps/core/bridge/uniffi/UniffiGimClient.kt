@@ -8,6 +8,8 @@ import im.g.apps.core.bridge.DeviceInfo
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimClientFactory
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.HubInfo
+import im.g.apps.core.bridge.HubListListener
 import im.g.apps.core.bridge.LinkSession
 import im.g.apps.core.bridge.LocalTimeZone
 import im.g.apps.core.bridge.PendingApproval
@@ -62,6 +64,15 @@ internal class UniffiGimClient(private val inner: im.g.gimcore.GimClient) : GimC
         core { inner.userDevices(userId).map { it.toMirror() } }
 
     override suspend fun revokeDevice(deviceId: String) = core { inner.revokeDevice(deviceId) }
+
+    override suspend fun hubs(): List<HubInfo> = core { inner.hubs().map { it.toMirror() } }
+
+    override suspend fun addHub(url: String): HubInfo = core { inner.addHub(url).toMirror() }
+
+    override suspend fun removeHub(hubId: String, confirmOwnedGroups: Boolean) =
+        core { inner.removeHub(hubId, confirmOwnedGroups) }
+
+    override suspend fun setPrimaryHub(hubId: String) = core { inner.setPrimaryHub(hubId) }
 
     override suspend fun setDisplayName(name: String) = core { inner.setDisplayName(name) }
 
@@ -150,6 +161,9 @@ internal class UniffiGimClient(private val inner: im.g.gimcore.GimClient) : GimC
 
     override suspend fun typing(chatId: String, listener: TypingListener): TaskHandle =
         UniffiTaskHandle(core { inner.typing(chatId, TypingListenerAdapter(listener)) })
+
+    override suspend fun hubList(listener: HubListListener): TaskHandle =
+        UniffiTaskHandle(core { inner.hubList(HubListListenerAdapter(listener)) })
 }
 
 internal class UniffiLinkSession(val inner: im.g.gimcore.LinkSession) : LinkSession {
@@ -228,6 +242,10 @@ internal class ConnectionStateListenerAdapter(
 
 internal class TypingListenerAdapter(private val listener: TypingListener) : im.g.gimcore.TypingListener {
     override fun onUpdate(userIds: List<String>) = listener.onUpdate(userIds)
+}
+
+internal class HubListListenerAdapter(private val listener: HubListListener) : im.g.gimcore.HubListListener {
+    override fun onUpdate(hubs: List<im.g.gimcore.HubInfo>) = listener.onUpdate(hubs.map { it.toMirror() })
 }
 
 /**
