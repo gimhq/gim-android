@@ -38,6 +38,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import im.g.apps.GimApplication
 import im.g.apps.MainActivity
 import im.g.apps.testing.awaitServerReachable
+import im.g.apps.testing.keepScreenOn
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.hamcrest.CoreMatchers.not
@@ -96,6 +97,7 @@ class InteropTest {
 
     @Test
     fun interopWithCliPeers() {
+        keepScreenOn(instrumentation, compose.activity)
         // a. Create the identity through onboarding, acknowledge the recovery code and claim the handle. Buttons
         // are scrolled into view with the soft keyboard hidden, which can cover them.
         awaitServerReachable(instrumentation.targetContext, serverUrl)
