@@ -6,6 +6,8 @@ import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.ConnectionState
 import im.g.apps.core.bridge.ConnectionStateListener
 import im.g.apps.core.bridge.GimClient
+import im.g.apps.core.bridge.HubInfo
+import im.g.apps.core.bridge.HubListListener
 import im.g.apps.core.bridge.TaskHandle
 import im.g.apps.core.bridge.Timeline
 import im.g.apps.core.bridge.TimelineDiff
@@ -47,6 +49,10 @@ fun GimClient.connectionStateFlow(): Flow<ConnectionState> =
 /** User ids currently typing in [chatId] (never the signed-in user); starts with the current set. */
 fun GimClient.typingFlow(chatId: String): Flow<List<String>> =
     listenerFlow<List<String>> { typing(chatId, TypingListener { userIds -> trySend(userIds) }) }
+
+/** The user's hubs, primary first, removed ones last; starts with the current list. */
+fun GimClient.hubListFlow(): Flow<List<HubInfo>> =
+    listenerFlow<List<HubInfo>> { hubList(HubListListener { hubs -> trySend(hubs) }) }
 
 private fun <T> listenerFlow(subscribe: suspend ProducerScope<T>.() -> TaskHandle): Flow<T> =
     callbackFlow {

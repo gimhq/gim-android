@@ -34,6 +34,8 @@ import im.g.apps.feature.contacts.newChatViewModelFactory
 import im.g.apps.feature.contacts.newGroupViewModelFactory
 import im.g.apps.feature.devices.DevicesRoute
 import im.g.apps.feature.devices.devicesViewModelFactory
+import im.g.apps.feature.hubs.HubsRoute
+import im.g.apps.feature.hubs.hubsViewModelFactory
 import im.g.apps.feature.linking.LinkDeviceRoute
 import im.g.apps.feature.linking.linkDeviceViewModelFactory
 import im.g.apps.feature.onboarding.OnboardingRoute
@@ -94,6 +96,7 @@ fun GimNavHost(
                     }
                 },
                 onDevices = { navController.navigate(Routes.DEVICES) },
+                onHubs = { navController.navigate(Routes.HUBS) },
             )
         }
         composable(Routes.LINK_DEVICE) {
@@ -168,6 +171,13 @@ fun GimNavHost(
                         navController.navigate(Routes.ONBOARDING) { popUpTo(navController.graph.id) { inclusive = true } }
                     }
                 },
+            )
+        }
+        composable(Routes.HUBS) {
+            val current = client ?: return@composable
+            HubsRoute(
+                viewModel = viewModel(factory = hubsViewModelFactory(current)),
+                onBack = { navController.popBackStack() },
             )
         }
     }
