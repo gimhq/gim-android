@@ -13,6 +13,11 @@ import im.g.apps.core.bridge.platform.AndroidPlatformHooks
 import im.g.apps.core.bridge.platform.AndroidReachabilityMonitor
 import im.g.apps.core.bridge.platform.SharedPrefsServerUrlStore
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
+import im.g.apps.push.AndroidPushNotifier
+import im.g.apps.push.PushController
+import im.g.apps.push.PushNotifier
+import im.g.apps.push.PushProvider
+import im.g.apps.push.createPushProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,6 +34,9 @@ class AppContainer(
     clientFactory: GimClientFactory? = null,
     /** Build-time hub URL prefilled in onboarding; empty when not configured. */
     val defaultHubUrl: String = BuildConfig.DEFAULT_HUB_URL,
+    /** The push platform; release builds have none, debug builds the mock push server client. */
+    val pushProvider: PushProvider? = createPushProvider(context),
+    pushNotifier: PushNotifier = AndroidPushNotifier(context),
 ) {
     private val appContext = context.applicationContext
 
@@ -53,6 +61,8 @@ class AppContainer(
 
     val sync = SyncController(manager, reachability.reachable, appScope)
 
+    val push = PushController(manager, sync.signedIn, pushProvider, pushNotifier, appScope)
+
     /** Re-buckets the date separators of open timelines after `ACTION_TIMEZONE_CHANGED`. */
     fun onTimeZoneChanged() {
         manager.client.value?.setLocalTimeZone(SystemLocalTimeZone)
@@ -65,6 +75,7 @@ class AppContainer(
      */
     suspend fun signOut() {
         sync.onSignedOut()
+        push.onSigningOut(manager.client.value)
         try {
             manager.signOut()
         } catch (e: GimException) {

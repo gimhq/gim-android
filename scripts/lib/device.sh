@@ -18,6 +18,16 @@
 #   gim_alias_emulator_host NAME  add 10.0.2.2/32 to lo in NAME's network namespace (short-lived alpine helper with
 #                                 --cap-add NET_ADMIN), so CLI peers sharing it reach the hubs at their public URLs
 #   gim_cleanup_hubs ROOT         remove this run's hub volumes and federation config (after removing the containers)
+#   gim_ensure_push_mock_image ROOT
+#                                 build ai-agent/gim-push-mock:<sha12> once from the same `git archive` with the hub's
+#                                 Dockerfile.push-mock (like its scripts/docker-build.sh IMAGE push-mock); sets
+#                                 GIM_PUSH_MOCK_IMAGE
+#   gim_push_prepare WEBHOOK_URL  pick a random shared secret (GIM_PUSH_MOCK_SECRET, kept when set) and set GIM_HUB_PUSH_ARGS, the
+#                                 hub env pointing its push webhook at WEBHOOK_URL; gim_start_hub, gim_start_hub2 and
+#                                 gim_real_start_hub pass GIM_HUB_PUSH_ARGS to every hub they start
+#   gim_start_push_mock NAME ROOT DOCKER_ARGS...
+#                                 run gim-push-mock (docs/push-mock.md in gim-hub) as NAME with GIM_PUSH_MOCK_SECRET and
+#                                 DOCKER_ARGS (network / ports), wait for its /healthz
 #   gim_containers_dead NAME...   print "NAME <state>" for each container that is missing or not running, and
 #                                 "NAME unhealthy" for a gim-hub (name ending in -hub or -hub2) whose /healthz does not answer;
 #                                 nothing when all are fine. Containers removed by someone else mid-run show up here.
@@ -51,6 +61,7 @@ GIM_EMULATOR_SERVER_URL=http://10.0.2.2:8080
 GIM_EMULATOR_SERVER_URL2=http://10.0.2.2:8081
 GIM_HUB_SRC=${GIM_HUB_SRC:-/srv/gimhq/im-client/hub}
 GIM_RUN_LABEL=${GIM_RUN_LABEL:-gim-android-$$}
+GIM_HUB_PUSH_ARGS=()
 
 gim_check_host_paths() {
     command -v docker >/dev/null || { echo "error: docker is required" >&2; return 1; }
@@ -80,12 +91,12 @@ ENV PATH=\$PATH:/opt/android-sdk-linux/emulator
 EOF
 }
 
-gim_ensure_hub_image() {
-    local root=$1 rev tmp status=0
+# gim_hub_archive_build ROOT IMAGE DOCKERFILE: builds IMAGE once from `git archive` of the pinned gim-hub commit.
+gim_hub_archive_build() {
+    local root=$1 image=$2 dockerfile=$3 rev tmp status=0
     rev=$(tr -d '[:space:]' <"$root/e2e/GIM_HUB_VERSION")
-    GIM_HUB_IMAGE=ai-agent/gim-hub:${rev:0:12}
-    if docker image inspect "$GIM_HUB_IMAGE" >/dev/null 2>&1; then
-        echo "reusing $GIM_HUB_IMAGE"
+    if docker image inspect "$image" >/dev/null 2>&1; then
+        echo "reusing $image"
         return 0
     fi
     git -C "$GIM_HUB_SRC" rev-parse --verify --quiet "$rev^{commit}" >/dev/null || {
@@ -96,11 +107,55 @@ gim_ensure_hub_image() {
     rm -rf "$tmp"
     mkdir -p "$tmp"
     git -C "$GIM_HUB_SRC" archive "$rev" | tar -x -C "$tmp"
-    echo "building $GIM_HUB_IMAGE from $GIM_HUB_SRC @ $rev"
+    echo "building $image from $GIM_HUB_SRC @ $rev ($dockerfile)"
     docker build --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --label "gim.hub.commit=$rev" \
-        -t "$GIM_HUB_IMAGE" "$tmp" || status=$?
+        --build-arg "GIM_HUB_BUILD_REV=$rev" -f "$tmp/$dockerfile" -t "$image" "$tmp" || status=$?
     rm -rf "$tmp"
     return "$status"
+}
+
+gim_ensure_hub_image() {
+    local rev
+    rev=$(tr -d '[:space:]' <"$1/e2e/GIM_HUB_VERSION")
+    GIM_HUB_IMAGE=ai-agent/gim-hub:${rev:0:12}
+    gim_hub_archive_build "$1" "$GIM_HUB_IMAGE" Dockerfile
+}
+
+gim_ensure_push_mock_image() {
+    local rev
+    rev=$(tr -d '[:space:]' <"$1/e2e/GIM_HUB_VERSION")
+    GIM_PUSH_MOCK_IMAGE=ai-agent/gim-push-mock:${rev:0:12}
+    gim_hub_archive_build "$1" "$GIM_PUSH_MOCK_IMAGE" Dockerfile.push-mock
+}
+
+gim_push_prepare() {
+    # The hub requires at least 32 bytes. Kept when already set, so the mock can start before its URL is known.
+    [[ -n ${GIM_PUSH_MOCK_SECRET:-} ]] || GIM_PUSH_MOCK_SECRET=$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')
+    GIM_HUB_PUSH_ARGS=(-e "GIM_HUB_PUSH_WEBHOOK_URL=$1" -e "GIM_HUB_PUSH_WEBHOOK_SECRET=$GIM_PUSH_MOCK_SECRET")
+}
+
+gim_start_push_mock() {
+    local name=$1 root=$2
+    shift 2
+    gim_ensure_push_mock_image "$root"
+    docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$name" "$@" \
+        -e GIM_PUSH_MOCK_LISTEN=0.0.0.0:8090 -e "GIM_PUSH_MOCK_SECRET=$GIM_PUSH_MOCK_SECRET" \
+        "$GIM_PUSH_MOCK_IMAGE" >/dev/null
+    gim_wait_push_mock_healthy "$name"
+}
+
+gim_wait_push_mock_healthy() {
+    local name=$1 _
+    for _ in $(seq 1 60); do
+        if docker exec "$name" gim-push-mock healthcheck >/dev/null 2>&1; then
+            echo "gim-push-mock $name healthy"
+            return 0
+        fi
+        sleep 1
+    done
+    echo "error: gim-push-mock $name did not become healthy" >&2
+    docker logs "$name" >&2 || true
+    return 1
 }
 
 gim_containers_dead() {
@@ -192,7 +247,7 @@ gim_start_hub() {
     # Disposable: the hub's data lives in memory (or the run's volume) and goes with the run.
     docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$name" "${data[@]}" \
         -e GIM_HUB_LISTEN=0.0.0.0:8080 -e GIM_HUB_DATA_DIR=/data -e "GIM_HUB_PUBLIC_URL=$GIM_EMULATOR_SERVER_URL" \
-        -e RUST_LOG=info "${GIM_FED_ARGS[@]}" "$GIM_HUB_IMAGE" >/dev/null
+        -e RUST_LOG=info "${GIM_FED_ARGS[@]}" "${GIM_HUB_PUSH_ARGS[@]}" "$GIM_HUB_IMAGE" >/dev/null
     gim_wait_hub_healthy "$name" || return 1
     gim_alias_emulator_host "$name"
 }
@@ -217,7 +272,7 @@ gim_start_hub2() {
     docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$name2" \
         --network "container:$name" -v "${name}2-data:/data" \
         -e GIM_HUB_LISTEN=0.0.0.0:8081 -e GIM_HUB_DATA_DIR=/data -e "GIM_HUB_PUBLIC_URL=$GIM_EMULATOR_SERVER_URL2" \
-        -e RUST_LOG=info "${GIM_FED_ARGS[@]}" "$GIM_HUB_IMAGE" >/dev/null
+        -e RUST_LOG=info "${GIM_FED_ARGS[@]}" "${GIM_HUB_PUSH_ARGS[@]}" "$GIM_HUB_IMAGE" >/dev/null
     gim_wait_hub_healthy "$name2" || return 1
     gim_fed_wait_bound "$name" "$GIM_FED_HUB_ID_B" && gim_fed_wait_bound "$name2" "$GIM_FED_HUB_ID_A" || return 1
     echo "hubs $name and $name2 federated"
