@@ -14,8 +14,6 @@ import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
@@ -56,6 +54,7 @@ import im.g.apps.core.bridge.flow.itemsFlow
 import im.g.apps.core.bridge.platform.KeystoreSecretCipher
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
 import im.g.apps.testing.awaitServerReachable
+import im.g.apps.testing.clickWhenSettled
 import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
@@ -151,7 +150,7 @@ class MessagingE2eTest {
         // keyboard and scroll each button into view in case the keyboard covers it.
         waitForText("onboarding shown", string(OnboardingR.string.onboarding_welcome_title))
         enterText("hub address", TAG_SERVER_URL, serverUrl)
-        click("create new account", TAG_CREATE_ACCOUNT)
+        click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
         waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))
         enterText("display name", TAG_DISPLAY_NAME, appName)
         click("create account", TAG_SUBMIT)
@@ -165,7 +164,7 @@ class MessagingE2eTest {
         // Never log the code itself.
         assertTrue("recovery code (${code.length} chars) is not 39 symbols in groups of four", RECOVERY_CODE.matches(code))
         compose.onNodeWithTag(TAG_CODE_SAVED).performScrollTo().performClick()
-        click("recovery code continue", TAG_CODE_CONTINUE)
+        click("recovery code continue", TAG_CODE_CONTINUE, next = hasTestTag(TAG_HANDLE))
         waitFor("handle step", hasTestTag(TAG_HANDLE))
         enterText("handle", TAG_HANDLE, appHandle)
         click("claim handle", TAG_CLAIM_HANDLE)
@@ -192,11 +191,11 @@ class MessagingE2eTest {
         compose.onNode(hasSetTextAction()).performTextInput(peerHandle)
         val add = hasText(string(ContactsR.string.contacts_add)) and hasClickAction()
         waitFor("peer found by handle", add)
-        compose.onNode(add).performClick()
-        compose.onNodeWithText(string(ContactsR.string.contacts_next)).performClick()
+        click("add peer", add)
+        click("next", hasText(string(ContactsR.string.contacts_next)))
         waitForText("group name step", string(ContactsR.string.contacts_create_group))
         compose.onNode(hasSetTextAction()).performTextInput(groupName)
-        compose.onNodeWithText(string(ContactsR.string.contacts_create_group)).performClick()
+        click("create group", hasText(string(ContactsR.string.contacts_create_group)))
         waitFor("group chat opened", hasTestTag(TAG_COMPOSER))
 
         val chatId = peerWait("peer sees the group") {
@@ -207,7 +206,7 @@ class MessagingE2eTest {
         // App sends a text; the peer receives it.
         val appText = "Anchored off Hydra $suffix"
         compose.onNodeWithTag(TAG_COMPOSER).performTextInput(appText)
-        compose.onNodeWithContentDescription(string(ChatR.string.composer_send)).performClick()
+        click("send", hasContentDescription(string(ChatR.string.composer_send)))
         val appMessage = peerMessages.await("peer receives the app text") {
             !it.isOwn && (it.content as? MessageContent.Text)?.body == appText
         }
@@ -238,7 +237,7 @@ class MessagingE2eTest {
         Intents.init()
         try {
             intending(not(isInternal())).respondWith(ActivityResult(Activity.RESULT_OK, Intent().setData(pickedUri)))
-            compose.onNodeWithContentDescription(string(ChatR.string.composer_attach)).performClick()
+            click("attach", hasContentDescription(string(ChatR.string.composer_attach)))
             waitForText("attach menu", string(ChatR.string.composer_attach_photo))
             compose.onNodeWithText(string(ChatR.string.composer_attach_photo)).performClick()
             val appImage = peerMessages.await("peer receives the app image") {
@@ -264,7 +263,7 @@ class MessagingE2eTest {
         compose.onNode(hasSetTextAction()).performTextInput(UNKNOWN_USER_ID)
         val startChat = hasText(string(ContactsR.string.contacts_start_chat)) and hasClickAction()
         waitFor("start chat offered for the user id") { exists(startChat) && compose.onNode(startChat).isEnabled() }
-        compose.onNode(startChat).performClick()
+        click("start chat", startChat)
         waitForText("user not found", string(ContactsR.string.contacts_error_user_not_found))
         compose.onNodeWithContentDescription(string(ContactsR.string.contacts_back)).performClick()
         waitForText("chat list after user not found", string(ChatListR.string.chatlist_title))
@@ -370,12 +369,12 @@ class MessagingE2eTest {
 
     private fun waitForText(step: String, text: String) = waitFor(step, hasText(text))
 
-    /** Hides the soft keyboard, then clicks the enabled, displayed button tagged [tag]. */
-    private fun click(button: String, tag: String) {
-        hideSoftKeyboard()
-        Log.i(LOG_TAG, "clicking $button")
-        compose.onNodeWithTag(tag).performScrollTo().assertIsDisplayed().assertIsEnabled().performClick()
-    }
+    /** Clicks the enabled, displayed button tagged [tag] once the layout has settled; see [clickWhenSettled]. */
+    private fun click(button: String, tag: String, next: SemanticsMatcher? = null) =
+        compose.clickWhenSettled(LOG_TAG, button, tag, timeoutMs, next)
+
+    /** Clicks the single node matching [target] once the layout has settled; see [clickWhenSettled]. */
+    private fun click(button: String, target: SemanticsMatcher) = compose.clickWhenSettled(LOG_TAG, button, target, timeoutMs)
 
     /**
      * Focuses the composer and, once the soft keyboard is fully shown, checks the composer sits right on top of
