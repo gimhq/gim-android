@@ -7,24 +7,19 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToString
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import im.g.apps.GimApplication
 import im.g.apps.MainActivity
 import im.g.apps.testing.awaitServerReachable
+import im.g.apps.testing.clickWhenSettled
 import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
 import java.util.UUID
@@ -75,7 +70,7 @@ class CreateRetryE2eTest {
 
         waitFor("onboarding shown", hasText(string(OnboardingR.string.onboarding_welcome_title)))
         enterText("hub address", TAG_SERVER_URL, unreachableUrl)
-        click("create new account", TAG_CREATE_ACCOUNT)
+        click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
         waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))
         enterText("display name", TAG_DISPLAY_NAME, "Retry $suffix")
         click("create account (unreachable hub)", TAG_SUBMIT)
@@ -88,10 +83,10 @@ class CreateRetryE2eTest {
         compose.onAllNodes(hasText(string(OnboardingR.string.onboarding_error_generic))).assertCountEquals(0)
 
         // Corrected address: back to Welcome, fix it, submit the kept display name.
-        click("back to welcome", TAG_BACK)
+        click("back to welcome", TAG_BACK, next = hasTestTag(TAG_CREATE_ACCOUNT))
         waitFor("welcome shown", hasTestTag(TAG_CREATE_ACCOUNT))
         enterText("hub address", TAG_SERVER_URL, serverUrl)
-        click("create new account", TAG_CREATE_ACCOUNT)
+        click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
         waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))
         click("create account (real hub)", TAG_SUBMIT)
         waitFor("recovery code shown", hasTestTag(TAG_RECOVERY_CODE))
@@ -121,16 +116,9 @@ class CreateRetryE2eTest {
         }
     }
 
-    /** Hides the soft keyboard, then clicks the enabled, displayed button tagged [tag]. */
-    private fun click(button: String, tag: String) {
-        instrumentation.runOnMainSync {
-            val window = compose.activity.window
-            WindowCompat.getInsetsController(window, window.decorView).hide(WindowInsetsCompat.Type.ime())
-        }
-        compose.waitForIdle()
-        Log.i(LOG_TAG, "clicking $button")
-        compose.onNodeWithTag(tag).performScrollTo().assertIsDisplayed().assertIsEnabled().performClick()
-    }
+    /** Clicks the enabled, displayed button tagged [tag] once the layout has settled; see [clickWhenSettled]. */
+    private fun click(button: String, tag: String, next: SemanticsMatcher? = null) =
+        compose.clickWhenSettled(LOG_TAG, button, tag, timeoutMs, next)
 
     private fun appHasFocus(): Boolean {
         var focused = false
