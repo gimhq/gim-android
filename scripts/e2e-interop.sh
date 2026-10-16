@@ -26,6 +26,10 @@
 #                   `pm clear`s im.g.apps before and after the run (never uninstalls). logcat is limited to the
 #                   app's UID; a failure saves screenshot.png.
 #
+# Exit codes: 0 all steps passed; 1 a step failed; 5 INTERRUPTED (infra): a container of this run (hub, emulator, CLI)
+# was removed or stopped by someone else, or the hub's /healthz stopped answering (checked after every step and on
+# any failure); in real mode also 4 / 5 / 6 as described above.
+#
 # Outputs (in LOG_DIR, printed at start and end): script.log, hub.log, gradle.log, cargo.log,
 # emulator.log, logcat.txt, markers.log (test step markers), instrumentation.txt (am instrument -r),
 # cli-alice.log / cli-bob.log (every gim command, exit code and JSON output), bob-listen.jsonl.
@@ -49,7 +53,7 @@
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,48p' "$0"
+    sed -n '2,52p' "$0"
     exit 0
 fi
 
@@ -93,6 +97,8 @@ echo "run id: $run, gim-core ref: $core_ref, device: $device"
 [[ $device == emulator ]] || gim_real_resolve_serial
 
 passed=()
+live=()
+interrupted_exit=5
 bg_pids=()
 instrument_pid=
 
@@ -118,7 +124,9 @@ cleanup() {
     trap - EXIT INT TERM
     if [[ $device == real ]] && ((status == 1)) && [[ -n $GIM_REAL_SERIAL ]] && ! gim_real_attached; then
         echo "INTERRUPTED (infra): device $GIM_REAL_SERIAL not attached/online"
-        status=$GIM_REAL_EXIT_INTERRUPTED
+        status=$interrupted_exit
+    elif ((status == 1)) && containers_dead "(at exit)"; then
+        status=$interrupted_exit
     fi
     ((${#bg_pids[@]})) && kill "${bg_pids[@]}" 2>/dev/null || true
     docker logs "$hub" >"$log_dir/hub.log" 2>&1 || true
@@ -142,15 +150,31 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# Containers this run started (hub, emulator, CLI) and that the scenario needs; one removed or stopped by someone else,
+# or a hub whose /healthz stops answering, is an infrastructure interruption (exit 5), not a scenario result.
+containers_dead() {
+    ((${#live[@]})) || return 1
+    local dead
+    dead=$(gim_containers_dead "${live[@]}" | paste -sd',')
+    [[ -n $dead ]] || return 1
+    echo "INTERRUPTED (infra): container $dead $1 (passed so far: ${#passed[@]})" >&2
+}
+
+check_containers() {
+    containers_dead "$1" || return 0
+    exit "$interrupted_exit"
+}
+
 # On the phone, a lost transport is an infrastructure interruption (exit 5), not a scenario result.
 check_attached() {
     [[ $device == real ]] || return 0
     [[ -n $GIM_REAL_SERIAL ]] && ! gim_real_attached || return 0
     echo "INTERRUPTED (infra): device $GIM_REAL_SERIAL not attached/online $1 (passed so far: ${#passed[@]})" >&2
-    exit "$GIM_REAL_EXIT_INTERRUPTED"
+    exit "$interrupted_exit"
 }
 
 fail() {
+    check_containers "($*)"
     check_attached "($*)"
     [[ $device == emulator ]] || gim_real_require_ready
     echo "error: $*" >&2
@@ -160,6 +184,7 @@ fail() {
 pass() {
     passed+=("$1")
     echo "PASS $1"
+    check_containers "after: $1"
     check_attached "after: $1"
 }
 
@@ -253,6 +278,7 @@ signal() {
 if [[ $device == emulator ]]; then
     gim_ensure_emulator_image
     gim_start_hub "$hub" "$repo_root"
+    live+=("$hub")
     url=http://127.0.0.1:8080
     app_url=$GIM_EMULATOR_SERVER_URL
     cli_network=container:$hub
@@ -262,6 +288,7 @@ if [[ $device == emulator ]]; then
         --device /dev/kvm --network "container:$hub" \
         -v "$repo_root:$repo_root:ro" \
         "$GIM_EMULATOR_IMAGE" sleep infinity >/dev/null
+    live+=("$emu")
     docker exec "$emu" bash -c "$GIM_EMULATOR_BOOT" >"$log_dir/emulator-boot.log" 2>&1 &
     boot_pid=$!
     bg_pids+=("$boot_pid")
@@ -289,6 +316,7 @@ cp "$cargo_target/debug/gim" "$work/gim"
 start_cli() {
     docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$cli" --network "$cli_network" \
         -v "$work:$work" -w "$work" rust:1 sleep infinity >/dev/null
+    live+=("$cli")
 }
 # On the phone the hub starts once the builds are done and the device lock is held; the CLI follows it.
 [[ $device == real ]] || start_cli
@@ -316,6 +344,7 @@ if [[ $device == emulator ]]; then
 else
     gim_real_lock
     gim_real_start_hub "$hub" "$repo_root"
+    live+=("$hub")
     app_url=$GIM_REAL_HUB_URL
     if [[ $GIM_REAL_NET == reverse ]]; then
         cli_network=container:$GIM_REAL_ADB_CONTAINER

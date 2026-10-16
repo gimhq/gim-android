@@ -38,13 +38,16 @@
 # failing step, plus one by this script per failed test). Exit codes: 0 every test passed; 1 a test failed (or the
 # build / setup failed); 3 the phone cannot be updated unattended (signature mismatch, refused or unverifiable install
 # confirmation); 4 device not attached at the start (or only over USB: wireless adb is required); 5 INTERRUPTED
-# (infra): the device went away or offline during the run (summary.txt says so), not a test result; 6 NOT READY
+# (infra): the device went away or offline during the run, the hub container was removed / stopped / unhealthy
+# (checked before each class and after a failed one; the run stops), or a class failed while someone touched the phone
+# ("INTERRUPTED (external input)" with the touch times; a class that passes despite touches keeps PASS with a WARN
+# line); 1 outranks this 5 when another class genuinely failed. summary.txt says which. 6 NOT READY
 # (infra): the screen stays off or locked after the wake-up (a secure lock screen needs a person), before a run or when
 # a run failed.
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,43p' "$0"
+    sed -n '2,46p' "$0"
     exit 0
 fi
 
@@ -79,6 +82,8 @@ cleanup() {
         status != GIM_REAL_EXIT_NOT_READY)) &&
         [[ -n $GIM_REAL_SERIAL ]] && ((gim_real_locked)) && ! gim_real_attached; then
         interrupted "during setup"
+        status=$GIM_REAL_EXIT_INTERRUPTED
+    elif ((status == 1)) && [[ -n $GIM_REAL_PORT ]] && hub_dead "during setup"; then
         status=$GIM_REAL_EXIT_INTERRUPTED
     fi
     if ((gim_real_locked)); then
@@ -121,6 +126,63 @@ test_seconds() {
         END { if (f != "") printf "%.1f", f / 1000 }' "$log_dir/logcat.txt"
 }
 
+# external_touches CLASS: touches on the app's windows while CLASS ran (its first TestRunner "started" to its last
+# "finished" in logcat.txt), one "MM-DD HH:MM:SS.mmm" per line. Compose test clicks are dispatched inside the app and
+# never log MIUIInput; real touches (a person, another `adb shell input`) do. A touch within 2 s after the tests'
+# own "SystemDialogs: dismissing" line is attributed to that UiAutomator dismissal and printed with "(dismissal)".
+external_touches() {
+    awk -v cls="($1)" '
+        function ms(clock) { split(clock, a, /[:.]/); return ((a[1] * 60 + a[2]) * 60 + a[3]) * 1000 + a[4] }
+        / TestRunner: started: / && index($0, cls) && start == "" { start = $1 " " $2 }
+        / TestRunner: finished: / && index($0, cls) { end = $1 " " $2 }
+        / SystemDialogs: dismissing / { dismissed[++n] = $1 " " $2 }
+        /MIUIInput: \[MotionEvent\]/ && /windowName .im\.g\.apps/ && /action=ACTION_DOWN/ { touch[++m] = $1 " " $2 }
+        END {
+            if (start == "") exit
+            for (i = 1; i <= m; i++) {
+                if (touch[i] < start || (end != "" && touch[i] > end)) continue
+                note = ""
+                for (j = 1; j <= n; j++) {
+                    d = ms(substr(touch[i], 7)) - ms(substr(dismissed[j], 7))
+                    if (substr(touch[i], 1, 5) == substr(dismissed[j], 1, 5) && d >= 0 && d <= 2000) note = " (dismissal)"
+                }
+                print touch[i] note
+            }
+        }' "$log_dir/logcat.txt"
+}
+
+# check_external_input CLASS RESULT: prints the class result after looking for external touches. A failed class
+# with external touches is "INTERRUPTED (external input)" in summary.txt (returns 5), a passed one keeps PASS with a
+# WARN line; otherwise RESULT is returned unchanged.
+check_external_input() {
+    local class=$1 result=$2 touches
+    touches=$(external_touches "$class" | grep -v '(dismissal)' | paste -sd',' || true)
+    [[ -n $touches ]] || return "$result"
+    if ((result == 1)); then
+        awk -v c="$class#" -v t="$touches" '
+            index($0, "FAIL " c) == 1 { sub(/^FAIL /, "INTERRUPTED (external input) "); $0 = $0 " touches at " t }
+            { print }' "$log_dir/summary.txt" >"$log_dir/summary.tmp" && mv "$log_dir/summary.tmp" "$log_dir/summary.txt"
+        echo "INTERRUPTED (external input): $class failed with touches on the phone at $touches"
+        return "$GIM_REAL_EXIT_INTERRUPTED"
+    fi
+    echo "WARN external input during $class at $touches (result kept)" | tee -a "$log_dir/summary.txt"
+    return "$result"
+}
+
+# hub_dead WHEN [CLASS]: when the hub container is gone, stopped or unhealthy, records the interruption (CLASS's FAIL
+# lines become "INTERRUPTED (infra: hub ...)") and returns 0.
+hub_dead() {
+    local dead
+    dead=$(gim_containers_dead "$hub")
+    [[ -n $dead ]] || return 1
+    if [[ -n ${2:-} ]]; then
+        awk -v c=".$2#" -v d="$dead" '
+            index($0, "FAIL ") == 1 && index($0, c) { sub(/^FAIL /, "INTERRUPTED (infra: hub container " d ") ") }
+            { print }' "$log_dir/summary.txt" >"$log_dir/summary.tmp" && mv "$log_dir/summary.tmp" "$log_dir/summary.txt"
+    fi
+    echo "INTERRUPTED (infra): hub container $dead $1; no further classes run" | tee -a "$log_dir/summary.txt"
+}
+
 interrupted() {
     echo "INTERRUPTED (infra): device $GIM_REAL_SERIAL not attached/online $1" | tee -a "$log_dir/summary.txt"
 }
@@ -135,6 +197,7 @@ instrument() {
         interrupted "before the $name run"
         return "$GIM_REAL_EXIT_INTERRUPTED"
     }
+    hub_dead "before the $name run" && return "$GIM_REAL_EXIT_INTERRUPTED"
     gim_real_wake
     if not_ready "before the $name run"; then
         return "$GIM_REAL_EXIT_NOT_READY"
@@ -146,11 +209,17 @@ instrument() {
         "/tmp/$GIM_RUN_LABEL/instrument.pid" adb -s "$GIM_REAL_SERIAL" shell am instrument -w -r "$@" "$target" </dev/null |
         tr -d '\r' | tee -a "$log_dir/instrumentation.txt" | summarize || status=$?
     ((status)) || return 0
+    hub_dead "during the $name run" "$name" && return "$GIM_REAL_EXIT_INTERRUPTED"
     if ! gim_real_attached; then
         interrupted "during the $name run (results above are partial)"
         return "$GIM_REAL_EXIT_INTERRUPTED"
     fi
-    ((status == 2)) && echo "FAIL $name: instrumentation did not complete" | tee -a "$log_dir/summary.txt"
+    if ((status == 2)); then
+        local why
+        why=$(tac "$log_dir/instrumentation.txt" | sed -n '/^== /q; s/^INSTRUMENTATION_RESULT: shortMsg=//p' | head -n 1)
+        echo "FAIL $name: instrumentation did not complete${why:+ ($why see logcat.txt: Fatal signal / AndroidRuntime)}" |
+            tee -a "$log_dir/summary.txt"
+    fi
     if not_ready "after the $name run (its failures may come from that)"; then
         return "$GIM_REAL_EXIT_NOT_READY"
     fi
@@ -219,6 +288,7 @@ docker run --rm --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --na
 gim_real_lock
 gim_real_start_hub "$hub" "$repo_root"
 url=$GIM_REAL_HUB_URL
+echo "hub container: $hub"
 
 gim_real_install "$app_apk" "$test_apk"
 gim_real_adb shell pm clear "$app" >/dev/null
@@ -241,6 +311,7 @@ classes=$(gim_real_adb shell am instrument -w -r -e log true -e notClass "$camer
 }
 echo "test classes: $(paste -sd' ' <<<"$classes") + ${camera_test##*.}"
 status=0
+external=0
 for class in $classes "$camera_test"; do
     result=0
     if [[ $class == "$camera_test" ]]; then
@@ -254,14 +325,21 @@ for class in $classes "$camera_test"; do
         status=$result
         break
     fi
-    ((status)) || status=$result
+    check_external_input "$class" "$result" || result=$?
+    if ((result == GIM_REAL_EXIT_INTERRUPTED)); then
+        external=1
+    elif ((result)); then
+        status=1
+    fi
 done
+# A genuine test failure outranks a class interrupted by external input.
+((status || !external)) || status=$GIM_REAL_EXIT_INTERRUPTED
 
 echo
 echo "summary ($log_dir/summary.txt):"
 cat "$log_dir/summary.txt"
 if ((status == GIM_REAL_EXIT_INTERRUPTED)); then
-    echo "real-device run INTERRUPTED (infra): device $GIM_REAL_SERIAL went away"
+    echo "real-device run INTERRUPTED (infra): see summary.txt (device went away, hub container gone, or external input)"
 elif ((status == GIM_REAL_EXIT_NOT_READY)); then
     echo "real-device run NOT READY (infra): the phone's screen is off or locked"
 elif ((status)); then
