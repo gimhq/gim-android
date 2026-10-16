@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- CallbackThreadTest creates an identity on the device-test hub from the test APK's own process. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>
