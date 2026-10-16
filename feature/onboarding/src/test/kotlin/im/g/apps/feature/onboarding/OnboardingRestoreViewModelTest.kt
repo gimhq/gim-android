@@ -65,13 +65,13 @@ class OnboardingRestoreViewModelTest {
         )
 
     /**
-     * Models gim-core's local state, shared by every client (one data dir): `restoreFromRecovery` stores the identity
-     * before signing in, so a hub in [down] fails it with `Network` and leaves an identity behind that fails every
-     * later attempt (`Crypto`, "identity already exists") until `signOut` wipes it.
+     * Models gim-core's onboarding retry: a hub in [down] fails `restoreFromRecovery` with `Network`, and the call
+     * discards what the attempt stored, so the same client can call it again. [signOuts] counts `signOut` calls,
+     * which a retry must not need.
      */
     private class CoreLocalState(val down: MutableSet<String>) {
-        var leftoverIdentity = false
         val clients = mutableListOf<String>()
+        var signOuts = 0
     }
 
     private fun TestScope.coreManager(local: CoreLocalState) = GimClientManager(
@@ -82,16 +82,12 @@ class OnboardingRestoreViewModelTest {
             local.clients += config.serverUrl
             object : GimClient by fake {
                 override suspend fun restoreFromRecovery(userId: String, recoveryCode: String, revokeOthers: Boolean) {
-                    if (local.leftoverIdentity) throw GimException.Crypto("identity already exists")
-                    if (config.serverUrl in local.down) {
-                        local.leftoverIdentity = true
-                        throw GimException.Network("connection refused")
-                    }
+                    if (config.serverUrl in local.down) throw GimException.Network("connection refused")
                     fake.restoreFromRecovery(userId, recoveryCode, revokeOthers)
                 }
 
                 override suspend fun signOut() {
-                    local.leftoverIdentity = false
+                    local.signOuts++
                     fake.signOut()
                 }
             }
@@ -252,8 +248,7 @@ class OnboardingRestoreViewModelTest {
             advanceUntilIdle()
             assertEquals(OnboardingEvent.Finished, awaitItem())
         }
-        assertEquals(2, clients.size)
-        assertEquals(USER_ID, clients.last().userId())
+        assertEquals(USER_ID, clients.single().userId())
     }
 
     @Test
@@ -269,7 +264,7 @@ class OnboardingRestoreViewModelTest {
     @Test
     fun retry_later_shows_the_wait_and_allows_a_retry() = runTest(dispatcher) {
         val vm = OnboardingViewModel(
-            manager { if (clients.isEmpty()) it.restoreError = GimException.RetryLater(429, 42, "rate_limited") },
+            manager { it.restoreError = GimException.RetryLater(429, 42, "rate_limited") },
             SERVER_URL,
         )
         form(vm)
@@ -279,6 +274,7 @@ class OnboardingRestoreViewModelTest {
         assertEquals(OnboardingError.TryAgainLater(42), vm.state.value.error)
         assertTrue(vm.state.value.canRestore)
 
+        clients.single().restoreError = null
         vm.events.test {
             vm.restore()
             assertNull(vm.state.value.error)
@@ -308,7 +304,6 @@ class OnboardingRestoreViewModelTest {
         vm.restore()
         advanceUntilIdle()
         assertEquals(OnboardingError.CannotReachServer, vm.state.value.error)
-        assertFalse(local.leftoverIdentity)
 
         local.down.clear()
         vm.events.test {
@@ -317,7 +312,9 @@ class OnboardingRestoreViewModelTest {
             assertEquals(OnboardingEvent.Finished, awaitItem())
         }
         assertNull(vm.state.value.restoreCodeError)
-        assertEquals(listOf(SERVER_URL, SERVER_URL), local.clients)
+        // The same client retries: no sign-out, no second client.
+        assertEquals(listOf(SERVER_URL), local.clients)
+        assertEquals(0, local.signOuts)
     }
 
     @Test
@@ -339,6 +336,7 @@ class OnboardingRestoreViewModelTest {
             assertEquals(OnboardingEvent.Finished, awaitItem())
         }
         assertEquals(listOf(UNREACHABLE_URL, SERVER_URL), local.clients)
+        assertEquals(0, local.signOuts)
         assertEquals(SERVER_URL, store.get())
     }
 

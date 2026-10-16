@@ -1,6 +1,7 @@
 package im.g.apps.feature.contacts
 
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.InMemoryPendingLeaveStore
 import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.FakeGimClient
@@ -27,11 +28,12 @@ class GroupInfoViewModelTest {
 
     private lateinit var fake: FakeGimClient
     private lateinit var client: TestClient
+    private val pendingLeaves = InMemoryPendingLeaveStore()
 
     private fun TestScope.newViewModel(chatId: String = DemoData.GROUP_CHAT_ID): GroupInfoViewModel {
         fake = demoClient(backgroundScope).also { it.addDirectoryUser(marta) }
         client = TestClient(fake)
-        return GroupInfoViewModel(client, chatId)
+        return GroupInfoViewModel(client, chatId, pendingLeaves, clock = { NOW_MS })
     }
 
     private fun GroupInfoViewModel.memberIds() = state.value.members.map { it.user.userId }
@@ -126,7 +128,7 @@ class GroupInfoViewModelTest {
         vm.requestRemove(DemoData.ana)
         vm.confirmRemove()
         advanceUntilIdle()
-        assertEquals(GroupInfoEvent.ShowError(ContactsError.NOT_FOUND), vm.events.first())
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.NotFound), vm.events.first())
         assertTrue(DemoData.ana.userId in vm.memberIds())
         assertFalse(vm.state.value.busy)
     }
@@ -157,7 +159,7 @@ class GroupInfoViewModelTest {
         val vm = newViewModel()
         client.chatMembersError = GimException.Storage("disk full")
         advanceUntilIdle()
-        assertEquals(GroupInfoEvent.ShowError(ContactsError.UNKNOWN), vm.events.first())
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.Unknown), vm.events.first())
     }
 
     @Test
@@ -184,7 +186,7 @@ class GroupInfoViewModelTest {
         vm.onRenameChange("Cyclades Crew")
         vm.confirmRename()
         advanceUntilIdle()
-        assertEquals(GroupInfoEvent.ShowError(ContactsError.INVALID_INPUT), vm.events.first())
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.InvalidInput), vm.events.first())
         assertEquals("Aegean Crew", vm.state.value.chat?.name)
         assertNull(vm.state.value.renameDraft)
         assertFalse(vm.state.value.busy)
@@ -199,27 +201,67 @@ class GroupInfoViewModelTest {
         vm.onRenameChange("Cyclades Crew")
         vm.confirmRename()
         advanceUntilIdle()
-        assertEquals(GroupInfoEvent.ShowError(ContactsError.NOT_SUPPORTED), vm.events.first())
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.NotSupported), vm.events.first())
         assertEquals("Aegean Crew", vm.state.value.chat?.name)
         assertFalse(vm.state.value.busy)
     }
 
     @Test
-    fun leave_requiresConfirmationAndEmitsLeftChat() = runTest {
+    fun leave_requiresConfirmation_recordsThePendingLeaveAndEmitsLeftChat() = runTest {
         val vm = newViewModel()
         advanceUntilIdle()
         vm.confirmLeave()
         advanceUntilIdle()
-        assertTrue(DemoData.GROUP_CHAT_ID in fake.chatIds())
+        assertTrue(pendingLeaves.pending.value.isEmpty())
 
         vm.requestLeave()
         assertTrue(vm.state.value.confirmingLeave)
         vm.confirmLeave()
         advanceUntilIdle()
         assertEquals(GroupInfoEvent.LeftChat, vm.events.first())
-        assertFalse(DemoData.GROUP_CHAT_ID in fake.chatIds())
-        assertTrue(vm.state.value.missing)
+        assertEquals(mapOf(DemoData.GROUP_CHAT_ID to NOW_MS), pendingLeaves.pending.value)
+        assertTrue(vm.state.value.leaving)
+        // Another member has not committed the leave yet: the chat stays.
+        assertTrue(DemoData.GROUP_CHAT_ID in fake.chatIds())
+
+        vm.requestLeave()
+        assertFalse(vm.state.value.confirmingLeave)
+        pendingLeaves.remove(DemoData.GROUP_CHAT_ID)
+        advanceUntilIdle()
+        assertFalse(vm.state.value.leaving)
+    }
+
+    @Test
+    fun leave_failure_recordsNothing() = runTest {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        fake.leaveChat(DemoData.GROUP_CHAT_ID)
+        fake.commitLeave(DemoData.GROUP_CHAT_ID)
+        vm.requestLeave()
+        vm.confirmLeave()
+        advanceUntilIdle()
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.InvalidInput), vm.events.first())
+        assertTrue(pendingLeaves.pending.value.isEmpty())
+    }
+
+    @Test
+    fun addMember_unknownUserId_showsUserNotFound() = runTest {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        val ghost = "u" + "z".repeat(54) + "a"
+        vm.openAddMember()
+        vm.onAddMemberQueryChange(ghost)
+        advanceUntilIdle()
+        val found = (vm.state.value.addMemberDialog?.search as UserSearchState.Found).user
+        vm.addMember(found)
+        advanceUntilIdle()
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.UserNotFound), vm.events.first())
+        assertFalse(ghost in vm.memberIds())
     }
 
     private suspend fun FakeGimClient.chatIds(): List<String> = chatListFlow().first().map { it.chatId }
+
+    private companion object {
+        const val NOW_MS = 1_760_000_000_000L
+    }
 }

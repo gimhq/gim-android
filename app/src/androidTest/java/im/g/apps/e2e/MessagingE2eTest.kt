@@ -12,8 +12,11 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
@@ -249,6 +252,40 @@ class MessagingE2eTest {
 
         assertComposerDockedOnIme()
 
+        // A direct chat with a well-formed but unknown user id: "User not found", no chat created.
+        compose.onNodeWithContentDescription(string(ChatR.string.chat_back)).performClick()
+        waitForText("chat list", string(ChatListR.string.chatlist_title))
+        compose.onNodeWithContentDescription(string(ChatListR.string.chatlist_new_message)).performClick()
+        waitForText("new message menu", string(ChatListR.string.chatlist_new_chat))
+        compose.onNodeWithText(string(ChatListR.string.chatlist_new_chat)).performClick()
+        waitFor("new chat search", hasSetTextAction())
+        compose.onNode(hasSetTextAction()).performTextInput(UNKNOWN_USER_ID)
+        val startChat = hasText(string(ContactsR.string.contacts_start_chat)) and hasClickAction()
+        waitFor("start chat offered for the user id") { exists(startChat) && compose.onNode(startChat).isEnabled() }
+        compose.onNode(startChat).performClick()
+        waitForText("user not found", string(ContactsR.string.contacts_error_user_not_found))
+        compose.onNodeWithContentDescription(string(ContactsR.string.contacts_back)).performClick()
+        waitForText("chat list after user not found", string(ChatListR.string.chatlist_title))
+        assertFalse(exists(hasText(UNKNOWN_USER_ID.removePrefix("u").take(8), substring = true)))
+
+        // Leave the group: "Leaving…" with the composer disabled until the peer commits the leave, then `Left`.
+        compose.onNode(hasText(groupName) and hasClickAction()).performClick()
+        waitFor("group chat reopened", hasTestTag(TAG_COMPOSER))
+        // Hold the peer's sync so the commit (and the own `Left`) cannot arrive before "Leaving…" is checked.
+        runBlocking { peer.stopSync() }
+        compose.onNodeWithContentDescription(string(ChatR.string.chat_group_info)).performClick()
+        waitForText("group info", string(ContactsR.string.contacts_leave_group))
+        compose.onNode(hasText(string(ContactsR.string.contacts_leave_group)) and hasClickAction()).performScrollTo().performClick()
+        val confirmLeave = hasText(string(ContactsR.string.contacts_leave)) and hasClickAction()
+        waitFor("leave confirmation", confirmLeave)
+        compose.onNode(confirmLeave).performClick()
+        waitFor("composer shows leaving") { composerShows(string(ChatR.string.chat_composer_leaving)) }
+        compose.onNodeWithTag(TAG_COMPOSER).assertIsNotEnabled()
+        runBlocking { peer.startSync() }
+        waitForText("app shows its own left change", string(ChatR.string.chat_member_left, appName))
+        waitFor("composer shows left") { composerShows(string(ChatR.string.chat_composer_left)) }
+        compose.onNodeWithTag(TAG_COMPOSER).assertIsNotEnabled()
+
         // Sign out through the chat list overflow menu.
         assertTrue(keystoreHasAlias())
         compose.onNodeWithContentDescription(string(ChatR.string.chat_back)).performClick()
@@ -308,6 +345,14 @@ class MessagingE2eTest {
     private fun waitFor(step: String, matcher: SemanticsMatcher) = waitFor(step) { exists(matcher) }
 
     private fun exists(matcher: SemanticsMatcher) = compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty()
+
+    private fun SemanticsNodeInteraction.isEnabled() = SemanticsProperties.Disabled !in fetchSemanticsNode().config
+
+    /** Whether the composer field (or its placeholder) shows [text]. */
+    private fun composerShows(text: String) = compose
+        .onAllNodes(hasText(text) and hasAnyAncestor(hasTestTag(TAG_COMPOSER)), useUnmergedTree = true)
+        .fetchSemanticsNodes().isNotEmpty() ||
+        exists(hasTestTag(TAG_COMPOSER) and hasText(text))
 
     /** Replaces the text of the field tagged [tag] and waits until the field holds exactly [value]. */
     private fun enterText(field: String, tag: String, value: String) {
@@ -460,6 +505,9 @@ class MessagingE2eTest {
         const val PNG_MIME = "image/png"
         const val IME_SETTLE_POLL_MS = 300L
         const val IME_DOCK_TOLERANCE_PX = 4f
+
+        /** Well-formed (u + 55 base32 characters) but unknown to the hub. */
+        const val UNKNOWN_USER_ID = "u" + "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" + "a"
 
         /** gim-core's display form: 39 Crockford base32 symbols in blocks of four separated by '-'. */
         val RECOVERY_CODE = Regex("([0-9A-HJKMNP-TV-Z]{4}-){9}[0-9A-HJKMNP-TV-Z]{3}")

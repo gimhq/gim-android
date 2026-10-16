@@ -11,6 +11,7 @@ import im.g.apps.core.designsystem.component.TickState
 import im.g.apps.core.designsystem.theme.GimTheme
 import im.g.apps.feature.chat.timeline.ChatHeaderUi
 import im.g.apps.feature.chat.timeline.ChatUiState
+import im.g.apps.feature.chat.timeline.FileUi
 import im.g.apps.feature.chat.timeline.MessageRow
 import im.g.apps.feature.chat.timeline.TimelineRowUi
 import kotlinx.collections.immutable.persistentListOf
@@ -29,6 +30,7 @@ class ChatScreenTest {
 
     private val loadOlderCalls = mutableListOf<Unit>()
     private val retried = mutableListOf<String>()
+    private val retriedMedia = mutableListOf<String>()
 
     private fun message(id: String, body: String, tick: TickState? = null) = MessageRow(
         key = id,
@@ -68,6 +70,7 @@ class ChatScreenTest {
                     onImageNeeded = {},
                     onOpenFile = {},
                     onMessageLongPress = {},
+                    onRetryMedia = { retriedMedia += it },
                 )
             }
         }
@@ -118,5 +121,19 @@ class ChatScreenTest {
 
         rule.onNodeWithText("Lost").performClick()
         assertEquals(listOf("m2"), retried)
+    }
+
+    @Test
+    fun unavailableMedia_showsARetryButton() {
+        val file = message("m2", "Route").copy(
+            contentType = "message-file",
+            file = FileUi("route.pdf", "12 KB", "application/pdf", "PDF"),
+            mediaUnavailable = true,
+        )
+        show(listOf(file, message("m1", "Fine")))
+
+        rule.onNodeWithText("Retry download", useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag(MEDIA_RETRY_TEST_TAG).performClick()
+        assertEquals(listOf("m2"), retriedMedia)
     }
 }

@@ -122,7 +122,31 @@ class NewGroupViewModelTest {
         vm.onNameChange("Crew")
         vm.create()
         advanceUntilIdle()
-        assertEquals(NewGroupEvent.ShowError(ContactsError.INVALID_INPUT), vm.events.first())
+        assertEquals(NewGroupEvent.ShowError(ContactsError.InvalidInput), vm.events.first())
         assertTrue(vm.state.value.canCreate)
+    }
+
+    @Test
+    fun create_withOnlyUnknownUsers_showsUserNotFoundAndCreatesNothing() = runTest {
+        val (vm, client) = newViewModel()
+        advanceUntilIdle()
+        val before = client.chatListFlow().first().size
+        vm.onQueryChange(UNKNOWN_USER_ID)
+        advanceUntilIdle()
+        val found = vm.state.value.search as UserSearchState.Found
+        assertEquals(UNKNOWN_USER_ID, found.user.userId)
+        assertTrue(client.lookups.isEmpty())
+        vm.addMember(found.user)
+        vm.next()
+        vm.onNameChange("Ghosts")
+        vm.create()
+        advanceUntilIdle()
+        assertEquals(NewGroupEvent.ShowError(ContactsError.UserNotFound), vm.events.first())
+        assertEquals(before, client.chatListFlow().first().size)
+    }
+
+    private companion object {
+        /** Well-formed, but no such user on the hub. */
+        const val UNKNOWN_USER_ID = "u" + "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" + "a"
     }
 }

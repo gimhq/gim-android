@@ -8,12 +8,19 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.InMemoryPendingLeaveStore
+import im.g.apps.core.bridge.MembershipChangeKind
 import im.g.apps.core.bridge.MessageContent
 import im.g.apps.core.bridge.MessageItem
+import im.g.apps.core.bridge.PendingLeaveStore
 import im.g.apps.core.bridge.SendState
+import im.g.apps.core.bridge.Session
 import im.g.apps.core.bridge.TimelineItem
+import im.g.apps.core.bridge.displayLabel
 import im.g.apps.core.bridge.flow.itemsFlow
+import im.g.apps.core.bridge.hasOwnLeft
 import im.g.apps.feature.chat.R
+import im.g.apps.feature.chat.toUiText
 import im.g.apps.feature.chat.timeline.UiText
 import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.CoroutineDispatcher
@@ -25,6 +32,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -37,7 +46,8 @@ import java.io.IOException
 /**
  * Composer and message actions of one chat. Kept separate from [im.g.apps.feature.chat.ChatViewModel]
  * so the timeline stays read-only; it follows the same gim-core timeline to decide which actions a
- * long-pressed message offers.
+ * long-pressed message offers, and the signed-in user's [ChatMembership]: a leave recorded in [pendingLeaves] keeps
+ * the composer disabled until the own `Left` change arrives, which also clears the record.
  *
  * @param clock epoch-millisecond time source for the typing throttle.
  */
@@ -48,6 +58,7 @@ class ComposerViewModel(
     private val clock: () -> Long = System::currentTimeMillis,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val pendingLeaves: PendingLeaveStore = InMemoryPendingLeaveStore(),
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ComposerUiState())
@@ -65,10 +76,22 @@ class ComposerViewModel(
 
     init {
         viewModelScope.launch {
-            client.timeline(chatId).itemsFlow()
-                .map { items -> items.mapNotNull { (it as? TimelineItem.Message)?.item }.associateBy { it.messageId } }
+            val self = try {
+                client.session()
+            } catch (_: GimException) {
+                null
+            }
+            val leaveRequest = pendingLeaves.pending.map { it[chatId] }.distinctUntilChanged()
+            combine(client.timeline(chatId).itemsFlow(), leaveRequest) { items, requestedAtMs ->
+                val byId = items.mapNotNull { (it as? TimelineItem.Message)?.item }.associateBy { it.messageId }
+                Triple(byId, chatMembership(items, self, requestedAtMs), requestedAtMs)
+            }
                 .flowOn(defaultDispatcher)
-                .collect { messages = it }
+                .collect { (byId, membership, requestedAtMs) ->
+                    messages = byId
+                    if (requestedAtMs != null && membership != ChatMembership.LEAVING) pendingLeaves.remove(chatId)
+                    _uiState.update { it.copy(membership = membership) }
+                }
         }
     }
 
@@ -96,7 +119,7 @@ class ComposerViewModel(
     fun send() {
         val state = _uiState.value
         val body = state.draft.trim()
-        if (body.isEmpty()) return
+        if (body.isEmpty() || !state.isMember) return
         val mode = state.mode
         _uiState.update { it.copy(draft = "", mode = ComposerMode.Normal) }
         stopTyping()
@@ -156,7 +179,7 @@ class ComposerViewModel(
         val message = takeAction(messageId) { it.canReply } ?: return
         _uiState.update {
             it.copy(
-                mode = ComposerMode.Replying(messageId, message.sender.displayName, previewText(message.content)),
+                mode = ComposerMode.Replying(messageId, message.sender.displayLabel, previewText(message.content)),
                 draft = if (it.mode is ComposerMode.Editing) "" else it.draft,
             )
         }
@@ -251,8 +274,8 @@ class ComposerViewModel(
     private suspend fun runAction(@StringRes error: Int, action: suspend () -> Unit) {
         try {
             action()
-        } catch (_: GimException) {
-            emitError(error)
+        } catch (e: GimException) {
+            _events.send(ComposerEvent.Error(e.toUiText(error)))
         }
     }
 
@@ -273,8 +296,26 @@ class ComposerViewModel(
         const val TYPING_IDLE_MS = 5_000L
         const val MAX_ATTACHMENT_BYTES = 100L * 1024 * 1024
 
-        fun factory(client: GimClient, chatId: String, uriCopier: UriCopier): ViewModelProvider.Factory =
-            viewModelFactory { initializer { ComposerViewModel(client, chatId, uriCopier) } }
+        fun factory(
+            client: GimClient,
+            chatId: String,
+            uriCopier: UriCopier,
+            pendingLeaves: PendingLeaveStore,
+        ): ViewModelProvider.Factory =
+            viewModelFactory { initializer { ComposerViewModel(client, chatId, uriCopier, pendingLeaves = pendingLeaves) } }
+
+        /**
+         * [ChatMembership.LEAVING] while a leave requested at [leaveRequestedAtMs] has no own `Left` change yet, else
+         * [ChatMembership.LEFT] if the latest membership change of [self] is a `Left`.
+         */
+        internal fun chatMembership(items: List<TimelineItem>, self: Session?, leaveRequestedAtMs: Long?): ChatMembership {
+            if (self == null) return ChatMembership.JOINED
+            if (leaveRequestedAtMs != null && !items.hasOwnLeft(self, leaveRequestedAtMs)) return ChatMembership.LEAVING
+            val own = items.lastOrNull {
+                it is TimelineItem.MembershipChange && (it.userName == self.displayName || it.userName == self.userId)
+            } as TimelineItem.MembershipChange?
+            return if (own?.change == MembershipChangeKind.LEFT) ChatMembership.LEFT else ChatMembership.JOINED
+        }
 
         internal fun actionsFor(message: MessageItem): MessageActionsUi {
             val content = message.content

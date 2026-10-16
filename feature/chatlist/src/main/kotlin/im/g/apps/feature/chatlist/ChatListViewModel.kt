@@ -10,6 +10,7 @@ import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.ConnectionState
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.displayNameOrShortId
 import im.g.apps.core.bridge.flow.chatListFlow
 import im.g.apps.core.bridge.flow.connectionStateFlow
 import kotlinx.collections.immutable.persistentMapOf
@@ -92,12 +93,12 @@ class ChatListViewModel(
         val sender = when {
             last == null -> null
             last.isOwn -> PreviewSender.You
-            kind == ChatKind.GROUP -> PreviewSender.Member(firstName(last.senderName))
+            kind == ChatKind.GROUP -> PreviewSender.Member(firstName(displayNameOrShortId(last.senderName)))
             else -> null
         }
         return ChatRowUi(
             id = chatId,
-            title = name,
+            title = displayNameOrShortId(name),
             avatarPath = avatar?.let { thumbs[MediaKey(chatId, it.messageId)] },
             sender = sender,
             preview = last?.text.orEmpty(),

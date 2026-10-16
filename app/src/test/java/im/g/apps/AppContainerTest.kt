@@ -7,6 +7,7 @@ import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimClientFactory
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.InMemoryServerUrlStore
+import im.g.apps.core.bridge.LocalTimeZone
 import im.g.apps.core.bridge.PlatformHooks
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.FakeGimClient
@@ -27,6 +28,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.time.Instant
+import java.util.TimeZone
 
 @RunWith(AndroidJUnit4::class)
 class AppContainerTest {
@@ -67,6 +70,46 @@ class AppContainerTest {
 
         assertNotNull(container.manager.connect(DemoData.SERVER_URL))
         assertSame(container.hooks, received)
+    }
+
+    @Test
+    fun clients_follow_the_device_time_zone_from_creation_and_on_changes() = runTest {
+        val zones = mutableListOf<LocalTimeZone?>()
+        val container = AppContainer(
+            context,
+            scope,
+            serverUrlStore = InMemoryServerUrlStore(),
+            clientFactory = GimClientFactory { _, _ ->
+                val fake = FakeGimClient(scope)
+                object : GimClient by fake {
+                    override fun setLocalTimeZone(zone: LocalTimeZone?) {
+                        zones += zone
+                        fake.setLocalTimeZone(zone)
+                    }
+                }
+            },
+        )
+
+        container.onTimeZoneChanged()
+        assertEquals(emptyList<LocalTimeZone?>(), zones)
+        container.manager.connect(DemoData.SERVER_URL)
+        assertEquals(listOf<LocalTimeZone?>(SystemLocalTimeZone), zones)
+        container.onTimeZoneChanged()
+        assertEquals(listOf<LocalTimeZone?>(SystemLocalTimeZone, SystemLocalTimeZone), zones)
+    }
+
+    @Test
+    fun system_local_time_zone_reports_the_default_zone_offset_with_dst() {
+        val default = TimeZone.getDefault()
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("Europe/Athens"))
+            assertEquals(3 * 3600, SystemLocalTimeZone.utcOffsetSecs(Instant.parse("2026-07-01T12:00:00Z").toEpochMilli()))
+            assertEquals(2 * 3600, SystemLocalTimeZone.utcOffsetSecs(Instant.parse("2026-12-01T12:00:00Z").toEpochMilli()))
+            TimeZone.setDefault(TimeZone.getTimeZone("Europe/Lisbon"))
+            assertEquals(0, SystemLocalTimeZone.utcOffsetSecs(Instant.parse("2026-12-01T12:00:00Z").toEpochMilli()))
+        } finally {
+            TimeZone.setDefault(default)
+        }
     }
 
     @Test

@@ -13,6 +13,7 @@ class GimApplication : Application() {
         super.onCreate()
         container = AppContainer(this)
         container.sync.start()
+        registerTimeZoneChangedReceiver(this, container::onTimeZoneChanged)
         ProcessLifecycleOwner.get().lifecycle.addObserver(
             object : DefaultLifecycleObserver {
                 override fun onStart(owner: LifecycleOwner) = container.sync.setForeground(true)

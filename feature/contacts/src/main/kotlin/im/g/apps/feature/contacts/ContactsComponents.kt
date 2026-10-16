@@ -34,6 +34,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import im.g.apps.core.bridge.UserProfile
+import im.g.apps.core.bridge.displayLabel
+import im.g.apps.core.bridge.shortUserId
 import im.g.apps.core.designsystem.component.Avatar
 import im.g.apps.core.designsystem.theme.GimTheme
 
@@ -74,7 +76,7 @@ internal fun UserSearchField(
             is UserSearchState.Found -> UserRow(user = state.user, trailing = { resultAction(state.user) })
             is UserSearchState.NotFound -> SearchNote(stringResource(R.string.contacts_search_not_found, state.handle))
             is UserSearchState.Error -> Text(
-                text = stringResource(state.error.messageRes),
+                text = state.error.message(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
             )
@@ -87,7 +89,10 @@ private fun SearchNote(text: String) {
     Text(text = text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
-/** Avatar, display name (with an optional "You" marker) and handle if any, plus a trailing slot. */
+/**
+ * Avatar, display name (with an optional "You" marker) and the handle, or a short user id for users without one,
+ * plus a trailing slot.
+ */
 @Composable
 internal fun UserRow(
     user: UserProfile,
@@ -101,15 +106,14 @@ internal fun UserRow(
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Avatar(name = user.displayName, imagePath = null, size = 40.dp)
+        Avatar(name = user.displayLabel, imagePath = null, size = 40.dp)
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            val name = if (isSelf) "${user.displayName} (${stringResource(R.string.contacts_you)})" else user.displayName
+            val name = if (isSelf) "${user.displayLabel} (${stringResource(R.string.contacts_you)})" else user.displayLabel
             Text(text = name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            // Handles are optional (empty until claimed).
-            if (user.handle.isNotEmpty()) {
+            userSubtitle(user)?.let { subtitle ->
                 Text(
-                    text = stringResource(R.string.contacts_handle, user.handle),
+                    text = subtitle,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -119,6 +123,17 @@ internal fun UserRow(
         }
         trailing()
     }
+}
+
+/**
+ * The handle of [user]; handles are optional (empty until claimed, and remote users may have none), so without one
+ * the short user id, unless the name already shows it.
+ */
+@Composable
+internal fun userSubtitle(user: UserProfile): String? = when {
+    user.handle.isNotEmpty() -> stringResource(R.string.contacts_handle, user.handle)
+    user.displayLabel == shortUserId(user.userId) -> null
+    else -> shortUserId(user.userId)
 }
 
 @Composable

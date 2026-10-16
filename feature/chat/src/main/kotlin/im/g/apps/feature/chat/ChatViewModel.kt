@@ -13,6 +13,8 @@ import im.g.apps.core.bridge.MediaRef
 import im.g.apps.core.bridge.MessageContent
 import im.g.apps.core.bridge.MessageItem
 import im.g.apps.core.bridge.TimelineItem
+import im.g.apps.core.bridge.displayLabel
+import im.g.apps.core.bridge.displayNameOrShortId
 import im.g.apps.core.bridge.flow.chatListFlow
 import im.g.apps.core.bridge.flow.itemsFlow
 import im.g.apps.core.bridge.flow.typingFlow
@@ -24,6 +26,7 @@ import im.g.apps.feature.chat.timeline.TimelineMapper
 import im.g.apps.feature.chat.timeline.UiText
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -77,6 +80,7 @@ class ChatViewModel(
         val hasMoreOlder: Boolean,
         val imagePaths: Map<String, String>,
         val avatarPath: String?,
+        val unavailableMedia: Set<String>,
     )
 
     private val mapper = TimelineMapper(zone, locale)
@@ -85,6 +89,9 @@ class ChatViewModel(
     private val hasMoreOlder = MutableStateFlow(true)
     private val imagePaths = MutableStateFlow(persistentMapOf<String, String>())
     private val avatarPath = MutableStateFlow<String?>(null)
+
+    /** Messages whose attachment the uploader's hub could not serve for now; their rows offer a retry. */
+    private val unavailableMedia = MutableStateFlow(persistentSetOf<String>())
     private val requestedImages = HashSet<String>()
     private val readRequests = MutableSharedFlow<String>(extraBufferCapacity = 64)
     private var lastReadRequest: String? = null
@@ -98,7 +105,7 @@ class ChatViewModel(
         .distinctUntilChanged()
         .shareIn(viewModelScope, SharingStarted.Eagerly, replay = 1)
 
-    private val extras = combine(isLoadingOlder, hasMoreOlder, imagePaths, avatarPath, ::Extras)
+    private val extras = combine(isLoadingOlder, hasMoreOlder, imagePaths, avatarPath, unavailableMedia, ::Extras)
 
     val uiState: StateFlow<ChatUiState> = combine(
         flow { emitAll(timeline.await().itemsFlow()) },
@@ -173,9 +180,24 @@ class ChatViewModel(
                 }
                 val full = client.fetchMedia(chatId, messageId, mediaPaths.mediaPath(image.media, null))
                 imagePaths.value = imagePaths.value.put(messageId, full)
-            } catch (_: GimException) {
+            } catch (e: GimException) {
                 requestedImages.remove(messageId)
+                if (e.isMediaUnavailable) unavailableMedia.value = unavailableMedia.value.add(messageId)
             }
+        }
+    }
+
+    /** Fetches the attachment of [messageId] again after the uploader's hub could not serve it. */
+    fun retryMedia(messageId: String) {
+        if (messageId !in unavailableMedia.value) return
+        unavailableMedia.value = unavailableMedia.value.remove(messageId)
+        when (snapshot.byId[messageId]?.content) {
+            is MessageContent.Image -> {
+                imagePaths.value = imagePaths.value.remove(messageId)
+                onImageNeeded(messageId)
+            }
+            is MessageContent.File -> onOpenFile(messageId)
+            else -> Unit
         }
     }
 
@@ -186,8 +208,14 @@ class ChatViewModel(
             try {
                 val path = client.fetchMedia(chatId, messageId, mediaPaths.mediaPath(file.media, file.fileName))
                 _events.send(ChatEvent.OpenFile(path, file.media.mime))
-            } catch (_: GimException) {
-                _events.send(ChatEvent.Error(UiText.Res(R.string.chat_error_open_file)))
+            } catch (e: GimException) {
+                val fallback = if (e.isMediaUnavailable) {
+                    unavailableMedia.value = unavailableMedia.value.add(messageId)
+                    R.string.chat_error_media_unavailable
+                } else {
+                    R.string.chat_error_open_file
+                }
+                _events.send(ChatEvent.Error(e.toUiText(fallback)))
             }
         }
     }
@@ -197,9 +225,9 @@ class ChatViewModel(
         viewModelScope.launch {
             try {
                 client.retrySend(chatId, messageId)
-            } catch (_: GimException) {
+            } catch (e: GimException) {
                 // The message stays failed.
-                _events.send(ChatEvent.Error(UiText.Res(R.string.composer_error_retry)))
+                _events.send(ChatEvent.Error(e.toUiText(R.string.composer_error_retry)))
             }
         }
     }
@@ -231,12 +259,12 @@ class ChatViewModel(
         }
         return ChatUiState(
             header = ChatHeaderUi(
-                title = summary?.name.orEmpty(),
+                title = summary?.name?.let(::displayNameOrShortId).orEmpty(),
                 subtitle = subtitle,
                 avatarPath = extras.avatarPath,
                 isGroup = isGroup,
             ),
-            items = mapper.map(items, isGroup, extras.imagePaths, clock()),
+            items = mapper.map(items, isGroup, extras.imagePaths, clock(), extras.unavailableMedia),
             isLoadingOlder = extras.isLoadingOlder,
             hasMoreOlder = extras.hasMoreOlder,
             typingLabel = typingLabel,
@@ -246,7 +274,7 @@ class ChatViewModel(
 
     private fun typingLabel(userIds: List<String>, messages: List<MessageItem>): UiText? {
         if (userIds.isEmpty()) return null
-        val names = userIds.map { id -> messages.lastOrNull { it.sender.userId == id }?.sender?.displayName }
+        val names = userIds.map { id -> messages.lastOrNull { it.sender.userId == id }?.sender?.displayLabel }
         return when {
             names.size == 1 -> names[0]?.let { UiText.Res(R.string.chat_typing_one, persistentListOf(it)) }
                 ?: UiText.Res(R.string.chat_typing_someone)
