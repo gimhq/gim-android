@@ -35,6 +35,7 @@ import im.g.apps.core.bridge.PlatformHooks
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
 import im.g.apps.testing.awaitServerReachable
 import im.g.apps.testing.dismissSystemDialogs
+import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
 import java.io.File
 import java.util.UUID
@@ -88,6 +89,7 @@ class DevicesE2eTest {
 
     @Test
     fun listsLinkedDeviceAndRevokesIt() {
+        keepScreenOn(instrumentation, compose.activity)
         awaitServerReachable(instrumentation.targetContext, serverUrl)
         if (!dismissSystemDialogs(instrumentation, timeoutMs) { appHasFocus() }) {
             Log.w(LOG_TAG, "app window still has no focus; continuing")

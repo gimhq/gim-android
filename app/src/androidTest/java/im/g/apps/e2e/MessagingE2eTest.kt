@@ -57,6 +57,7 @@ import im.g.apps.core.bridge.platform.KeystoreSecretCipher
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
 import im.g.apps.testing.awaitServerReachable
 import im.g.apps.testing.dismissSystemDialogs
+import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
 import java.io.File
 import java.security.KeyStore
@@ -135,6 +136,7 @@ class MessagingE2eTest {
 
     @Test
     fun messagingFlowThenSignOut() {
+        keepScreenOn(instrumentation, compose.activity)
         // The emulator may not have a default network yet right after boot; registering then hangs.
         Log.i(LOG_TAG, "server URL $serverUrl")
         awaitServerReachable(instrumentation.targetContext, serverUrl)

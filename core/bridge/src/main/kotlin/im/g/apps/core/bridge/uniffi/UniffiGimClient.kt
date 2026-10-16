@@ -24,8 +24,10 @@ import java.util.concurrent.atomic.AtomicBoolean
  * on the first [create] call, never earlier.
  */
 class UniffiGimClientFactory : GimClientFactory {
-    override suspend fun create(config: ClientConfig, hooks: PlatformHooks): GimClient =
-        UniffiGimClient(core { im.g.gimcore.createClient(config.toCore(), PlatformHooksAdapter(hooks)) })
+    override suspend fun create(config: ClientConfig, hooks: PlatformHooks): GimClient {
+        CallbackThreads.install()
+        return UniffiGimClient(core { im.g.gimcore.createClient(config.toCore(), PlatformHooksAdapter(hooks)) })
+    }
 }
 
 /** Maps every call 1:1 onto gim-core's `GimClient`; see the mapping table in [GimClient]. */
