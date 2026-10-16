@@ -195,7 +195,12 @@ instrument() {
         interrupted "during the $name run (results above are partial)"
         return "$GIM_REAL_EXIT_INTERRUPTED"
     fi
-    ((status == 2)) && echo "FAIL $name: instrumentation did not complete" | tee -a "$log_dir/summary.txt"
+    if ((status == 2)); then
+        local why
+        why=$(tac "$log_dir/instrumentation.txt" | sed -n '/^== /q; s/^INSTRUMENTATION_RESULT: shortMsg=//p' | head -n 1)
+        echo "FAIL $name: instrumentation did not complete${why:+ ($why see logcat.txt: Fatal signal / AndroidRuntime)}" |
+            tee -a "$log_dir/summary.txt"
+    fi
     if not_ready "after the $name run (its failures may come from that)"; then
         return "$GIM_REAL_EXIT_NOT_READY"
     fi
