@@ -48,12 +48,25 @@ class GimClientManager(
     /**
      * Returns a client for [serverUrl] (trimmed), reusing the current one when the URL is unchanged.
      * Throws [GimException.InvalidInput] for anything but an `http`/`https` URL with a host.
+     *
+     * A client for another URL replaces the current one, which is signed out (failures ignored) and dropped first:
+     * all clients share one data dir, and gim-core serializes their store changes on `<dataDir>/gim.lock`, so two
+     * live clients would contend for it (`Storage` "store is locked"). Only onboarding connects, before any session.
      */
     suspend fun connect(serverUrl: String): GimClient = mutex.withLock {
         val url = serverUrl.trim()
         requireValidServerUrl(url)
         val current = _client.value
         if (current != null && url == clientUrl) return current
+        if (current != null) {
+            try {
+                current.signOut()
+            } catch (_: GimException) {
+                // Not signed in (the usual case) or already signed out; the client is dropped either way.
+            }
+            clientUrl = null
+            _client.value = null
+        }
         create(url).also { serverUrlStore.set(url) }
     }
 
