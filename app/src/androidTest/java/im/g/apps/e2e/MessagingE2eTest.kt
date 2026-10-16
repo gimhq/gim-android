@@ -191,11 +191,11 @@ class MessagingE2eTest {
         compose.onNode(hasSetTextAction()).performTextInput(peerHandle)
         val add = hasText(string(ContactsR.string.contacts_add)) and hasClickAction()
         waitFor("peer found by handle", add)
-        compose.onNode(add).performClick()
-        compose.onNodeWithText(string(ContactsR.string.contacts_next)).performClick()
+        click("add peer", add)
+        click("next", hasText(string(ContactsR.string.contacts_next)))
         waitForText("group name step", string(ContactsR.string.contacts_create_group))
         compose.onNode(hasSetTextAction()).performTextInput(groupName)
-        compose.onNodeWithText(string(ContactsR.string.contacts_create_group)).performClick()
+        click("create group", hasText(string(ContactsR.string.contacts_create_group)))
         waitFor("group chat opened", hasTestTag(TAG_COMPOSER))
 
         val chatId = peerWait("peer sees the group") {
@@ -206,7 +206,7 @@ class MessagingE2eTest {
         // App sends a text; the peer receives it.
         val appText = "Anchored off Hydra $suffix"
         compose.onNodeWithTag(TAG_COMPOSER).performTextInput(appText)
-        compose.onNodeWithContentDescription(string(ChatR.string.composer_send)).performClick()
+        click("send", hasContentDescription(string(ChatR.string.composer_send)))
         val appMessage = peerMessages.await("peer receives the app text") {
             !it.isOwn && (it.content as? MessageContent.Text)?.body == appText
         }
@@ -237,7 +237,7 @@ class MessagingE2eTest {
         Intents.init()
         try {
             intending(not(isInternal())).respondWith(ActivityResult(Activity.RESULT_OK, Intent().setData(pickedUri)))
-            compose.onNodeWithContentDescription(string(ChatR.string.composer_attach)).performClick()
+            click("attach", hasContentDescription(string(ChatR.string.composer_attach)))
             waitForText("attach menu", string(ChatR.string.composer_attach_photo))
             compose.onNodeWithText(string(ChatR.string.composer_attach_photo)).performClick()
             val appImage = peerMessages.await("peer receives the app image") {
@@ -263,7 +263,7 @@ class MessagingE2eTest {
         compose.onNode(hasSetTextAction()).performTextInput(UNKNOWN_USER_ID)
         val startChat = hasText(string(ContactsR.string.contacts_start_chat)) and hasClickAction()
         waitFor("start chat offered for the user id") { exists(startChat) && compose.onNode(startChat).isEnabled() }
-        compose.onNode(startChat).performClick()
+        click("start chat", startChat)
         waitForText("user not found", string(ContactsR.string.contacts_error_user_not_found))
         compose.onNodeWithContentDescription(string(ContactsR.string.contacts_back)).performClick()
         waitForText("chat list after user not found", string(ChatListR.string.chatlist_title))
@@ -372,6 +372,9 @@ class MessagingE2eTest {
     /** Clicks the enabled, displayed button tagged [tag] once the layout has settled; see [clickWhenSettled]. */
     private fun click(button: String, tag: String, next: SemanticsMatcher? = null) =
         compose.clickWhenSettled(LOG_TAG, button, tag, timeoutMs, next)
+
+    /** Clicks the single node matching [target] once the layout has settled; see [clickWhenSettled]. */
+    private fun click(button: String, target: SemanticsMatcher) = compose.clickWhenSettled(LOG_TAG, button, target, timeoutMs)
 
     /**
      * Focuses the composer and, once the soft keyboard is fully shown, checks the composer sits right on top of
