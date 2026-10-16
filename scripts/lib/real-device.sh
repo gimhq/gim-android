@@ -9,6 +9,8 @@
 #            LAN, uses http://$GIM_REAL_LAN_HOST:<port> (default host 192.168.68.220).
 #   reverse  fallback: the hub runs in gim-adb-host's network namespace on 127.0.0.1:<port> and `adb reverse` maps the
 #            same port on the phone, which uses http://127.0.0.1:<port>.
+# Either way the hub runs with GIM_HUB_PUBLIC_URL set to the phone's URL (GIM_REAL_HUB_URL): gim-core signs in only at
+# the URL the hub proves, so every other client of the hub (gim-cli in e2e-interop.sh) must use that URL too.
 #
 # Package rules: im.g.apps and im.g.apps.test stay installed. They are only ever updated in place (`install -r -t`,
 # which needs no confirmation on the phone), reset with `pm clear`, and never uninstalled. Updating needs the same
@@ -36,8 +38,9 @@
 #   gim_real_unlock               release the lock if this run took it
 #   gim_real_adb ARGS...          adb -s $GIM_REAL_SERIAL ARGS... inside the adb container
 #   gim_real_gradle_env           docker run arguments (array GIM_REAL_GRADLE_ENV) that pin the debug keystore
-#   gim_real_start_hub NAME ROOT  start the pinned gim-hub image as NAME (GIM_REAL_NET mode, free port from 18080 up),
-#                                 wait for /healthz; sets GIM_REAL_PORT and GIM_REAL_HUB_URL (the phone's URL)
+#   gim_real_start_hub NAME ROOT  start the pinned gim-hub image as NAME (GIM_REAL_NET mode, free port from 18080 up)
+#                                 with GIM_HUB_PUBLIC_URL=GIM_REAL_HUB_URL, wait for /healthz; sets GIM_REAL_PORT and
+#                                 GIM_REAL_HUB_URL (the phone's URL, the one every client uses)
 #   gim_real_stop_hub NAME        remove the reverse (reverse mode) and the hub container NAME
 #   gim_real_install APK...       copy the APKs into the adb container (/tmp/$GIM_RUN_LABEL) and `install -r -t`
 #                                 them. Exits 3 ("blocked") on a signature mismatch with the installed package or
@@ -197,7 +200,7 @@ gim_real_start_hub() {
             # The host's free ports are not visible from here; let the daemon refuse taken ones.
             for port in $(seq 18080 18179); do
                 if out=$(docker run "${run_args[@]}" -p "$port:8080" -e GIM_HUB_LISTEN=0.0.0.0:8080 \
-                    "$GIM_HUB_IMAGE" 2>&1); then
+                    -e "GIM_HUB_PUBLIC_URL=http://$GIM_REAL_LAN_HOST:$port" "$GIM_HUB_IMAGE" 2>&1); then
                     GIM_REAL_PORT=$port
                     break
                 fi
@@ -212,7 +215,8 @@ gim_real_start_hub() {
         reverse)
             port=$(gim_real_netns_ports | head -n 1)
             docker run "${run_args[@]}" --network "container:$GIM_REAL_ADB_CONTAINER" \
-                -e GIM_HUB_LISTEN="127.0.0.1:$port" "$GIM_HUB_IMAGE" >/dev/null
+                -e GIM_HUB_LISTEN="127.0.0.1:$port" -e "GIM_HUB_PUBLIC_URL=http://127.0.0.1:$port" \
+                "$GIM_HUB_IMAGE" >/dev/null
             GIM_REAL_PORT=$port
             GIM_REAL_HUB_URL=http://127.0.0.1:$port
             ;;

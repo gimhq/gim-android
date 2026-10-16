@@ -25,7 +25,8 @@
 #
 # Flow:
 #   1. Builds the debug and androidTest APKs in ghcr.io/cirruslabs/android-sdk:35 with the pinned debug keystore.
-#   2. Takes the device lock, starts gim-hub (ai-agent/gim-hub:<sha12>) on a free port from 18080 (GIM_REAL_NET).
+#   2. Takes the device lock, starts gim-hub (ai-agent/gim-hub:<sha12>) on a free port from 18080 (GIM_REAL_NET)
+#      with GIM_HUB_PUBLIC_URL set to the URL the phone uses.
 #   3. Updates im.g.apps and im.g.apps.test in place (`install -r -t`) and runs one `am instrument -w -r` per test
 #      class (gimServerUrl, timeoutScale; listed with the runner's `-e log true` dry run), CameraScannerE2eTest
 #      (realCamera=true) last, so a class that loses the foreground or crashes the process cannot hide the other
@@ -49,7 +50,7 @@
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,48p' "$0"
+    sed -n '2,49p' "$0"
     exit 0
 fi
 

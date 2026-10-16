@@ -42,6 +42,9 @@ enum class FieldError {
 sealed interface OnboardingError {
     data object CannotReachServer : OnboardingError
 
+    /** The server at the address did not prove that it is the hub at that address (wrong address or a relay). */
+    data object HubNotVerified : OnboardingError
+
     /** The hub throttles requests; retry after [seconds]. */
     data class TryAgainLater(val seconds: Long) : OnboardingError
 

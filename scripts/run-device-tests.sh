@@ -16,12 +16,15 @@
 #   DEVICE_PROFILE, GPU, CORES, RAM_SIZE, DISK_SIZE, SNAPSHOT_BOOT
 #                     emulator settings, see scripts/lib/device.sh (defaults: pixel_6, swiftshader_indirect)
 #   TIMEOUT_SCALE     instrumentation argument timeoutScale (multiplies the test's per-step waits)
+#   GIM_HUB2=1        also start hub B (federated with hub A, at http://10.0.2.2:8081, see scripts/lib/device.sh)
+#                     and pass its URL as instrumentation argument gimServerUrl2
 #
 # Flow:
 #   1. Builds (once) ai-agent/gim-android-emulator: ghcr.io/cirruslabs/android-sdk:35 plus the emulator
 #      and system-images;android-35;google_apis;x86_64.
 #   2. Builds (once per commit) ai-agent/gim-hub:<sha12> with the hub's Dockerfile from `git archive` of the
-#      pinned commit, starts it with an in-memory /data and waits for GET /healthz.
+#      pinned commit, starts it with an in-memory /data and GIM_HUB_PUBLIC_URL=http://10.0.2.2:8080 (the URL the
+#      app and the in-process test peers use) and waits for GET /healthz.
 #   3. Boots the emulator and runs Gradle in a container with --device /dev/kvm that shares the hub
 #      container's network namespace, so http://10.0.2.2:8080 (the emulator's host loopback) reaches
 #      the hub exactly as in CI.
@@ -33,7 +36,7 @@
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,32p' "$0"
+    sed -n '2,35p' "$0"
     exit 0
 fi
 
@@ -45,6 +48,7 @@ source "$repo_root/scripts/lib/device.sh"
 gradle_cache=${GRADLE_CACHE:-/srv/.tmp/cache/gradle}
 server_url=$GIM_EMULATOR_SERVER_URL
 hub=ai-agent-gim-hub-$run_id
+hub2=${hub}2
 runner=ai-agent-gim-android-device-$run_id
 
 gim_check_host_paths "$repo_root"
@@ -57,12 +61,20 @@ log_dir=$repo_root/.tmp/device-tests
 mkdir -p "$log_dir"
 
 cleanup() {
-    docker rm -f "$runner" "$hub" >/dev/null 2>&1 || true
+    docker rm -f "$runner" "$hub2" "$hub" >/dev/null 2>&1 || true
+    gim_cleanup_hubs "$repo_root"
 }
 trap cleanup EXIT INT TERM
 
 gim_ensure_emulator_image
-gim_start_hub "$hub" "$repo_root"
+hub_args=()
+if [[ ${GIM_HUB2:-0} == 1 ]]; then
+    gim_start_hub "$hub" "$repo_root" fed
+    gim_start_hub2 "$hub" "$hub2" "$repo_root"
+    hub_args=("-Pandroid.testInstrumentationRunnerArguments.gimServerUrl2=$GIM_EMULATOR_SERVER_URL2")
+else
+    gim_start_hub "$hub" "$repo_root"
+fi
 
 mkdir -p "$gradle_cache"
 status=0
@@ -84,10 +96,11 @@ if ((status)); then
     echo "full device logcat: $LOGCAT" >&2
 fi
 exit "$status"
-' device-tests "$@" || status=$?
+' device-tests "${hub_args[@]}" "$@" || status=$?
 
 if ((status)); then
     echo "device tests failed (exit $status); gim-hub log tail:" >&2
     docker logs --tail 50 "$hub" >&2 || true
+    [[ ${GIM_HUB2:-0} != 1 ]] || { echo "gim-hub B log tail:" >&2; docker logs --tail 50 "$hub2" >&2 || true; }
 fi
 exit "$status"

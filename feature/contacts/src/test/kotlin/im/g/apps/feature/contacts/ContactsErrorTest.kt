@@ -27,6 +27,18 @@ class ContactsErrorTest {
     }
 
     @Test
+    fun hub_errors_are_unknown_outside_hub_management() {
+        val errors = listOf(
+            GimException.HubNotVerified("relay"),
+            GimException.HubOwnsGroups("hb", 2),
+            GimException.LastHub("hb"),
+            GimException.HomeHub("ha"),
+            GimException.HubNotDrained("hb", "1 message"),
+        )
+        for (error in errors) assertEquals(ContactsError.Unknown, error.toContactsError())
+    }
+
+    @Test
     fun server_errors_stay_generic() {
         assertEquals(ContactsError.Server, GimException.Server(502, "peer_refused").toContactsError())
     }

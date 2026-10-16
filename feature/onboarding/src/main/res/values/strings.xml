@@ -63,6 +63,7 @@
     <string name="onboarding_error_recovery_code">This is not a valid recovery code</string>
     <string name="onboarding_error_wrong_recovery_code">This recovery code does not belong to this account</string>
     <string name="onboarding_error_cannot_reach_server">Cannot reach the hub. Check the address and your connection.</string>
+    <string name="onboarding_error_hub_not_verified">The hub could not prove it is at this address. Check the address.</string>
     <plurals name="onboarding_error_try_again_later">
         <item quantity="one">The hub is busy. Try again in %d second.</item>
         <item quantity="other">The hub is busy. Try again in %d seconds.</item>
