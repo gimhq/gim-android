@@ -9,7 +9,6 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isRoot
@@ -19,6 +18,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToString
+import androidx.core.app.NotificationManagerCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
@@ -57,9 +57,9 @@ import im.g.apps.feature.onboarding.R as OnboardingR
 /**
  * Push end to end against a live gim-hub whose push webhook points at gim-push-mock (instrumentation arguments
  * `gimServerUrl` and `gimPushMockUrl`; skipped without the mock URL): the app onboards and registers its
- * `mock-android` token, goes to the background (sync stops), an in-process gim-core peer sends a text, and the
- * debug build's mock poller hands the push to gim-core, whose decrypted text shows up in the notification shade.
- * Tapping the notification opens the chat.
+ * `mock-android` token and goes to the background (sync stops). An in-process gim-core peer then adds it to a group
+ * and sends a text; the debug build's mock poller hands each push to gim-core, so the invitation and then the
+ * decrypted text show up in the notification shade. Tapping the text's notification opens the chat.
  */
 @RunWith(AndroidJUnit4::class)
 class PushE2eTest {
@@ -132,18 +132,6 @@ class PushE2eTest {
         Log.i(LOG_TAG, "push registered with token ${mock.token.take(6)}…")
         val appUserId = checkNotNull(container.manager.client.value?.userId()) { "app has no user id" }
 
-        // The peer opens a group with the app user; the app lists it.
-        val groupName = "Push E2E $suffix"
-        val peer = runBlocking {
-            UniffiGimClientFactory().create(ClientConfig(serverUrl), InMemoryHooks(peerDir)).also { peerClient = it }
-        }
-        val chatId = bounded("peer creates the group") {
-            peer.createIdentity("Peer $suffix")
-            peer.startSync()
-            peer.createGroupChat(groupName, listOf(appUserId))
-        }
-        waitFor("app lists the group", hasText(groupName) and hasClickAction())
-
         // HOME: the process stays, sync stops; only the push path can deliver now.
         device.pressHome()
         val appClient = checkNotNull(container.manager.client.value)
@@ -153,6 +141,39 @@ class PushE2eTest {
         } catch (_: TimeoutCancellationException) {
             Log.w(LOG_TAG, "app connection not OFFLINE after HOME; continuing")
         }
+
+        // The peer opens a group with the backgrounded app user: gim-core joins it from the push -> Invite
+        // notification titled with the group, "<inviter>: Added you to the chat" (the inviter may still be a handle
+        // or user id until their profile is on the hub).
+        val groupName = "Push E2E $suffix"
+        val peer = runBlocking {
+            UniffiGimClientFactory().create(ClientConfig(serverUrl), InMemoryHooks(peerDir)).also { peerClient = it }
+        }
+        val chatId = bounded("peer creates the group") {
+            peer.createIdentity("Peer $suffix")
+            peer.startSync()
+            peer.createGroupChat(groupName, listOf(appUserId))
+        }
+        Log.i(LOG_TAG, "peer created the group")
+
+        device.openNotification()
+        if (!device.wait(Until.hasObject(By.text(groupName)), timeoutMs * 2)) {
+            failStep("invite notification titled with the group in the shade", AssertionError("not found"))
+        }
+        if (!device.wait(Until.hasObject(By.textContains(INVITE_BODY)), timeoutMs)) {
+            failStep("invite notification text in the shade", AssertionError("not found"))
+        }
+        val inviteText = device.findObject(By.textContains(INVITE_BODY)).text
+        Log.i(LOG_TAG, "invite notification shown: '$groupName' / '$inviteText'")
+        check(inviteText.endsWith(": $INVITE_BODY")) { "invite text does not name the inviter: '$inviteText'" }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            instrumentation.uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE)
+        } else {
+            device.pressBack()
+        }
+        // With two notifications of the app, the MIUI shade bundles them and the tap below did not reach the text's
+        // own notification (the chat never opened); keep only the text's.
+        NotificationManagerCompat.from(instrumentation.targetContext).cancelAll()
 
         val text = "Mooring at Poros $suffix"
         bounded("peer sends the text") { peer.sendText(chatId, text, null) }
@@ -187,8 +208,14 @@ class PushE2eTest {
         }
     }
 
-    private fun waitFor(step: String, matcher: SemanticsMatcher) =
-        waitFor(step) { compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty() }
+    /** Also waits while no compose hierarchy exists, e.g. while the activity is recreated from a notification. */
+    private fun waitFor(step: String, matcher: SemanticsMatcher) = waitFor(step) {
+        try {
+            compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty()
+        } catch (_: IllegalStateException) {
+            false
+        }
+    }
 
     /** Replaces the text of the field tagged [tag] and waits until the field holds exactly [value]. */
     private fun enterText(field: String, tag: String, value: String) {
@@ -245,6 +272,9 @@ class PushE2eTest {
         const val DEFAULT_SERVER_URL = "http://10.0.2.2:8080"
         const val TIMEOUT_MS = 30_000L
         const val LOG_TAG = "PushE2eTest"
+
+        /** gim-core's Invite notification body. */
+        const val INVITE_BODY = "Added you to the chat"
 
         // Tags of internal constants in the feature modules (OnboardingTestTags, COMPOSER_INPUT_TEST_TAG).
         const val TAG_SERVER_URL = "onboarding_server_url"
