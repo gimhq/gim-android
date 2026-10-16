@@ -58,6 +58,7 @@ fun ChatListRoute(
     onLinkDevice: () -> Unit,
     modifier: Modifier = Modifier,
     onDevices: () -> Unit = {},
+    onHubs: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     ChatListScreen(
@@ -69,6 +70,7 @@ fun ChatListRoute(
         onLinkDevice = onLinkDevice,
         modifier = modifier,
         onDevices = onDevices,
+        onHubs = onHubs,
     )
 }
 
@@ -83,6 +85,7 @@ fun ChatListScreen(
     onLinkDevice: () -> Unit,
     modifier: Modifier = Modifier,
     onDevices: () -> Unit = {},
+    onHubs: () -> Unit = {},
 ) {
     var confirmSignOut by remember { mutableStateOf(false) }
     // Sign-out leaves this screen when done; until then the dialog stays up with its actions disabled.
@@ -103,7 +106,12 @@ fun ChatListScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.chatlist_title)) },
                 actions = {
-                    OverflowMenu(onDevices = onDevices, onLinkDevice = onLinkDevice, onSignOut = { confirmSignOut = true })
+                    OverflowMenu(
+                        onDevices = onDevices,
+                        onHubs = onHubs,
+                        onLinkDevice = onLinkDevice,
+                        onSignOut = { confirmSignOut = true },
+                    )
                 },
             )
         },
@@ -137,7 +145,7 @@ fun ChatListScreen(
 }
 
 @Composable
-private fun OverflowMenu(onDevices: () -> Unit, onLinkDevice: () -> Unit, onSignOut: () -> Unit) {
+private fun OverflowMenu(onDevices: () -> Unit, onHubs: () -> Unit, onLinkDevice: () -> Unit, onSignOut: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }) {
@@ -149,6 +157,13 @@ private fun OverflowMenu(onDevices: () -> Unit, onLinkDevice: () -> Unit, onSign
                 onClick = {
                     expanded = false
                     onDevices()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chatlist_hubs)) },
+                onClick = {
+                    expanded = false
+                    onHubs()
                 },
             )
             DropdownMenuItem(

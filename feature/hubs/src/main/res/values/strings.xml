@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hubs_title">Hubs</string>
+    <string name="hubs_back">Back</string>
+    <string name="hubs_add">Add hub</string>
+    <string name="hubs_removed_section">Removed</string>
+    <string name="hubs_unknown_address">Unknown address</string>
+    <string name="hubs_state_unverified">Unverified</string>
+    <string name="hubs_state_verified">Verified</string>
+    <string name="hubs_state_removed">Removed</string>
+    <string name="hubs_signed_in">Signed in</string>
+    <string name="hubs_not_signed_in">Not signed in</string>
+    <string name="hubs_badge_home">Home</string>
+    <string name="hubs_badge_primary">Primary</string>
+    <string name="hubs_make_primary">Make primary</string>
+    <string name="hubs_remove">Remove</string>
+    <string name="hubs_empty_title">No hubs to show</string>
+    <string name="hubs_add_title">Add a hub</string>
+    <string name="hubs_add_url_label">Hub address</string>
+    <string name="hubs_add_url_hint">https://hub.example.eu</string>
+    <string name="hubs_add_confirm">Add</string>
+    <string name="hubs_cancel">Cancel</string>
+    <string name="hubs_ok">OK</string>
+    <string name="hubs_owned_title">Remove this hub?</string>
+    <string name="hubs_owned_body">This hub runs %1$d of your group chats. They keep running there; you reach them through your other hubs.</string>
+    <string name="hubs_owned_confirm">Confirm</string>
+    <string name="hubs_error_invalid_url">Not a gim hub URL</string>
+    <string name="hubs_error_unreachable">Cannot reach the hub</string>
+    <string name="hubs_error_not_verified">The hub\'s address does not match its public address</string>
+    <string name="hubs_error_retry_later">Try again in %1$d s</string>
+    <string name="hubs_error_home_hub">This is your home hub; make another hub primary and keep this one as secondary</string>
+    <string name="hubs_error_last_hub">Add another hub first</string>
+    <string name="hubs_error_not_drained">Messages are still being sent; try again later</string>
+    <string name="hubs_error_cannot_make_primary">Every hub must be signed in on this device to change the order; add the missing hub\'s address here first</string>
+    <string name="hubs_error_not_listed">This hub is no longer listed</string>
+    <string name="hubs_error_not_registered">This device is no longer signed in</string>
+    <string name="hubs_error_server">The hub could not complete the request</string>
+    <string name="hubs_error_unknown">Something went wrong</string>
+</resources>
