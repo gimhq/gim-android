@@ -60,6 +60,35 @@ class GimClientManagerTest {
     }
 
     @Test
+    fun connect_to_another_url_signs_the_replaced_client_out_first() = runTest {
+        val factory = factory()
+        val manager = GimClientManager(factory, hooks, store)
+        val first = manager.connect(DemoData.SERVER_URL)
+        assertEquals(DemoData.session, first.session())
+
+        val second = manager.connect("http://10.0.2.2:8080")
+        assertNull(first.session())
+        assertSame(second, manager.client.value)
+        assertEquals(2, factory.created.size)
+    }
+
+    @Test
+    fun connect_drops_a_replaced_client_even_if_its_sign_out_fails() = runTest {
+        var created = 0
+        val failing = GimClientFactory { config, _ ->
+            requireValidServerUrl(config.serverUrl)
+            created++
+            FakeGimClient(backgroundScope, outboxDelays = null) // no session: signOut throws NotRegistered
+        }
+        val manager = GimClientManager(failing, hooks, store)
+        val first = manager.connect(DemoData.SERVER_URL)
+        val second = manager.connect("http://10.0.2.2:8080")
+        assertNotSame(first, second)
+        assertSame(second, manager.client.value)
+        assertEquals(2, created)
+    }
+
+    @Test
     fun restore_creates_the_client_from_the_stored_url() = runTest {
         store.set(DemoData.SERVER_URL)
         val factory = factory()

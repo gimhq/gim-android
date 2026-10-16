@@ -71,11 +71,11 @@ import im.g.apps.feature.onboarding.R as OnboardingR
 /**
  * Hub management against two federated gim-hubs (instrumentation arguments `gimServerUrl` = hub A and
  * `gimServerUrl2` = hub B; `GIM_HUB2=1 scripts/run-device-tests.sh`, skipped without hub B): the app onboards on A,
- * adds B from the Hubs screen, makes it primary and keeps messaging with an in-process peer on A, is refused removing
- * its home hub A, then removes B after confirming the group chat B owns and still messages through A.
+ * adds B from the Hubs screen, makes it primary and keeps messaging with an in-process peer on A, creates a group
+ * (owned by its primary hub B) inviting that peer, homed on A only, and messages in it both ways (C4-T9), is refused
+ * removing its home hub A, then removes B after confirming the group chats B owns and still messages through A.
  *
- * A chat is always created on its creator's home hub, so the app (home hub A) cannot create a chat owned by B; the
- * B-owned group is created by a second in-process peer whose home hub is B, with the app user as member.
+ * A second B-owned group is created by a second in-process peer whose home hub is B, with the app user as member.
  */
 @RunWith(AndroidJUnit4::class)
 class HubsE2eTest {
@@ -92,6 +92,7 @@ class HubsE2eTest {
     private val suffix = UUID.randomUUID().toString().replace("-", "").take(10)
     private val peerName = "Peer A $suffix"
     private val groupName = "Owned by B $suffix"
+    private val ownGroupName = "App group on B $suffix"
     private val peerScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val peerDir = File(instrumentation.targetContext.cacheDir, "e2e-hubs-peer-$suffix")
     private val peerBDir = File(instrumentation.targetContext.cacheDir, "e2e-hubs-peer-b-$suffix")
@@ -182,6 +183,17 @@ class HubsE2eTest {
         exchangeDirectMessages(peer, appUserId, "Fair winds via B $suffix", "Reply via B $suffix")
         step("messaging works with B primary")
 
+        // 5b. With B primary the app creates a group on B inviting the peer homed only on A; messages flow both ways.
+        val peerUserId = checkNotNull(peer.userId())
+        val ownGroupId = bounded("app creates a group inviting the peer on A") {
+            app.createGroupChat(ownGroupName, listOf(peerUserId))
+        }
+        Log.i(LOG_TAG, "group $ownGroupId created by the app with B primary")
+        assertTrue("group $ownGroupId is not owned by ${hubB.hubId}", ownGroupId.startsWith(hubB.hubId + "/"))
+        bounded("peer on A joins the app's group") { peer.chatListFlow().first { list -> list.any { it.chatId == ownGroupId } } }
+        exchangeGroupMessages(peer, ownGroupId, ownGroupName, "Ahoy from A $suffix", "Group reply via B $suffix")
+        step("group created with B primary includes the peer homed on A; messaging works both ways")
+
         // 6. Removing home hub A is refused with an explanation.
         openHubs()
         click("remove A", inRow(hubA.hubId, hasText(string(HubsR.string.hubs_remove)) and hasClickAction()))
@@ -198,7 +210,7 @@ class HubsE2eTest {
         bounded("app joins the B-owned group") { app.chatListFlow().first { list -> list.any { it.chatId == groupId } } }
         step("app joined group owned by B")
 
-        removeHubConfirmingOwnedGroups(hubB.hubId)
+        removeHubConfirmingOwnedGroups(hubB.hubId, ownedGroups = 2)
         waitFor("hub B shown removed", inRow(hubB.hubId, hasText(removedNotSignedIn())))
         waitFor("hub A primary again", inRow(hubA.hubId, hasText(string(HubsR.string.hubs_badge_primary))))
         step("hub B removed after the owned-groups confirmation")
@@ -209,11 +221,12 @@ class HubsE2eTest {
     }
 
     /**
-     * Removes [hubId] from its row and accepts the owned-groups warning ("This hub runs 1 of your group chats").
-     * A [GimException.HubNotDrained] answer (something sent is not acknowledged yet) is acknowledged and retried.
+     * Removes [hubId] from its row and accepts the owned-groups warning ("This hub runs [ownedGroups] of your group
+     * chats"). A [GimException.HubNotDrained] answer (something sent is not acknowledged yet) is acknowledged and
+     * retried.
      */
-    private fun removeHubConfirmingOwnedGroups(hubId: String) {
-        val owned = hasText(string(HubsR.string.hubs_owned_body, 1))
+    private fun removeHubConfirmingOwnedGroups(hubId: String, ownedGroups: Int) {
+        val owned = hasText(string(HubsR.string.hubs_owned_body, ownedGroups))
         val notDrained = hasText(string(HubsR.string.hubs_error_not_drained))
         repeat(DRAIN_ATTEMPTS) { attempt ->
             click("remove B", inRow(hubId, hasText(string(HubsR.string.hubs_remove)) and hasClickAction()))
@@ -243,6 +256,20 @@ class HubsE2eTest {
         compose.onNodeWithTag(TAG_COMPOSER).performTextInput(reply)
         click("send reply", hasContentDescription(string(ChatR.string.composer_send)))
         peerMessages.await("peer receives '$reply'") {
+            !it.isOwn && (it.content as? MessageContent.Text)?.body == reply
+        }
+    }
+
+    /** The peer sends [text] in group [chatId]; the app opens [name], shows it and answers [reply] from the UI. */
+    private fun exchangeGroupMessages(peer: GimClient, chatId: String, name: String, text: String, reply: String) {
+        val peerMessages = messages(peer, chatId)
+        bounded("peer sends '$text' in the group") { peer.sendText(chatId, text, null) }
+        backToChatList()
+        click("open the group", hasText(name) and hasClickAction())
+        waitFor("app shows '$text' in the group", hasText(text))
+        compose.onNodeWithTag(TAG_COMPOSER).performTextInput(reply)
+        click("send group reply", hasContentDescription(string(ChatR.string.composer_send)))
+        peerMessages.await("peer receives '$reply' in the group") {
             !it.isOwn && (it.content as? MessageContent.Text)?.body == reply
         }
     }

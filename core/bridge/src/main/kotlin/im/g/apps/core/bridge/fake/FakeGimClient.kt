@@ -20,7 +20,10 @@ import im.g.apps.core.bridge.MembershipChangeKind
 import im.g.apps.core.bridge.MessageContent
 import im.g.apps.core.bridge.MessageItem
 import im.g.apps.core.bridge.MessagePreview
+import im.g.apps.core.bridge.NotificationContent
+import im.g.apps.core.bridge.NotificationKind
 import im.g.apps.core.bridge.PendingApproval
+import im.g.apps.core.bridge.PushRegistration
 import im.g.apps.core.bridge.ReactionGroup
 import im.g.apps.core.bridge.ReplyPreview
 import im.g.apps.core.bridge.SendState
@@ -190,6 +193,7 @@ class FakeGimClient(
     private val hubs = LinkedHashMap<String, FakeHub>()
     private val chatOwners = HashMap<String, String>()
     private val unverifiableHubUrls = HashSet<String>()
+    private var pushRegistration: PushRegistration? = null
 
     private val chatListRegs = mutableListOf<Registration<ChatListListener>>()
     private val timelineRegs = mutableListOf<Registration<TimelineListener>>()
@@ -392,6 +396,7 @@ class FakeGimClient(
         chatList = emptyList()
         hubs.clear()
         chatOwners.clear()
+        pushRegistration = null
         hubListRegs.toList().forEach { it.listener.onUpdate(emptyList()) }
         chatListRegs.toList().forEach { it.listener.onUpdate(listOf(ChatListDiff.Clear)) }
         timelineRegs.toList().forEach { it.listener.onUpdate(listOf(TimelineDiff.Clear)) }
@@ -399,6 +404,34 @@ class FakeGimClient(
         typingUsers.clear()
         typingRegs.toList().filter { it.chatId in typingChats }.forEach { it.listener.onUpdate(emptyList()) }
         refreshConnection()
+    }
+
+    override suspend fun registerPush(registration: PushRegistration) = synchronized(lock) {
+        pushRegistration = validatePushRegistration(registration)
+    }
+
+    override suspend fun unregisterPush() = synchronized(lock) {
+        pushRegistration = null
+    }
+
+    override suspend fun processPush(payload: String): NotificationContent {
+        val trimmed = payload.trim()
+        if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+            throw GimException.InvalidInput("payload: not a JSON object")
+        }
+        pushContent?.let { return it(payload) }
+        return NotificationContent(
+            chatId = null,
+            chatTitle = null,
+            senderUserId = null,
+            senderDisplayName = null,
+            body = GENERIC_NOTIFICATION_BODY,
+            messageId = null,
+            collapseId = null,
+            kind = NotificationKind.GENERIC,
+            shouldDisplay = true,
+            timestamp = clock(),
+        )
     }
 
     override suspend fun startSync() = synchronized(lock) {
@@ -725,6 +758,16 @@ class FakeGimClient(
             }
         }
 
+    /** The registration stored by [registerPush]; null after [unregisterPush] and [signOut]. */
+    val registeredPush: PushRegistration?
+        get() = synchronized(lock) { pushRegistration }
+
+    /**
+     * What [processPush] returns for a JSON object payload; null (the default) returns gim-core's fallback,
+     * [NotificationKind.GENERIC] "New message" to display.
+     */
+    @Volatile var pushContent: ((payload: String) -> NotificationContent)? = null
+
     /** The account [waitLink] signs in as. */
     @Volatile var linkedUser: UserProfile = UserProfile("u-linked", "linked", "Linked Account")
 
@@ -869,6 +912,18 @@ class FakeGimClient(
 
     private fun requireSignedOut() {
         if (session != null) throw GimException.InvalidInput("already signed in")
+    }
+
+    /** gim-core's `PushRegistration` checks. */
+    private fun validatePushRegistration(registration: PushRegistration): PushRegistration = registration.also {
+        fun invalid(field: String): Nothing = throw GimException.InvalidInput("push registration: invalid $field")
+        if (!PUSH_PROVIDER.matches(it.provider)) invalid("provider")
+        val tokenBytes = it.token.toByteArray(Charsets.UTF_8).size
+        if (tokenBytes !in 1..MAX_PUSH_TOKEN_BYTES || it.token.any(Char::isISOControl)) invalid("token")
+        if (it.appId != null && !PUSH_APP_ID.matches(it.appId)) invalid("app_id")
+        fun isKey(value: String?) = value == null || (value.length <= MAX_PUSH_KEY_LENGTH && PUSH_KEY.matches(value))
+        if (!isKey(it.p256dh)) invalid("p256dh")
+        if (!isKey(it.auth)) invalid("auth")
     }
 
     private fun requireDisplayName(value: String): String =
@@ -1120,7 +1175,16 @@ class FakeGimClient(
 
         /** Home hub of a [FakeGimClient] created without a server URL. */
         const val DEFAULT_HOME_HUB_URL = "https://hub.example.eu"
+
+        /** Body of gim-core's [NotificationKind.GENERIC] notification content. */
+        const val GENERIC_NOTIFICATION_BODY = "New message"
+        private val PUSH_PROVIDER = Regex("[a-z0-9._-]{1,64}")
+        private val PUSH_APP_ID = Regex("[A-Za-z0-9.\\-_:]{1,255}")
+        /** Base64url with up to two `=` of padding; at most [MAX_PUSH_KEY_LENGTH] characters. */
+        private val PUSH_KEY = Regex("[A-Za-z0-9_-]+={0,2}")
         private const val MAX_HUBS = 16
+        private const val MAX_PUSH_TOKEN_BYTES = 4096
+        private const val MAX_PUSH_KEY_LENGTH = 256
         private val HUB_ORDER = compareBy<FakeHub>({ it.priority }, { it.hubId })
         private const val DAY_MS = 86_400_000L
 
