@@ -14,8 +14,6 @@ import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
@@ -56,6 +54,7 @@ import im.g.apps.core.bridge.flow.itemsFlow
 import im.g.apps.core.bridge.platform.KeystoreSecretCipher
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
 import im.g.apps.testing.awaitServerReachable
+import im.g.apps.testing.clickWhenSettled
 import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
@@ -151,7 +150,7 @@ class MessagingE2eTest {
         // keyboard and scroll each button into view in case the keyboard covers it.
         waitForText("onboarding shown", string(OnboardingR.string.onboarding_welcome_title))
         enterText("hub address", TAG_SERVER_URL, serverUrl)
-        click("create new account", TAG_CREATE_ACCOUNT)
+        click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
         waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))
         enterText("display name", TAG_DISPLAY_NAME, appName)
         click("create account", TAG_SUBMIT)
@@ -165,7 +164,7 @@ class MessagingE2eTest {
         // Never log the code itself.
         assertTrue("recovery code (${code.length} chars) is not 39 symbols in groups of four", RECOVERY_CODE.matches(code))
         compose.onNodeWithTag(TAG_CODE_SAVED).performScrollTo().performClick()
-        click("recovery code continue", TAG_CODE_CONTINUE)
+        click("recovery code continue", TAG_CODE_CONTINUE, next = hasTestTag(TAG_HANDLE))
         waitFor("handle step", hasTestTag(TAG_HANDLE))
         enterText("handle", TAG_HANDLE, appHandle)
         click("claim handle", TAG_CLAIM_HANDLE)
@@ -370,12 +369,9 @@ class MessagingE2eTest {
 
     private fun waitForText(step: String, text: String) = waitFor(step, hasText(text))
 
-    /** Hides the soft keyboard, then clicks the enabled, displayed button tagged [tag]. */
-    private fun click(button: String, tag: String) {
-        hideSoftKeyboard()
-        Log.i(LOG_TAG, "clicking $button")
-        compose.onNodeWithTag(tag).performScrollTo().assertIsDisplayed().assertIsEnabled().performClick()
-    }
+    /** Clicks the enabled, displayed button tagged [tag] once the layout has settled; see [clickWhenSettled]. */
+    private fun click(button: String, tag: String, next: SemanticsMatcher? = null) =
+        compose.clickWhenSettled(LOG_TAG, button, tag, timeoutMs, next)
 
     /**
      * Focuses the composer and, once the soft keyboard is fully shown, checks the composer sits right on top of
