@@ -1,7 +1,9 @@
 package im.g.apps.feature.contacts
 
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.fake.DemoData
+import im.g.apps.core.bridge.flow.chatListFlow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -73,12 +75,12 @@ class NewChatViewModelTest {
         client.findUserError = GimException.Network("offline")
         vm.onQueryChange("lukas")
         advanceUntilIdle()
-        assertEquals(UserSearchState.Error(ContactsError.NETWORK), vm.state.value.search)
+        assertEquals(UserSearchState.Error(ContactsError.Network), vm.state.value.search)
 
         client.findUserError = GimException.Server(503, "busy")
         vm.onQueryChange("nikos")
         advanceUntilIdle()
-        assertEquals(UserSearchState.Error(ContactsError.SERVER), vm.state.value.search)
+        assertEquals(UserSearchState.Error(ContactsError.Server), vm.state.value.search)
     }
 
     @Test
@@ -131,7 +133,38 @@ class NewChatViewModelTest {
         advanceUntilIdle()
         vm.startChat()
         advanceUntilIdle()
-        assertEquals(NewChatEvent.ShowError(ContactsError.NETWORK), vm.events.first())
+        assertEquals(NewChatEvent.ShowError(ContactsError.Network), vm.events.first())
         assertTrue(vm.state.value.canStartChat)
+    }
+
+    @Test
+    fun startChat_withUnknownUserId_showsUserNotFound() = runTest {
+        val (vm, client) = newViewModel()
+        vm.onQueryChange(" ${UNKNOWN_USER_ID.uppercase()} ")
+        advanceUntilIdle()
+        assertEquals(UserSearchState.Found(UserProfile(UNKNOWN_USER_ID, "", "")), vm.state.value.search)
+        assertTrue(client.lookups.isEmpty())
+        assertTrue(vm.state.value.canStartChat)
+
+        vm.startChat()
+        advanceUntilIdle()
+        assertEquals(NewChatEvent.ShowError(ContactsError.UserNotFound), vm.events.first())
+        assertFalse(client.chatListFlow().first().any { it.name == UNKNOWN_USER_ID })
+    }
+
+    @Test
+    fun startChat_retryLater_showsTheWait() = runTest {
+        val (vm, client) = newViewModel()
+        client.createDirectChatError = GimException.RetryLater(503, 12, "peer_unavailable")
+        vm.onQueryChange("ana")
+        advanceUntilIdle()
+        vm.startChat()
+        advanceUntilIdle()
+        assertEquals(NewChatEvent.ShowError(ContactsError.RetryLater(12)), vm.events.first())
+    }
+
+    private companion object {
+        /** Well-formed, but no such user on the hub. */
+        const val UNKNOWN_USER_ID = "u" + "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" + "a"
     }
 }

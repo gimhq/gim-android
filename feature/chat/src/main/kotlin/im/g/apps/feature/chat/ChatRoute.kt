@@ -52,6 +52,7 @@ fun ChatRoute(
         onOpenFile = viewModel::onOpenFile,
         onMessageLongPress = onMessageLongPress,
         modifier = modifier,
+        onRetryMedia = viewModel::retryMedia,
         snackbarHostState = snackbarHostState,
     )
 }

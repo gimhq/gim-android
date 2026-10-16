@@ -18,6 +18,16 @@ fun interface ConnectionStateListener {
     fun onChange(state: ConnectionState)
 }
 
+/**
+ * The local time zone timeline date separators split calendar days in; mirrors gim-core's `LocalTimeZone`, set with
+ * [GimClient.setLocalTimeZone]. Called from a Rust background thread: keep it fast and never call back into
+ * [GimClient] from it.
+ */
+fun interface LocalTimeZone {
+    /** Offset from UTC in seconds in effect at [atMs] (Unix milliseconds), DST included. */
+    fun utcOffsetSecs(atMs: Long): Int
+}
+
 /** Receives the users currently typing in one chat (never the signed-in user); first the current set. */
 fun interface TypingListener {
     fun onUpdate(userIds: List<String>)

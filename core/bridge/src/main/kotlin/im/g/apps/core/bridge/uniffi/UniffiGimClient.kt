@@ -8,6 +8,7 @@ import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimClientFactory
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.LinkSession
+import im.g.apps.core.bridge.LocalTimeZone
 import im.g.apps.core.bridge.PendingApproval
 import im.g.apps.core.bridge.PlatformHooks
 import im.g.apps.core.bridge.Session
@@ -137,6 +138,8 @@ internal class UniffiGimClient(private val inner: im.g.gimcore.GimClient) : GimC
 
     override suspend fun timeline(chatId: String): Timeline = UniffiTimeline(core { inner.timeline(chatId) })
 
+    override fun setLocalTimeZone(zone: LocalTimeZone?) = inner.setLocalTimeZone(zone?.let(::LocalTimeZoneAdapter))
+
     override suspend fun connectionState(listener: ConnectionStateListener): TaskHandle =
         UniffiTaskHandle(core { inner.connectionState(ConnectionStateListenerAdapter(listener)) })
 
@@ -204,6 +207,10 @@ internal class ChatListListenerAdapter(private val listener: ChatListListener) :
 
 internal class TimelineListenerAdapter(private val listener: TimelineListener) : im.g.gimcore.TimelineListener {
     override fun onUpdate(diffs: List<im.g.gimcore.TimelineDiff>) = listener.onUpdate(diffs.map { it.toMirror() })
+}
+
+internal class LocalTimeZoneAdapter(private val zone: LocalTimeZone) : im.g.gimcore.LocalTimeZone {
+    override fun utcOffsetSecs(atMs: Long): Int = zone.utcOffsetSecs(atMs)
 }
 
 internal class ConnectionStateListenerAdapter(

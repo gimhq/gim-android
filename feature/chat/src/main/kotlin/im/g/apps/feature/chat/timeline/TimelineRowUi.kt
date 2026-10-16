@@ -36,6 +36,8 @@ data class MessageRow(
     val groupedWithPrevious: Boolean,
     /** Same sender as the chronologically next message, within [GROUPING_WINDOW_MS]. */
     val groupedWithNext: Boolean,
+    /** The attachment could not be fetched from the uploader's hub for now: offer a retry. */
+    val mediaUnavailable: Boolean = false,
 ) : TimelineRowUi {
     val failed: Boolean get() = tick == TickState.FAILED
 }

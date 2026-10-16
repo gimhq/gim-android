@@ -37,6 +37,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -86,6 +87,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 internal const val TIMELINE_TEST_TAG = "chat-timeline"
+internal const val MEDIA_RETRY_TEST_TAG = "chat-media-retry"
 private const val LOADING_OLDER_KEY = "loading-older"
 private const val LOAD_OLDER_THRESHOLD = 10
 private const val MESSAGE_CONTENT_TYPE_PREFIX = "message-"
@@ -108,6 +110,7 @@ fun ChatScreen(
     onOpenFile: (messageId: String) -> Unit,
     onMessageLongPress: (messageId: String) -> Unit,
     modifier: Modifier = Modifier,
+    onRetryMedia: (messageId: String) -> Unit = {},
     listState: LazyListState = rememberLazyListState(),
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
@@ -155,6 +158,7 @@ fun ChatScreen(
                     onImageNeeded = onImageNeeded,
                     onOpenFile = onOpenFile,
                     onMessageLongPress = onMessageLongPress,
+                    onRetryMedia = onRetryMedia,
                 )
                 JumpToBottom(
                     listState = listState,
@@ -215,6 +219,7 @@ private fun Timeline(
     onImageNeeded: (String) -> Unit,
     onOpenFile: (String) -> Unit,
     onMessageLongPress: (String) -> Unit,
+    onRetryMedia: (String) -> Unit,
 ) {
     val currentState by rememberUpdatedState(state)
     val currentOnLoadOlder by rememberUpdatedState(onLoadOlder)
@@ -270,6 +275,7 @@ private fun Timeline(
                     onImageNeeded = onImageNeeded,
                     onOpenFile = onOpenFile,
                     onLongPress = onMessageLongPress,
+                    onRetryMedia = onRetryMedia,
                 )
                 is DateSeparatorRow -> DateSeparator(label = row.label.asString())
                 is SystemRow -> Text(
@@ -312,46 +318,58 @@ private fun MessageRowItem(
     onImageNeeded: (String) -> Unit,
     onOpenFile: (String) -> Unit,
     onLongPress: (String) -> Unit,
+    onRetryMedia: (String) -> Unit,
 ) {
     val clickLabel = row.file?.let { stringResource(R.string.chat_file_open, it.name) }
-    MessageBubble(
-        outgoing = row.outgoing,
-        groupedWithPrevious = row.groupedWithPrevious,
-        groupedWithNext = row.groupedWithNext,
-        footer = { MessageFooter(row) },
-        modifier = Modifier.combinedClickable(
-            onClickLabel = clickLabel,
-            onLongClick = { onLongPress(row.key) },
-            onClick = {
-                when {
-                    row.failed -> onRetry(row.key)
-                    row.file != null -> onOpenFile(row.key)
-                }
-            },
-        ),
+    // The retry sits under the bubble, outside its click target.
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = if (row.outgoing) Alignment.End else Alignment.Start,
     ) {
-        row.senderName?.let {
-            Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        MessageBubble(
+            outgoing = row.outgoing,
+            groupedWithPrevious = row.groupedWithPrevious,
+            groupedWithNext = row.groupedWithNext,
+            footer = { MessageFooter(row) },
+            modifier = Modifier.combinedClickable(
+                onClickLabel = clickLabel,
+                onLongClick = { onLongPress(row.key) },
+                onClick = {
+                    when {
+                        row.failed -> onRetry(row.key)
+                        row.file != null -> onOpenFile(row.key)
+                    }
+                },
+            ),
+        ) {
+            row.senderName?.let {
+                Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            }
+            row.replyPreview?.let {
+                ReplyPreviewBar(senderName = it.senderName, snippet = it.text, onClose = null)
+            }
+            row.image?.let { MessageImage(row.key, it, onImageNeeded) }
+            row.file?.let { FileAttachment(it) }
+            when {
+                row.deleted -> Text(stringResource(R.string.chat_message_deleted), fontStyle = FontStyle.Italic)
+                row.unsupported -> Text(stringResource(R.string.chat_message_unsupported), fontStyle = FontStyle.Italic)
+                row.body != null -> Text(row.body)
+            }
+            if (row.failed) {
+                Text(
+                    text = stringResource(R.string.chat_message_failed),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            if (row.reactions.isNotEmpty()) {
+                ReactionChips(reactions = row.reactions, onClick = {}, modifier = Modifier.padding(top = 4.dp))
+            }
         }
-        row.replyPreview?.let {
-            ReplyPreviewBar(senderName = it.senderName, snippet = it.text, onClose = null)
-        }
-        row.image?.let { MessageImage(row.key, it, onImageNeeded) }
-        row.file?.let { FileAttachment(it) }
-        when {
-            row.deleted -> Text(stringResource(R.string.chat_message_deleted), fontStyle = FontStyle.Italic)
-            row.unsupported -> Text(stringResource(R.string.chat_message_unsupported), fontStyle = FontStyle.Italic)
-            row.body != null -> Text(row.body)
-        }
-        if (row.failed) {
-            Text(
-                text = stringResource(R.string.chat_message_failed),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
-        if (row.reactions.isNotEmpty()) {
-            ReactionChips(reactions = row.reactions, onClick = {}, modifier = Modifier.padding(top = 4.dp))
+        if (row.mediaUnavailable) {
+            TextButton(onClick = { onRetryMedia(row.key) }, modifier = Modifier.testTag(MEDIA_RETRY_TEST_TAG)) {
+                Text(stringResource(R.string.chat_media_retry))
+            }
         }
     }
 }

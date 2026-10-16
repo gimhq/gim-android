@@ -2,7 +2,7 @@ package im.g.apps.core.bridge
 
 /**
  * Kotlin mirror of gim-core's UniFFI `GimClient` (gim-core `bindings/gim-ffi`, contract in
- * `docs/API.md` at gim-core commit 3724543).
+ * `docs/API.md` at gim-core commit 7077421).
  *
  * gim-core (Rust) owns storage, networking, sync, outbox, MLS and media crypto; this interface is the only
  * surface the UI layer sees. Features never import `im.g.gimcore`: the real adapter maps the generated
@@ -23,7 +23,7 @@ package im.g.apps.core.bridge
  * | `PlatformHooks` | [PlatformHooks] | |
  * | `LinkSession`, `PendingApproval` | [LinkSession], [PendingApproval] | Kotlin interfaces wrapping the native objects |
  * | `DeviceInfo` | [DeviceInfo] | `createdAtMs: ULong` -> `Long` |
- * | `ChatListListener`, `TimelineListener`, `ConnectionStateListener`, `TypingListener` | same names | `fun interface` |
+ * | `ChatListListener`, `TimelineListener`, `ConnectionStateListener`, `TypingListener`, `LocalTimeZone` | same names | `fun interface` |
  * | `ChatListDiff`, `TimelineDiff` | [ChatListDiff], [TimelineDiff] | `index`/`length: UInt` -> `Int` |
  * | `Session`, `UserProfile`, `ChatKind`, `ChatSummary`, `MessagePreview` | same names | `UInt` -> `Int`, `ULong` -> `Long` |
  * | `TimelineItem`, `MembershipChangeKind`, `MessageItem`, `MessageContent` | same names | `ULong` -> `Long`, `UInt?` -> `Int?` |
@@ -47,7 +47,8 @@ interface GimClient {
 
     /**
      * Creates a new user with this device as its first one and signs in. Returns the recovery code: it is stored
-     * nowhere, so show it once. [Session.handle] stays empty until [claimHandle].
+     * nowhere, so show it once. [Session.handle] stays empty until [claimHandle]. A failed call keeps nothing of the
+     * attempt: call it again (it creates a new user); no [signOut] or new client is needed.
      */
     suspend fun createIdentity(displayName: String): String
 
@@ -55,14 +56,18 @@ interface GimClient {
      * Restores the user [userId] on this (fresh) client from its recovery code and adds this device to its
      * DeviceList; [revokeOthers] revokes every previously listed device. Throws [GimException.InvalidInput] for a
      * malformed code, [GimException.Crypto] for a wrong one, [GimException.NotFound] for an unknown user and
-     * [GimException.RetryLater] while the hub throttles the read.
+     * [GimException.RetryLater] while the hub throttles the read. A failed call keeps nothing of the attempt: call it
+     * again with the same arguments.
      */
     suspend fun restoreFromRecovery(userId: String, recoveryCode: String, revokeOthers: Boolean)
 
     /** New device: starts linking to an existing device; show [LinkSession.qrString] as a QR code. Synchronous. */
     fun startLink(hubs: List<String>): LinkSession
 
-    /** New device: waits (up to 10 minutes) for the old device's bundle, signs in and returns the SAS ("123 456"). */
+    /**
+     * New device: waits (up to 10 minutes) for the old device's bundle, signs in and returns the SAS ("123 456"). If
+     * no bundle arrived, call it again with the same [link]; after a failure past the bundle, start a new link.
+     */
     suspend fun waitLink(link: LinkSession): String
 
     /** New device: confirms the compared SAS; false wipes local state like [signOut] (create a new client). */
@@ -114,10 +119,17 @@ interface GimClient {
     /** Looks up a user by handle; null if no such user exists. */
     suspend fun findUser(handle: String): UserProfile?
 
-    /** Returns the chat id of the direct chat with [userId], creating it if needed. */
+    /**
+     * Returns the chat id of the direct chat with [userId], creating it if needed. [GimException.NotFound] (and no
+     * chat) if the user does not exist or has no device; a user whose hub is unavailable is invited later.
+     */
     suspend fun createDirectChat(userId: String): String
 
-    /** Creates a group chat and returns its chat id. The name is shared with the members in a group info message. */
+    /**
+     * Creates a group chat and returns its chat id. The name is shared with the members in a group info message.
+     * Unknown invitees (or ones without a device) are skipped; [GimException.NotFound] (and no chat) if that is every
+     * invitee.
+     */
     suspend fun createGroupChat(name: String, memberUserIds: List<String>): String
 
     /**
@@ -127,10 +139,16 @@ interface GimClient {
      */
     suspend fun chatMembers(chatId: String): List<UserProfile>
 
+    /** Skips unknown users like [createGroupChat]; [GimException.NotFound] (nothing committed) if that is all of them. */
     suspend fun addMembers(chatId: String, userIds: List<String>)
 
     suspend fun removeMember(chatId: String, userId: String)
 
+    /**
+     * Submits a leave proposal and returns once the hub accepted it; another member commits it, then the timeline
+     * shows the own [MembershipChangeKind.LEFT] change. Until then (also across restarts) sends to the chat fail with
+     * [GimException.InvalidInput].
+     */
     suspend fun leaveChat(chatId: String)
 
     /**
@@ -169,7 +187,11 @@ interface GimClient {
     /** Same as `setTyping(chatId, false)`; does nothing unless typing was reported. */
     suspend fun stopTyping(chatId: String)
 
-    /** Downloads and decrypts an attachment to [destPath] and returns the path of the decrypted file. */
+    /**
+     * Downloads and decrypts an attachment to [destPath] and returns the path of the decrypted file. A blob uploaded
+     * on another hub is fetched through the own hub: [GimException.RetryLater] (503) while the uploader's hub stays
+     * unreachable and [GimException.Server] (502) while it keeps refusing.
+     */
     suspend fun fetchMedia(chatId: String, messageId: String, destPath: String): String
 
     /** Like [fetchMedia] for the thumbnail; null if there is none. */
@@ -180,6 +202,13 @@ interface GimClient {
 
     /** The timeline of one chat. Cheap; listeners are added on the result. */
     suspend fun timeline(chatId: String): Timeline
+
+    /**
+     * Sets the time zone date separators split calendar days in; null (the default) is UTC. Synchronous, never throws.
+     * Set it after creating the client and again when the system time zone changes: open timelines move their date
+     * separators through their listeners.
+     */
+    fun setLocalTimeZone(zone: LocalTimeZone?)
 
     /**
      * Subscribes to connection state changes; the first callback carries the current state. [ConnectionState.OFFLINE]

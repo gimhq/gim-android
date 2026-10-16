@@ -35,7 +35,10 @@ sealed interface NewChatEvent {
     data class ShowError(val error: ContactsError) : NewChatEvent
 }
 
-/** Finds a user by handle and opens (or creates) the direct chat with them. */
+/**
+ * Finds a user by handle (or takes a typed user id) and opens (or creates) the direct chat with them; an unknown
+ * user id fails with [ContactsError.UserNotFound].
+ */
 class NewChatViewModel(private val client: GimClient) : ViewModel() {
     private val _state = MutableStateFlow(NewChatUiState())
     val state: StateFlow<NewChatUiState> = _state.asStateFlow()
@@ -66,7 +69,7 @@ class NewChatViewModel(private val client: GimClient) : ViewModel() {
             try {
                 _events.send(NewChatEvent.OpenChat(client.createDirectChat(user.userId)))
             } catch (e: GimException) {
-                _events.send(NewChatEvent.ShowError(e.toContactsError()))
+                _events.send(NewChatEvent.ShowError(e.toInviteError()))
             } finally {
                 _state.update { it.copy(starting = false) }
             }

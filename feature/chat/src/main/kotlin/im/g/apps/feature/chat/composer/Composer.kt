@@ -82,7 +82,18 @@ fun Composer(
                 TextField(
                     value = state.draft,
                     onValueChange = onDraftChange,
-                    placeholder = { Text(stringResource(R.string.chat_composer_placeholder)) },
+                    enabled = state.isMember,
+                    placeholder = {
+                        Text(
+                            stringResource(
+                                when (state.membership) {
+                                    ChatMembership.JOINED -> R.string.chat_composer_placeholder
+                                    ChatMembership.LEAVING -> R.string.chat_composer_leaving
+                                    ChatMembership.LEFT -> R.string.chat_composer_left
+                                },
+                            ),
+                        )
+                    },
                     maxLines = MAX_INPUT_LINES,
                     colors = TextFieldDefaults.colors(
                         focusedIndicatorColor = Color.Transparent,

@@ -90,7 +90,7 @@ comes from the `gimServerUrl` instrumentation argument, default `http://10.0.2.2
 ### CLI x Android interop
 
 `scripts/e2e-interop.sh` runs two gim CLI users (alice, bob; `gim-cli` built from gim-core `GIM_CORE_REF`,
-default `3724543`) and the app (`app/src/androidTest/.../interop/InteropTest`, real UI and gim-core) against the
+default `7077421`) and the app (`app/src/androidTest/.../interop/InteropTest`, real UI and gim-core) against the
 pinned gim-hub on the same emulator setup as the device tests. alice and bob create identities and claim handles
 with `gim register`; the app goes through onboarding (create identity, acknowledge the recovery code, claim a
 handle). Steps: DM both ways with read receipts, bob's group of three, text and images both ways, reply,

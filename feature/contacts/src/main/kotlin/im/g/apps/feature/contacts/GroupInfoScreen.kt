@@ -38,6 +38,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import im.g.apps.core.bridge.ChatKind
 import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.UserProfile
+import im.g.apps.core.bridge.displayLabel
+import im.g.apps.core.bridge.displayNameOrShortId
 import im.g.apps.core.designsystem.component.Avatar
 import im.g.apps.core.designsystem.component.EmptyState
 import im.g.apps.core.designsystem.theme.GimTheme
@@ -57,7 +59,7 @@ fun GroupInfoRoute(
         viewModel.events.collect { event ->
             when (event) {
                 GroupInfoEvent.LeftChat -> currentOnLeftChat()
-                is GroupInfoEvent.ShowError -> snackbarHostState.showSnackbar(context.getString(event.error.messageRes))
+                is GroupInfoEvent.ShowError -> snackbarHostState.showSnackbar(event.error.message(context))
             }
         }
     }
@@ -156,10 +158,11 @@ private fun ChatDetails(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 val peer = if (isGroup) null else state.peer
-                Avatar(name = peer?.displayName ?: chat.name, imagePath = null, size = 72.dp)
-                Text(text = peer?.displayName ?: chat.name, style = MaterialTheme.typography.titleLarge)
+                val title = peer?.displayLabel ?: displayNameOrShortId(chat.name)
+                Avatar(name = title, imagePath = null, size = 72.dp)
+                Text(text = title, style = MaterialTheme.typography.titleLarge)
                 val subtitle = when {
-                    peer != null -> peer.handle.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.contacts_handle, it) }
+                    peer != null -> userSubtitle(peer)
                     isGroup -> {
                         val count = if (state.membersUnavailable) chat.memberCount else state.members.size
                         pluralStringResource(R.plurals.contacts_member_count, count, count)
@@ -206,7 +209,7 @@ private fun ChatDetails(
             UserRow(user = member.user, isSelf = member.isSelf) {
                 if (!member.isSelf) {
                     RemoveButton(
-                        description = stringResource(R.string.contacts_remove_member_description, member.user.displayName),
+                        description = stringResource(R.string.contacts_remove_member_description, member.user.displayLabel),
                         onClick = { actions.onRemoveMember(member.user) },
                         enabled = !state.busy,
                     )
@@ -216,10 +219,14 @@ private fun ChatDetails(
         item(key = "leave") {
             TextButton(
                 onClick = actions.onLeave,
-                enabled = !state.busy,
+                enabled = !state.busy && !state.leaving,
                 modifier = Modifier.padding(vertical = 16.dp),
             ) {
-                Text(stringResource(R.string.contacts_leave_group), color = MaterialTheme.colorScheme.error)
+                if (state.leaving) {
+                    Text(stringResource(R.string.contacts_leaving))
+                } else {
+                    Text(stringResource(R.string.contacts_leave_group), color = MaterialTheme.colorScheme.error)
+                }
             }
         }
     }
@@ -248,7 +255,7 @@ private fun GroupInfoDialogs(state: GroupInfoUiState, actions: GroupInfoActions)
     }
     state.pendingRemoval?.let { user ->
         ConfirmDialog(
-            text = stringResource(R.string.contacts_remove_member_confirm, user.displayName),
+            text = stringResource(R.string.contacts_remove_member_confirm, user.displayLabel),
             confirmLabel = stringResource(R.string.contacts_remove),
             onConfirm = actions.onConfirmRemove,
             onDismiss = actions.onDismissDialog,

@@ -37,7 +37,7 @@ fun NewChatRoute(
         viewModel.events.collect { event ->
             when (event) {
                 is NewChatEvent.OpenChat -> currentOnOpenChat(event.chatId)
-                is NewChatEvent.ShowError -> snackbarHostState.showSnackbar(context.getString(event.error.messageRes))
+                is NewChatEvent.ShowError -> snackbarHostState.showSnackbar(event.error.message(context))
             }
         }
     }

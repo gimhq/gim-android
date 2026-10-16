@@ -109,7 +109,7 @@ fun GimNavHost(
             val context = LocalContext.current
             val chatVm: ChatViewModel = viewModel(factory = ChatViewModel.factory(current, chatId, container.mediaPathProvider))
             val composerVm: ComposerViewModel =
-                viewModel(factory = ComposerViewModel.factory(current, chatId, AndroidUriCopier(context)))
+                viewModel(factory = ComposerViewModel.factory(current, chatId, AndroidUriCopier(context), container.pendingLeaves))
             val snackbar = remember { SnackbarHostState() }
             val scope = rememberCoroutineScope()
             ChatRoute(
@@ -150,9 +150,10 @@ fun GimNavHost(
             val current = client ?: return@composable
             val chatId = entry.arguments?.getString(Routes.CHAT_ID) ?: return@composable
             GroupInfoRoute(
-                viewModel = viewModel(factory = groupInfoViewModelFactory(current, chatId)),
+                viewModel = viewModel(factory = groupInfoViewModelFactory(current, chatId, container.pendingLeaves)),
                 onBack = { navController.popBackStack() },
-                onLeftChat = { navController.popBackStack(Routes.CHAT_LIST, inclusive = false) },
+                // Back to the chat, which shows "Leaving…" until the own `Left` change arrives.
+                onLeftChat = { navController.popBackStack() },
             )
         }
         composable(Routes.DEVICES) {
