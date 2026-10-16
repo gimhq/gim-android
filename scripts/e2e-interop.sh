@@ -6,7 +6,7 @@
 #
 # Environment:
 #   GIM_CORE_REPO   gim-core checkout the CLI is built from (read only), default /srv/gimhq/im-client/core
-#   GIM_CORE_REF    gim-core commit of the CLI, default 225b809 (the commit GIM_CORE_VERSION pins)
+#   GIM_CORE_REF    gim-core commit of the CLI, default 9c6022c (the commit GIM_CORE_VERSION pins)
 #   GIM_HUB_SRC     gim-hub checkout the hub image is exported from, default /srv/gimhq/im-client/hub
 #   LOG_DIR         run log directory, default /tmp/gim-interop-<timestamp>
 #   GRADLE_CACHE    Gradle user home, default /srv/.tmp/cache/gradle
@@ -72,7 +72,7 @@ gim_check_host_paths "$repo_root"
 command -v jq >/dev/null || { echo "error: jq is required" >&2; exit 1; }
 
 core_repo=${GIM_CORE_REPO:-/srv/gimhq/im-client/core}
-core_ref=${GIM_CORE_REF:-225b809}
+core_ref=${GIM_CORE_REF:-9c6022c}
 gradle_cache=${GRADLE_CACHE:-/srv/.tmp/cache/gradle}
 cargo_cache=${CARGO_CACHE:-/srv/.tmp/cache/cargo}
 cargo_target=${CARGO_TARGET:-}

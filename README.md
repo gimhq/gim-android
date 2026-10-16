@@ -119,7 +119,7 @@ comes from the `gimServerUrl` instrumentation argument, default `http://10.0.2.2
 ### CLI x Android interop
 
 `scripts/e2e-interop.sh` runs two gim CLI users (alice, bob; `gim-cli` built from gim-core `GIM_CORE_REF`,
-default `225b809`) and the app (`app/src/androidTest/.../interop/InteropTest`, real UI and gim-core) against the
+default `9c6022c`) and the app (`app/src/androidTest/.../interop/InteropTest`, real UI and gim-core) against the
 pinned gim-hub on the same emulator setup as the device tests. alice and bob create identities and claim handles
 with `gim register`; the app goes through onboarding (create identity, acknowledge the recovery code, claim a
 handle). Steps: DM both ways with read receipts, bob's group of three, text and images both ways, reply,
@@ -184,13 +184,13 @@ script and CI follow it.
 - `core/bridge/src/main/kotlin/im/g/gimcore/gim_core.kt` (UniFFI bindings)
 
 The vendored version and source commit are pinned in `GIM_CORE_VERSION` at the repo root (currently gim-core
-`225b809`, tested against gim-hub `bd8c9ca` from `e2e/GIM_HUB_VERSION`). Refresh them from a gim-core checkout, or
+`9c6022c`, tested against gim-hub `bd8c9ca` from `e2e/GIM_HUB_VERSION`). Refresh them from a gim-core checkout, or
 from a clean export of a commit (then `--commit` with its full sha is required):
 
 ```bash
 scripts/sync-gim-core.sh [--build] [--commit SHA] [GIM_CORE_DIR]   # default /srv/gimhq/im-client/core
 
-sha=$(git -C /srv/gimhq/im-client/core rev-parse 225b809)
+sha=$(git -C /srv/gimhq/im-client/core rev-parse 9c6022c)
 mkdir -p .tmp/gim-core-$sha && git -C /srv/gimhq/im-client/core archive $sha | tar -x -m -C .tmp/gim-core-$sha
 SKIP_IMAGE_BUILD=1 scripts/sync-gim-core.sh --build --commit $sha .tmp/gim-core-$sha
 ```
