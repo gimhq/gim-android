@@ -38,13 +38,15 @@
 # failing step, plus one by this script per failed test). Exit codes: 0 every test passed; 1 a test failed (or the
 # build / setup failed); 3 the phone cannot be updated unattended (signature mismatch, refused or unverifiable install
 # confirmation); 4 device not attached at the start (or only over USB: wireless adb is required); 5 INTERRUPTED
-# (infra): the device went away or offline during the run (summary.txt says so), not a test result; 6 NOT READY
+# (infra): the device went away or offline during the run, or a class failed while someone touched the phone
+# ("INTERRUPTED (external input)" with the touch times; a class that passes despite touches keeps PASS with a WARN
+# line); 1 outranks this 5 when another class genuinely failed. summary.txt says which. 6 NOT READY
 # (infra): the screen stays off or locked after the wake-up (a secure lock screen needs a person), before a run or when
 # a run failed.
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,43p' "$0"
+    sed -n '2,45p' "$0"
     exit 0
 fi
 
@@ -119,6 +121,49 @@ test_seconds() {
         $0 ~ /TestRunner: started: / && index($0, t) { s = ms($2) }
         $0 ~ /TestRunner: finished: / && index($0, t) && s { d = ms($2) - s; if (d < 0) d += 86400000; f = d }
         END { if (f != "") printf "%.1f", f / 1000 }' "$log_dir/logcat.txt"
+}
+
+# external_touches CLASS: touches on the app's windows while CLASS ran (its first TestRunner "started" to its last
+# "finished" in logcat.txt), one "MM-DD HH:MM:SS.mmm" per line. Compose test clicks are dispatched inside the app and
+# never log MIUIInput; real touches (a person, another `adb shell input`) do. A touch within 2 s after the tests'
+# own "SystemDialogs: dismissing" line is attributed to that UiAutomator dismissal and printed with "(dismissal)".
+external_touches() {
+    awk -v cls="($1)" '
+        function ms(clock) { split(clock, a, /[:.]/); return ((a[1] * 60 + a[2]) * 60 + a[3]) * 1000 + a[4] }
+        / TestRunner: started: / && index($0, cls) && start == "" { start = $1 " " $2 }
+        / TestRunner: finished: / && index($0, cls) { end = $1 " " $2 }
+        / SystemDialogs: dismissing / { dismissed[++n] = $1 " " $2 }
+        /MIUIInput: \[MotionEvent\]/ && /windowName .im\.g\.apps/ && /action=ACTION_DOWN/ { touch[++m] = $1 " " $2 }
+        END {
+            if (start == "") exit
+            for (i = 1; i <= m; i++) {
+                if (touch[i] < start || (end != "" && touch[i] > end)) continue
+                note = ""
+                for (j = 1; j <= n; j++) {
+                    d = ms(substr(touch[i], 7)) - ms(substr(dismissed[j], 7))
+                    if (substr(touch[i], 1, 5) == substr(dismissed[j], 1, 5) && d >= 0 && d <= 2000) note = " (dismissal)"
+                }
+                print touch[i] note
+            }
+        }' "$log_dir/logcat.txt"
+}
+
+# check_external_input CLASS RESULT: prints the class result after looking for external touches. A failed class
+# with external touches is "INTERRUPTED (external input)" in summary.txt (returns 5), a passed one keeps PASS with a
+# WARN line; otherwise RESULT is returned unchanged.
+check_external_input() {
+    local class=$1 result=$2 touches
+    touches=$(external_touches "$class" | grep -v '(dismissal)' | paste -sd',' || true)
+    [[ -n $touches ]] || return "$result"
+    if ((result == 1)); then
+        awk -v c="$class#" -v t="$touches" '
+            index($0, "FAIL " c) == 1 { sub(/^FAIL /, "INTERRUPTED (external input) "); $0 = $0 " touches at " t }
+            { print }' "$log_dir/summary.txt" >"$log_dir/summary.tmp" && mv "$log_dir/summary.tmp" "$log_dir/summary.txt"
+        echo "INTERRUPTED (external input): $class failed with touches on the phone at $touches"
+        return "$GIM_REAL_EXIT_INTERRUPTED"
+    fi
+    echo "WARN external input during $class at $touches (result kept)" | tee -a "$log_dir/summary.txt"
+    return "$result"
 }
 
 interrupted() {
@@ -241,6 +286,7 @@ classes=$(gim_real_adb shell am instrument -w -r -e log true -e notClass "$camer
 }
 echo "test classes: $(paste -sd' ' <<<"$classes") + ${camera_test##*.}"
 status=0
+external=0
 for class in $classes "$camera_test"; do
     result=0
     if [[ $class == "$camera_test" ]]; then
@@ -254,14 +300,21 @@ for class in $classes "$camera_test"; do
         status=$result
         break
     fi
-    ((status)) || status=$result
+    check_external_input "$class" "$result" || result=$?
+    if ((result == GIM_REAL_EXIT_INTERRUPTED)); then
+        external=1
+    elif ((result)); then
+        status=1
+    fi
 done
+# A genuine test failure outranks a class interrupted by external input.
+((status || !external)) || status=$GIM_REAL_EXIT_INTERRUPTED
 
 echo
 echo "summary ($log_dir/summary.txt):"
 cat "$log_dir/summary.txt"
 if ((status == GIM_REAL_EXIT_INTERRUPTED)); then
-    echo "real-device run INTERRUPTED (infra): device $GIM_REAL_SERIAL went away"
+    echo "real-device run INTERRUPTED (infra): see summary.txt (device went away, or external input on the phone)"
 elif ((status == GIM_REAL_EXIT_NOT_READY)); then
     echo "real-device run NOT READY (infra): the phone's screen is off or locked"
 elif ((status)); then
