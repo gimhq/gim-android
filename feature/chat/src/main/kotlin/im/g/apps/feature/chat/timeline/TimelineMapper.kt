@@ -40,10 +40,14 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
         val imagePath: String?,
     )
 
-    private data class DateInput(val dayStartMs: Long, val today: LocalDate)
+    private data class DateInput(val day: LocalDate, val today: LocalDate)
 
     private var cache = HashMap<String, Cached>()
 
+    /**
+     * Core's separators bucket by UTC day (M1; the binding exposes no UTC offset), so they are dropped and
+     * rebuilt here from the item timestamps in [zone], keyed by the local day start.
+     */
     fun map(
         items: List<TimelineItem>,
         isGroup: Boolean,
@@ -51,37 +55,46 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
         nowMs: Long,
     ): ImmutableList<TimelineRowUi> {
         val today = localDate(nowMs)
-        val next = HashMap<String, Cached>(items.size)
+        val events = items.filter { it !is TimelineItem.DateSeparator }
+        val days = events.map { localDate(it.timestampMs) }
+        val next = HashMap<String, Cached>(events.size + days.size)
         val rows = persistentListOf<TimelineRowUi>().builder()
-        for (index in items.indices.reversed()) {
-            val item = items[index]
-            val key = item.key
+        for (index in events.indices.reversed()) {
+            val item = events[index]
+            val day = days[index]
             val input: Any = when (item) {
                 is TimelineItem.Message -> {
                     val message = item.item
-                    val previous = grouped(items.getOrNull(index - 1), message)
+                    val previous = grouped(events.getOrNull(index - 1), days.getOrNull(index - 1), message, day)
                     MessageInput(
                         item = message,
                         showSender = isGroup && !message.isOwn && !previous,
                         groupedWithPrevious = previous,
-                        groupedWithNext = grouped(items.getOrNull(index + 1), message),
+                        groupedWithNext = grouped(events.getOrNull(index + 1), days.getOrNull(index + 1), message, day),
                         imagePath = imagePaths[message.messageId],
                     )
                 }
-                is TimelineItem.DateSeparator -> DateInput(item.dayStartMs, today)
                 is TimelineItem.MembershipChange -> item
+                is TimelineItem.DateSeparator -> error("filtered")
             }
-            val row = cache[key]?.takeIf { it.input == input }?.row ?: buildRow(key, input)
-            next[key] = Cached(input, row)
-            rows += row
+            rows += row(item.key, input, next)
+            if (day != days.getOrNull(index - 1)) {
+                rows += row("date-${day.atStartOfDay(zone).toInstant().toEpochMilli()}", DateInput(day, today), next)
+            }
         }
         cache = next
         return rows.build()
     }
 
+    private fun row(key: String, input: Any, next: HashMap<String, Cached>): TimelineRowUi {
+        val row = cache[key]?.takeIf { it.input == input }?.row ?: buildRow(key, input)
+        next[key] = Cached(input, row)
+        return row
+    }
+
     private fun buildRow(key: String, input: Any): TimelineRowUi = when (input) {
         is MessageInput -> messageRow(key, input)
-        is DateInput -> DateSeparatorRow(key, dayLabel(input.dayStartMs, input.today))
+        is DateInput -> DateSeparatorRow(key, dayLabel(input.day, input.today))
         is TimelineItem.MembershipChange -> SystemRow(key, membershipText(input))
         else -> error("unexpected input $input")
     }
@@ -126,23 +139,28 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
         )
     }
 
-    private fun dayLabel(dayStartMs: Long, today: LocalDate): UiText {
-        val day = localDate(dayStartMs)
-        return when (day) {
+    private fun dayLabel(day: LocalDate, today: LocalDate): UiText =
+        when (day) {
             today -> UiText.Res(R.string.chat_today)
             today.minusDays(1) -> UiText.Res(R.string.chat_yesterday)
             else -> UiText.Raw(dateFormatter.format(day))
         }
-    }
 
     private fun localDate(ms: Long): LocalDate = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
 
     private companion object {
-        fun grouped(neighbour: TimelineItem?, message: MessageItem): Boolean {
+        fun grouped(neighbour: TimelineItem?, neighbourDay: LocalDate?, message: MessageItem, day: LocalDate): Boolean {
             val other = (neighbour as? TimelineItem.Message)?.item ?: return false
-            return other.sender.userId == message.sender.userId &&
+            return neighbourDay == day && other.sender.userId == message.sender.userId &&
                 abs(other.sentAtMs - message.sentAtMs) <= GROUPING_WINDOW_MS
         }
+
+        val TimelineItem.timestampMs: Long
+            get() = when (this) {
+                is TimelineItem.Message -> item.sentAtMs
+                is TimelineItem.MembershipChange -> atMs
+                is TimelineItem.DateSeparator -> dayStartMs
+            }
 
         fun membershipText(change: TimelineItem.MembershipChange): UiText = UiText.Res(
             when (change.change) {

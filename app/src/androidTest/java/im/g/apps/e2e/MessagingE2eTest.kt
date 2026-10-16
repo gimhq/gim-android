@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Instrumentation.ActivityResult
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.util.Log
 import androidx.annotation.StringRes
 import androidx.compose.ui.semantics.SemanticsNode
@@ -31,6 +32,7 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.printToString
 import androidx.core.content.FileProvider
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.espresso.intent.Intents
@@ -57,6 +59,7 @@ import java.io.File
 import java.security.KeyStore
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.abs
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CoroutineScope
@@ -244,6 +247,8 @@ class MessagingE2eTest {
             Intents.release()
         }
 
+        assertComposerDockedOnIme()
+
         // Sign out through the chat list overflow menu.
         assertTrue(keystoreHasAlias())
         compose.onNodeWithContentDescription(string(ChatR.string.chat_back)).performClick()
@@ -325,6 +330,64 @@ class MessagingE2eTest {
         compose.onNodeWithTag(tag).performScrollTo().assertIsDisplayed().assertIsEnabled().performClick()
     }
 
+    /**
+     * Focuses the composer and, once the soft keyboard is fully shown, checks the composer sits right on top of
+     * it (the IME inset applied exactly once). Skipped with a warning when no soft keyboard appears (emulators
+     * with a hardware keyboard). Instrumentation argument `screenshotDir` saves the screen with the keyboard open.
+     */
+    private fun assertComposerDockedOnIme() {
+        compose.onNodeWithTag(TAG_COMPOSER).performClick()
+        instrumentation.runOnMainSync {
+            val window = compose.activity.window
+            WindowCompat.getInsetsController(window, window.decorView).show(WindowInsetsCompat.Type.ime())
+        }
+        var imeBottom = 0
+        val settled = runCatching {
+            compose.waitUntil(timeoutMs) {
+                val previous = imeBottom
+                imeBottom = imeInsetBottom()
+                Thread.sleep(IME_SETTLE_POLL_MS)
+                imeBottom > 0 && imeBottom == previous && imeBottom == imeInsetBottom()
+            }
+        }.isSuccess
+        if (!settled) {
+            Log.w(LOG_TAG, "no soft keyboard shown; skipping the composer docking check")
+            hideSoftKeyboard()
+            return
+        }
+        compose.waitForIdle()
+        args.getString("screenshotDir")?.let { dir ->
+            val file = File(dir, "composer-ime-$suffix.png").apply { parentFile?.mkdirs() }
+            instrumentation.uiAutomation.takeScreenshot()?.let { bitmap ->
+                file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            }
+            Log.i(LOG_TAG, "IME screenshot: $file")
+        }
+        var windowHeight = 0
+        instrumentation.runOnMainSync { windowHeight = compose.activity.window.decorView.height }
+        val imeTop = windowHeight - imeBottom
+        val fieldBottom = compose.onNodeWithTag(TAG_COMPOSER).fetchSemanticsNode().boundsInWindow.bottom
+        val density = compose.activity.resources.displayMetrics.density
+        // The input field sits inside the composer's 4dp vertical padding.
+        val expectedGap = 4 * density
+        val gap = imeTop - fieldBottom
+        Log.i(LOG_TAG, "IME top $imeTop px, composer field bottom $fieldBottom px, gap $gap px")
+        assertTrue(
+            "composer field bottom $fieldBottom px is not docked on the IME top $imeTop px (gap $gap px)",
+            abs(gap - expectedGap) <= IME_DOCK_TOLERANCE_PX,
+        )
+        hideSoftKeyboard()
+    }
+
+    private fun imeInsetBottom(): Int {
+        var bottom = 0
+        instrumentation.runOnMainSync {
+            val insets = ViewCompat.getRootWindowInsets(compose.activity.window.decorView)
+            bottom = insets?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0
+        }
+        return bottom
+    }
+
     private fun appHasFocus(): Boolean {
         var focused = false
         instrumentation.runOnMainSync { focused = compose.activity.hasWindowFocus() }
@@ -395,6 +458,8 @@ class MessagingE2eTest {
         const val REACTION = "👍"
         const val PHOTO_ASSET = "e2e-photo.png"
         const val PNG_MIME = "image/png"
+        const val IME_SETTLE_POLL_MS = 300L
+        const val IME_DOCK_TOLERANCE_PX = 4f
 
         /** gim-core's display form: 39 Crockford base32 symbols in blocks of four separated by '-'. */
         val RECOVERY_CODE = Regex("([0-9A-HJKMNP-TV-Z]{4}-){9}[0-9A-HJKMNP-TV-Z]{3}")

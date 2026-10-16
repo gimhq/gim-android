@@ -64,6 +64,42 @@ class OnboardingRestoreViewModelTest {
             store,
         )
 
+    /**
+     * Models gim-core's local state, shared by every client (one data dir): `restoreFromRecovery` stores the identity
+     * before signing in, so a hub in [down] fails it with `Network` and leaves an identity behind that fails every
+     * later attempt (`Crypto`, "identity already exists") until `signOut` wipes it.
+     */
+    private class CoreLocalState(val down: MutableSet<String>) {
+        var leftoverIdentity = false
+        val clients = mutableListOf<String>()
+    }
+
+    private fun TestScope.coreManager(local: CoreLocalState) = GimClientManager(
+        GimClientFactory { config, _ ->
+            val fake = FakeGimClient(backgroundScope, outboxDelays = null).apply {
+                addRecoverableUser(UserProfile(USER_ID, "", "Sofia Costa"), RECOVERY_CODE, listOf(OLD_DEVICE))
+            }
+            local.clients += config.serverUrl
+            object : GimClient by fake {
+                override suspend fun restoreFromRecovery(userId: String, recoveryCode: String, revokeOthers: Boolean) {
+                    if (local.leftoverIdentity) throw GimException.Crypto("identity already exists")
+                    if (config.serverUrl in local.down) {
+                        local.leftoverIdentity = true
+                        throw GimException.Network("connection refused")
+                    }
+                    fake.restoreFromRecovery(userId, recoveryCode, revokeOthers)
+                }
+
+                override suspend fun signOut() {
+                    local.leftoverIdentity = false
+                    fake.signOut()
+                }
+            }
+        },
+        FakePlatformHooks(),
+        store,
+    )
+
     /** Welcome -> restore form filled with [userId] and [code]. */
     private fun form(vm: OnboardingViewModel, userId: String = USER_ID, code: String = RECOVERY_CODE) {
         vm.startRestore()
@@ -216,8 +252,8 @@ class OnboardingRestoreViewModelTest {
             advanceUntilIdle()
             assertEquals(OnboardingEvent.Finished, awaitItem())
         }
-        assertEquals(1, clients.size)
-        assertEquals(USER_ID, clients.single().userId())
+        assertEquals(2, clients.size)
+        assertEquals(USER_ID, clients.last().userId())
     }
 
     @Test
@@ -233,7 +269,7 @@ class OnboardingRestoreViewModelTest {
     @Test
     fun retry_later_shows_the_wait_and_allows_a_retry() = runTest(dispatcher) {
         val vm = OnboardingViewModel(
-            manager { it.restoreError = GimException.RetryLater(429, 42, "rate_limited") },
+            manager { if (clients.isEmpty()) it.restoreError = GimException.RetryLater(429, 42, "rate_limited") },
             SERVER_URL,
         )
         form(vm)
@@ -243,7 +279,6 @@ class OnboardingRestoreViewModelTest {
         assertEquals(OnboardingError.TryAgainLater(42), vm.state.value.error)
         assertTrue(vm.state.value.canRestore)
 
-        clients.single().restoreError = null
         vm.events.test {
             vm.restore()
             assertNull(vm.state.value.error)
@@ -263,6 +298,48 @@ class OnboardingRestoreViewModelTest {
         assertTrue(vm.state.value.canRestore)
         vm.onRestoreCodeChange(RECOVERY_CODE)
         assertNull(vm.state.value.error)
+    }
+
+    @Test
+    fun retry_after_network_error_on_restore_finishes() = runTest(dispatcher) {
+        val local = CoreLocalState(mutableSetOf(SERVER_URL))
+        val vm = OnboardingViewModel(coreManager(local), SERVER_URL)
+        form(vm)
+        vm.restore()
+        advanceUntilIdle()
+        assertEquals(OnboardingError.CannotReachServer, vm.state.value.error)
+        assertFalse(local.leftoverIdentity)
+
+        local.down.clear()
+        vm.events.test {
+            vm.restore()
+            advanceUntilIdle()
+            assertEquals(OnboardingEvent.Finished, awaitItem())
+        }
+        assertNull(vm.state.value.restoreCodeError)
+        assertEquals(listOf(SERVER_URL, SERVER_URL), local.clients)
+    }
+
+    @Test
+    fun retry_with_another_server_url_after_network_error_on_restore_finishes() = runTest(dispatcher) {
+        val local = CoreLocalState(mutableSetOf(UNREACHABLE_URL))
+        val vm = OnboardingViewModel(coreManager(local), UNREACHABLE_URL)
+        form(vm)
+        vm.restore()
+        advanceUntilIdle()
+        assertEquals(OnboardingError.CannotReachServer, vm.state.value.error)
+
+        vm.back()
+        vm.onServerUrlChange(SERVER_URL)
+        vm.startRestore()
+        assertEquals(USER_ID, vm.state.value.restoreUserId)
+        vm.events.test {
+            vm.restore()
+            advanceUntilIdle()
+            assertEquals(OnboardingEvent.Finished, awaitItem())
+        }
+        assertEquals(listOf(UNREACHABLE_URL, SERVER_URL), local.clients)
+        assertEquals(SERVER_URL, store.get())
     }
 
     @Test
@@ -314,6 +391,7 @@ class OnboardingRestoreViewModelTest {
 
     private companion object {
         const val SERVER_URL = "https://gim.example.eu"
+        const val UNREACHABLE_URL = "http://10.0.2.2:1"
         const val USER_ID = "uabcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuvq"
         const val OTHER_USER_ID = "u" + "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" + "a"
         const val RECOVERY_CODE = "7BQ2-K9MX-4TVA-0HZR-PC63-W8NE-1SJD-5GFY-QK2M-V7R"
