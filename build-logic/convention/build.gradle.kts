@@ -21,6 +21,8 @@ dependencies {
     compileOnly(libs.android.gradlePlugin)
     compileOnly(libs.kotlin.gradlePlugin)
     compileOnly(libs.compose.gradlePlugin)
+
+    testImplementation(libs.junit)
 }
 
 gradlePlugin {
