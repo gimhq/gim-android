@@ -358,6 +358,7 @@ class OnboardingViewModel(
                 is GimException.Network -> OnboardingError.CannotReachServer
                 is GimException.HubNotVerified -> OnboardingError.HubNotVerified
                 is GimException.RetryLater -> OnboardingError.TryAgainLater(e.retryAfterSecs.coerceAtLeast(1))
+                is GimException.UserSuspended -> OnboardingError.AccountSuspended
                 else -> OnboardingError.Generic
             },
         )
@@ -374,6 +375,7 @@ class OnboardingViewModel(
             is GimException.Network -> OnboardingError.CannotReachServer
             is GimException.HubNotVerified -> OnboardingError.HubNotVerified
             is GimException.RetryLater -> OnboardingError.TryAgainLater(e.retryAfterSecs.coerceAtLeast(1))
+            is GimException.UserSuspended -> OnboardingError.AccountSuspended
             else -> OnboardingError.LinkFailed
         }
     }

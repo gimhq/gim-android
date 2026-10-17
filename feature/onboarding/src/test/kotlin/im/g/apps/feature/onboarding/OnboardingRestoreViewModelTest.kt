@@ -352,6 +352,21 @@ class OnboardingRestoreViewModelTest {
     }
 
     @Test
+    fun suspended_user_maps_to_account_suspended_and_keeps_the_form() = runTest(dispatcher) {
+        val vm = OnboardingViewModel(manager { it.restoreError = GimException.UserSuspended("hub-a") }, SERVER_URL)
+        form(vm)
+        vm.restore()
+        advanceUntilIdle()
+
+        val state = vm.state.value
+        assertEquals(OnboardingError.AccountSuspended, state.error)
+        assertEquals(OnboardingStep.RESTORE, state.step)
+        assertEquals(USER_ID, state.restoreUserId)
+        assertFalse(state.isLoading)
+        assertEquals(1, clients.single().calls.size)
+    }
+
+    @Test
     fun other_errors_map_to_generic() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager { it.restoreError = GimException.Server(500, "boom") }, SERVER_URL)
         form(vm)

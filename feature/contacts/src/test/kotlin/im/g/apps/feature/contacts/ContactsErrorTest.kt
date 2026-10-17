@@ -39,6 +39,12 @@ class ContactsErrorTest {
     }
 
     @Test
+    fun userSuspended_namesTheHubWhenKnown() {
+        assertEquals(ContactsError.Suspended(null), GimException.UserSuspended("hb").toContactsError())
+        assertEquals(ContactsError.Suspended(HUB_B), GimException.UserSuspended("hb").toInviteError(HUB_B))
+    }
+
+    @Test
     fun server_errors_stay_generic() {
         assertEquals(ContactsError.Server, GimException.Server(502, "peer_refused").toContactsError())
     }

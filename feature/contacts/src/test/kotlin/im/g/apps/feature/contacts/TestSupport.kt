@@ -66,3 +66,6 @@ class TestClient(private val delegate: GimClient) : GimClient by delegate {
         delegate.setGroupInfo(chatId, name, avatarFilePath)
     }
 }
+
+/** A second hub for suspension tests. */
+const val HUB_B = "https://hub-b.example.eu"

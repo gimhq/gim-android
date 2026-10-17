@@ -18,4 +18,6 @@
         <item quantity="other">%1$s, %2$d reactions</item>
     </plurals>
     <string name="gim_reaction_mine">%1$s, including yours</string>
+    <string name="gim_error_user_suspended">Your account is suspended on this hub.</string>
+    <string name="gim_error_user_suspended_on_hub">Your account is suspended on %1$s.</string>
 </resources>

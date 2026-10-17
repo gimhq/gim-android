@@ -73,8 +73,30 @@ sealed class GimException(message: String) : Exception(message) {
     /** [GimClient.removeHub] while messages or member changes sent through the hub are not settled; retry later. */
     class HubNotDrained(val hubId: String, val reason: String) : GimException("hub $hubId is not drained: $reason")
 
+    /**
+     * An admin of hub [hubId] suspended this user: the hub refused the sign-in (403 `user_suspended`). The session and
+     * local data are kept; show "account suspended" ([suspendedHubName]), do not retry and do not sign out. [hubId] is
+     * empty for a home hub without a hub identity.
+     */
+    class UserSuspended(val hubId: String) : GimException("user suspended on hub $hubId")
+
     /** A bug or an unexpected failure inside gim-core or a platform callback. */
     class Internal(val reason: String) : GimException("internal error: $reason")
+}
+
+/**
+ * The hub an "account suspended" message for [e] names: its URL when the user has several hubs and
+ * [GimException.UserSuspended.hubId] is one of them. Null (the generic "this hub" text) for one hub, an empty or unknown
+ * hub id, a hub list that cannot be read, or any other error.
+ */
+suspend fun GimClient.suspendedHubName(e: GimException): String? {
+    if (e !is GimException.UserSuspended || e.hubId.isEmpty()) return null
+    val hubs = try {
+        hubs()
+    } catch (_: GimException) {
+        return null
+    }
+    return if (hubs.size > 1) hubs.firstOrNull { it.hubId == e.hubId }?.url else null
 }
 
 /** Same check as gim-core's `create_client`: an `http`/`https` URL with a host, else [GimException.InvalidInput]. */

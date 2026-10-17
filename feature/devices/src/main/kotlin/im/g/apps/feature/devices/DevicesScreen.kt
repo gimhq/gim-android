@@ -46,6 +46,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import im.g.apps.core.bridge.DeviceInfo
 import im.g.apps.core.designsystem.component.EmptyState
 import im.g.apps.core.designsystem.component.GimPreviews
+import im.g.apps.core.designsystem.component.userSuspendedMessage
 import im.g.apps.core.designsystem.theme.GimTheme
 import java.text.DateFormat
 import java.util.Date
@@ -145,7 +146,11 @@ fun DevicesScreen(state: DevicesUiState, actions: DevicesActions, modifier: Modi
                     title = stringResource(R.string.devices_empty_title),
                     body = "",
                     modifier = Modifier.fillMaxSize(),
-                    action = { TextButton(onClick = actions.onRefresh) { Text(stringResource(R.string.devices_retry)) } },
+                    action = if (state.suspended) {
+                        null
+                    } else {
+                        { TextButton(onClick = actions.onRefresh) { Text(stringResource(R.string.devices_retry)) } }
+                    },
                 )
             }
         }
@@ -274,6 +279,7 @@ private fun errorMessage(error: DevicesError): String = when (error) {
     DevicesError.CurrentDevice -> stringResource(R.string.devices_error_current_device)
     DevicesError.NotFound -> stringResource(R.string.devices_error_not_found)
     DevicesError.Server -> stringResource(R.string.devices_error_server)
+    is DevicesError.Suspended -> userSuspendedMessage(error.hub)
     DevicesError.Unknown -> stringResource(R.string.devices_error_unknown)
 }
 

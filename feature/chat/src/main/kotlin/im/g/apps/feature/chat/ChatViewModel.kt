@@ -18,6 +18,7 @@ import im.g.apps.core.bridge.displayNameOrShortId
 import im.g.apps.core.bridge.flow.chatListFlow
 import im.g.apps.core.bridge.flow.itemsFlow
 import im.g.apps.core.bridge.flow.typingFlow
+import im.g.apps.core.bridge.suspendedHubName
 import im.g.apps.feature.chat.timeline.ChatEvent
 import im.g.apps.feature.chat.timeline.ChatHeaderUi
 import im.g.apps.feature.chat.timeline.ChatUiState
@@ -236,7 +237,7 @@ class ChatViewModel(
                 } else {
                     R.string.chat_error_open_file
                 }
-                _events.send(ChatEvent.Error(e.toUiText(fallback)))
+                _events.send(ChatEvent.Error(e.toUiText(fallback, client.suspendedHubName(e))))
             }
         }
     }
@@ -248,7 +249,7 @@ class ChatViewModel(
                 client.retrySend(chatId, messageId)
             } catch (e: GimException) {
                 // The message stays failed.
-                _events.send(ChatEvent.Error(e.toUiText(R.string.composer_error_retry)))
+                _events.send(ChatEvent.Error(e.toUiText(R.string.composer_error_retry, client.suspendedHubName(e))))
             }
         }
     }

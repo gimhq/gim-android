@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -150,6 +151,19 @@ class NewChatViewModelTest {
         advanceUntilIdle()
         assertEquals(NewChatEvent.ShowError(ContactsError.UserNotFound), vm.events.first())
         assertFalse(client.chatListFlow().first().any { it.name == UNKNOWN_USER_ID })
+    }
+
+    @Test
+    fun startChat_suspendedWithOneHub_showsTheGenericSuspendedError() = runTest {
+        val (vm, client) = newViewModel()
+        client.createDirectChatError = GimException.UserSuspended(client.hubs().single().hubId)
+        vm.onQueryChange("ana")
+        advanceUntilIdle()
+        vm.startChat()
+        advanceUntilIdle()
+        assertEquals(NewChatEvent.ShowError(ContactsError.Suspended(null)), vm.events.first())
+        assertNotNull(client.session())
+        assertTrue(client.chatListFlow().first().isNotEmpty())
     }
 
     @Test

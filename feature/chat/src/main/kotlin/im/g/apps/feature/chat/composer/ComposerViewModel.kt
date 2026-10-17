@@ -17,6 +17,7 @@ import im.g.apps.core.bridge.TimelineItem
 import im.g.apps.core.bridge.displayLabel
 import im.g.apps.core.bridge.flow.chatListFlow
 import im.g.apps.core.bridge.flow.itemsFlow
+import im.g.apps.core.bridge.suspendedHubName
 import im.g.apps.feature.chat.R
 import im.g.apps.feature.chat.toUiText
 import im.g.apps.feature.chat.timeline.UiText
@@ -272,7 +273,7 @@ class ComposerViewModel(
             // Show the chat read-only at once; the chat list row confirms the state.
             _uiState.update { it.copy(membership = e.state.toMembership(it.membership)) }
         } catch (e: GimException) {
-            _events.send(ComposerEvent.Error(e.toUiText(error)))
+            _events.send(ComposerEvent.Error(e.toUiText(error, client.suspendedHubName(e))))
         }
     }
 

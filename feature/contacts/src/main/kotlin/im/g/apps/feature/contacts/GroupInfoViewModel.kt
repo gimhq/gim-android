@@ -16,6 +16,7 @@ import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.flow.chatListFlow
 import im.g.apps.core.bridge.flow.itemsFlow
 import im.g.apps.core.bridge.key
+import im.g.apps.core.bridge.suspendedHubName
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
@@ -192,7 +193,7 @@ class GroupInfoViewModel(
                 client.leaveChat(chatId)
                 _events.send(GroupInfoEvent.LeftChat)
             } catch (e: GimException) {
-                _events.send(GroupInfoEvent.ShowError(e.toContactsError()))
+                _events.send(GroupInfoEvent.ShowError(e.toContactsError(client.suspendedHubName(e))))
             } finally {
                 _state.update { it.copy(busy = false) }
             }
@@ -210,7 +211,7 @@ class GroupInfoViewModel(
 
     private fun mutate(
         refreshMembers: Boolean = true,
-        error: (GimException) -> ContactsError = GimException::toContactsError,
+        error: (GimException, String?) -> ContactsError = GimException::toContactsError,
         action: suspend () -> Unit,
     ) {
         _state.update { it.copy(busy = true) }
@@ -219,7 +220,7 @@ class GroupInfoViewModel(
                 action()
                 if (refreshMembers) memberRefreshes.trySend(Unit)
             } catch (e: GimException) {
-                _events.send(GroupInfoEvent.ShowError(error(e)))
+                _events.send(GroupInfoEvent.ShowError(error(e, client.suspendedHubName(e))))
             } finally {
                 _state.update { it.copy(busy = false) }
             }
@@ -236,7 +237,7 @@ class GroupInfoViewModel(
                     if (row != null) memberRefreshes.trySend(Unit)
                 }
         } catch (e: GimException) {
-            _events.send(GroupInfoEvent.ShowError(e.toContactsError()))
+            _events.send(GroupInfoEvent.ShowError(e.toContactsError(client.suspendedHubName(e))))
         }
     }
 
@@ -263,7 +264,7 @@ class GroupInfoViewModel(
         } catch (e: GimException.NotFound) {
             // The chat is gone (left or removed); the chat list row reports that as `missing`.
         } catch (e: GimException) {
-            _events.send(GroupInfoEvent.ShowError(e.toContactsError()))
+            _events.send(GroupInfoEvent.ShowError(e.toContactsError(client.suspendedHubName(e))))
         }
     }
 }

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.UserProfile
+import im.g.apps.core.bridge.suspendedHubName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,6 +78,6 @@ internal class UserSearch(
             client.findUser(handle)?.let(UserSearchState::Found) ?: UserSearchState.NotFound(handle)
         }
     } catch (e: GimException) {
-        UserSearchState.Error(e.toContactsError())
+        UserSearchState.Error(e.toContactsError(client.suspendedHubName(e)))
     }
 }

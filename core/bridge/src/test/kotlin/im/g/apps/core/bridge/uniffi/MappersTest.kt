@@ -391,6 +391,10 @@ class MappersTest {
         check(im.g.gimcore.GimException.LastHub("ha"), GimException.LastHub("ha"))
         check(im.g.gimcore.GimException.HomeHub("ha"), GimException.HomeHub("ha"))
         check(im.g.gimcore.GimException.HubNotDrained("hb", "1 message"), GimException.HubNotDrained("hb", "1 message"))
+        check(im.g.gimcore.GimException.UserSuspended("hb"), GimException.UserSuspended("hb"))
+        check(im.g.gimcore.GimException.UserSuspended(""), GimException.UserSuspended(""))
+        val suspended = im.g.gimcore.GimException.UserSuspended("hb").toMirror() as GimException.UserSuspended
+        assertEquals("hb", suspended.hubId)
         val owns = im.g.gimcore.GimException.HubOwnsGroups("hb", 3u).toMirror() as GimException.HubOwnsGroups
         assertEquals("hb", owns.hubId)
         assertEquals(3, owns.groupCount)
@@ -430,6 +434,7 @@ class MappersTest {
         check(GimException.LastHub("ha"), im.g.gimcore.GimException.LastHub("ha"))
         check(GimException.HomeHub("ha"), im.g.gimcore.GimException.HomeHub("ha"))
         check(GimException.HubNotDrained("hb", "busy"), im.g.gimcore.GimException.HubNotDrained("hb", "busy"))
+        check(GimException.UserSuspended("hb"), im.g.gimcore.GimException.UserSuspended("hb"))
     }
 
     @Test

@@ -70,6 +70,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import im.g.apps.core.designsystem.component.GimPreviews
+import im.g.apps.core.designsystem.component.userSuspendedMessage
 import im.g.apps.core.designsystem.theme.GimTheme
 
 /** Camera access for the scanner. */
@@ -392,6 +393,7 @@ private fun LinkDeviceError.message(): String = when (this) {
     LinkDeviceError.InvalidCode -> stringResource(R.string.linking_error_invalid_code)
     LinkDeviceError.CannotReachServer -> stringResource(R.string.linking_error_cannot_reach_server)
     is LinkDeviceError.TryAgainLater -> pluralStringResource(R.plurals.linking_error_try_again_later, seconds.toInt(), seconds)
+    is LinkDeviceError.Suspended -> userSuspendedMessage(hub)
     LinkDeviceError.Generic -> stringResource(R.string.linking_error_generic)
 }
 
