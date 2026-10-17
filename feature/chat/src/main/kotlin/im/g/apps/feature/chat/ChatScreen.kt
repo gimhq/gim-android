@@ -336,7 +336,7 @@ private fun MessageRowItem(
                 onLongClick = { onLongPress(row.key) },
                 onClick = {
                     when {
-                        row.failed -> onRetry(row.key)
+                        row.failed -> if (row.retryable) onRetry(row.key)
                         row.file != null -> onOpenFile(row.key)
                     }
                 },
@@ -357,7 +357,7 @@ private fun MessageRowItem(
             }
             if (row.failed) {
                 Text(
-                    text = stringResource(R.string.chat_message_failed),
+                    text = stringResource(if (row.retryable) R.string.chat_message_failed else R.string.chat_message_not_sent),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.error,
                 )

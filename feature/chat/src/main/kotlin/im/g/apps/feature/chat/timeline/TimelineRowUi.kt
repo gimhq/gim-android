@@ -38,6 +38,8 @@ data class MessageRow(
     val groupedWithNext: Boolean,
     /** The attachment could not be fetched from the uploader's hub for now: offer a retry. */
     val mediaUnavailable: Boolean = false,
+    /** A failed send may be retried; false after it failed with `UserSuspended`. */
+    val retryable: Boolean = true,
 ) : TimelineRowUi {
     val failed: Boolean get() = tick == TickState.FAILED
 }

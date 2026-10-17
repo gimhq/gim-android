@@ -112,7 +112,9 @@ fun GimNavHost(
             val context = LocalContext.current
             val chatVm: ChatViewModel = viewModel(factory = ChatViewModel.factory(current, chatId, container.mediaPathProvider))
             val composerVm: ComposerViewModel =
-                viewModel(factory = ComposerViewModel.factory(current, chatId, AndroidUriCopier(context)))
+                viewModel(
+                    factory = ComposerViewModel.factory(current, chatId, AndroidUriCopier(context), chatVm.suspendedSends),
+                )
             val snackbar = remember { SnackbarHostState() }
             val scope = rememberCoroutineScope()
             ChatRoute(

@@ -29,6 +29,7 @@
     <string name="chat_message_unsupported">This message can\'t be shown</string>
     <string name="chat_message_edited">edited</string>
     <string name="chat_message_failed">Not sent. Tap to retry</string>
+    <string name="chat_message_not_sent">Not sent</string>
     <string name="chat_back">Back</string>
     <string name="chat_group_info">Group info</string>
     <string name="chat_jump_to_bottom">Jump to latest messages</string>
