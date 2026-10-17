@@ -267,6 +267,7 @@ internal fun im.g.gimcore.GimException.toMirror(): GimException = when (this) {
     is im.g.gimcore.GimException.LastHub -> GimException.LastHub(hubId)
     is im.g.gimcore.GimException.HomeHub -> GimException.HomeHub(hubId)
     is im.g.gimcore.GimException.HubNotDrained -> GimException.HubNotDrained(hubId, reason)
+    is im.g.gimcore.GimException.UserSuspended -> GimException.UserSuspended(hubId)
     is im.g.gimcore.GimException.Internal -> GimException.Internal(reason)
 }.also { it.initCause(this) }
 
@@ -289,5 +290,6 @@ internal fun GimException.toCore(): im.g.gimcore.GimException = when (this) {
     is GimException.LastHub -> im.g.gimcore.GimException.LastHub(hubId)
     is GimException.HomeHub -> im.g.gimcore.GimException.HomeHub(hubId)
     is GimException.HubNotDrained -> im.g.gimcore.GimException.HubNotDrained(hubId, reason)
+    is GimException.UserSuspended -> im.g.gimcore.GimException.UserSuspended(hubId)
     is GimException.Internal -> im.g.gimcore.GimException.Internal(reason)
 }.also { it.initCause(this) }

@@ -54,6 +54,9 @@ sealed interface OnboardingError {
     /** Linking failed (for example, the bundle from the other device did not verify). */
     data object LinkFailed : OnboardingError
 
+    /** The hub suspended this user (`UserSuspended`); onboarding talks to one hub, so it is not named. Not retried. */
+    data object AccountSuspended : OnboardingError
+
     data object Generic : OnboardingError
 }
 
@@ -92,9 +95,10 @@ data class OnboardingUiState(
     val canClaimHandle: Boolean
         get() = !isLoading && isValidHandle(handle) && handleError == null
 
-    /** On [OnboardingStep.LINK_QR] after the wait ended with an error: a new link can be started. */
+    /** On [OnboardingStep.LINK_QR] after the wait ended with an error, unless suspended: a new link can be started. */
     val canRetryLink: Boolean
-        get() = step == OnboardingStep.LINK_QR && !isLoading && linkQr == null
+        get() = step == OnboardingStep.LINK_QR && !isLoading && linkQr == null &&
+            error != OnboardingError.AccountSuspended
 
     val canRestore: Boolean
         get() = !isLoading && isValidUserId(restoreUserId) && restoreUserIdError == null &&

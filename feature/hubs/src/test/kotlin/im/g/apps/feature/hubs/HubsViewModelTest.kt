@@ -262,8 +262,46 @@ class HubsViewModelTest {
             GimException.NotImplemented() to HubsError.Unknown,
             GimException.ChatNotActive("c", ChatState.LEFT) to HubsError.Unknown,
             GimException.Internal("x") to HubsError.Unknown,
+            GimException.UserSuspended("h") to HubsError.Suspended(null),
         )
         cases.forEach { (e, expected) -> assertEquals(e.toString(), expected, e.toHubsError(invalid)) }
+        assertEquals(HubsError.Suspended(HUB_B), GimException.UserSuspended(HUB_B_ID).toHubsError(invalid, HUB_B))
+    }
+
+    @Test
+    fun suspension_names_the_hub_when_there_are_several_and_keeps_the_list() = runTest {
+        val t = loaded(withHubB = true)
+        val b = t.vm.state.value.hubs[1]
+
+        t.client.removeError = GimException.UserSuspended(HUB_B_ID)
+        t.vm.remove(b)
+        advanceUntilIdle()
+
+        assertEquals(HubsError.Suspended(HUB_B), t.vm.state.value.error)
+        assertEquals(2, t.vm.state.value.hubs.size)
+        assertEquals(1, t.client.removeCalls.size)
+        assertFalse(t.vm.state.value.working)
+        assertTrue(t.fake.session() != null)
+    }
+
+    @Test
+    fun suspension_with_one_hub_or_an_unknown_hub_id_uses_the_generic_text() = runTest {
+        val t = loaded()
+        t.fake.simulateSuspension(HUB_A_ID)
+
+        t.addHub(HUB_B)
+        advanceUntilIdle()
+        assertEquals(HubsError.Suspended(null), t.vm.state.value.addHub?.error)
+        assertFalse(t.vm.state.value.addHub!!.submitting)
+
+        t.fake.simulateSuspension(null)
+        t.vm.dismissAddHub()
+        t.fake.addHub(HUB_B)
+        advanceUntilIdle()
+        t.client.removeError = GimException.UserSuspended("")
+        t.vm.remove(t.vm.state.value.hubs[1])
+        advanceUntilIdle()
+        assertEquals(HubsError.Suspended(null), t.vm.state.value.error)
     }
 
     @Test

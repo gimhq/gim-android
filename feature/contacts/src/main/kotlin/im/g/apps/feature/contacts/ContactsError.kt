@@ -6,6 +6,8 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.platform.LocalContext
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.suspendedHubName
+import im.g.apps.core.designsystem.component.userSuspendedMessage
 
 /** User-facing error categories of the contacts screens; mapped from [GimException]. */
 @Immutable
@@ -31,10 +33,14 @@ sealed interface ContactsError {
     /** The chat is leaving or left (`ChatNotActive`): it is read-only. */
     data object ChatNotActive : ContactsError
 
+    /** The hub suspended this user (`UserSuspended`); [hub] names it when the user has several hubs. Not retried. */
+    data class Suspended(val hub: String?) : ContactsError
+
     data object Unknown : ContactsError
 }
 
-internal fun GimException.toContactsError(): ContactsError = when (this) {
+/** [suspendedHub] is [suspendedHubName] of this error. */
+internal fun GimException.toContactsError(suspendedHub: String? = null): ContactsError = when (this) {
     is GimException.Network -> ContactsError.Network
     is GimException.NotRegistered -> ContactsError.NotRegistered
     is GimException.InvalidInput -> ContactsError.InvalidInput
@@ -43,6 +49,7 @@ internal fun GimException.toContactsError(): ContactsError = when (this) {
     is GimException.RetryLater -> ContactsError.RetryLater(retryAfterSecs.coerceAtLeast(1))
     is GimException.NotImplemented -> ContactsError.NotSupported
     is GimException.ChatNotActive -> ContactsError.ChatNotActive
+    is GimException.UserSuspended -> ContactsError.Suspended(suspendedHub)
     is GimException.Crypto,
     is GimException.Storage,
     is GimException.Cancelled,
@@ -59,8 +66,8 @@ internal fun GimException.toContactsError(): ContactsError = when (this) {
  * Like [toContactsError] for `createDirectChat`, `createGroupChat` and `addMembers`, whose `NotFound` means that
  * none of the invited users exists.
  */
-internal fun GimException.toInviteError(): ContactsError =
-    if (this is GimException.NotFound) ContactsError.UserNotFound else toContactsError()
+internal fun GimException.toInviteError(suspendedHub: String? = null): ContactsError =
+    if (this is GimException.NotFound) ContactsError.UserNotFound else toContactsError(suspendedHub)
 
 internal fun ContactsError.message(context: Context): String = when (this) {
     ContactsError.Network -> context.getString(R.string.contacts_error_network)
@@ -72,6 +79,7 @@ internal fun ContactsError.message(context: Context): String = when (this) {
     is ContactsError.RetryLater -> context.getString(R.string.contacts_error_retry_later, seconds)
     ContactsError.NotSupported -> context.getString(R.string.contacts_error_not_supported)
     ContactsError.ChatNotActive -> context.getString(R.string.contacts_error_chat_not_active)
+    is ContactsError.Suspended -> userSuspendedMessage(context, hub)
     ContactsError.Unknown -> context.getString(R.string.contacts_error_unknown)
 }
 

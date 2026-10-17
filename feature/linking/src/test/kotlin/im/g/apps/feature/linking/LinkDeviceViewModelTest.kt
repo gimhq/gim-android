@@ -16,6 +16,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -115,6 +116,40 @@ class LinkDeviceViewModelTest {
 
         assertEquals(listOf(code), client.approved)
         assertEquals(LinkDeviceStep.CONFIRM, vm.state.value.step)
+    }
+
+    @Test
+    fun suspended_approval_shows_account_suspended_and_the_same_scan_is_not_retried() = runTest(dispatcher) {
+        val client = signedInClient()
+        val vm = LinkDeviceViewModel(client)
+        val code = linkCode()
+        client.approveError = GimException.UserSuspended(client.hubs().single().hubId)
+
+        vm.onCodeScanned(code)
+        advanceUntilIdle()
+        assertEquals(LinkDeviceStep.SCAN, vm.state.value.step)
+        assertEquals(LinkDeviceError.Suspended(null), vm.state.value.error)
+
+        vm.onCodeScanned(code)
+        advanceUntilIdle()
+        assertEquals(1, client.approved.size)
+        assertNotNull(client.session())
+    }
+
+    @Test
+    fun suspended_confirm_names_the_hub_when_there_are_several() = runTest(dispatcher) {
+        val client = signedInClient()
+        val other = client.addHub("https://hub-b.example.eu")
+        val vm = LinkDeviceViewModel(client)
+        vm.onCodeScanned(linkCode())
+        advanceUntilIdle()
+        client.confirmError = GimException.UserSuspended(other.hubId)
+
+        vm.confirm(true)
+        advanceUntilIdle()
+
+        assertEquals(LinkDeviceStep.CONFIRM, vm.state.value.step)
+        assertEquals(LinkDeviceError.Suspended("https://hub-b.example.eu"), vm.state.value.error)
     }
 
     @Test

@@ -7,6 +7,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -23,6 +24,41 @@ class DevicesViewModelTest {
         val vm = DevicesViewModel(client)
         advanceUntilIdle()
         return Triple(vm, client, ids)
+    }
+
+    @Test
+    fun suspension_shows_the_generic_text_keeps_the_list_and_does_not_sign_out() = runTest {
+        val (vm, client, _) = loaded()
+        client.devicesError = GimException.UserSuspended(client.hubs().single().hubId)
+
+        vm.refresh()
+        advanceUntilIdle()
+
+        val state = vm.state.value
+        assertEquals(DevicesError.Suspended(null), state.error)
+        assertTrue(state.suspended)
+        assertFalse(state.removed)
+        assertEquals(2, state.devices.size)
+        assertNotNull(client.session())
+
+        client.devicesError = null
+        vm.refresh()
+        advanceUntilIdle()
+        assertFalse(vm.state.value.suspended)
+    }
+
+    @Test
+    fun suspension_on_another_hub_names_it() = runTest {
+        val (vm, client, _) = loaded()
+        val other = client.addHub("https://hub-b.example.eu")
+        client.revokeError = GimException.UserSuspended(other.hubId)
+
+        vm.requestRevoke(vm.state.value.devices[1])
+        vm.confirmRevoke()
+        advanceUntilIdle()
+
+        assertEquals(DevicesError.Suspended("https://hub-b.example.eu"), vm.state.value.error)
+        assertFalse(vm.state.value.revoking || vm.state.value.removed)
     }
 
     @Test
