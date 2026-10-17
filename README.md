@@ -46,7 +46,10 @@ The onboarding server field is prefilled from `BuildConfig.DEFAULT_HUB_URL`, res
 
 1. Gradle property `gim.defaultHubUrl` (`gradle.properties` or `-Pgim.defaultHubUrl=...`), if not blank;
 2. otherwise the environment variable `GIM_DEFAULT_HUB_URL`;
-3. otherwise empty (the field starts blank).
+3. otherwise the per-build-type default: release builds use `https://hub.g.im` (the product hub, not yet deployed);
+   debug builds stay empty (the field starts blank).
+
+An override (1 or 2) always wins, in both build types.
 
 ```bash
 ./gradlew assembleDebug -Pgim.defaultHubUrl=http://10.0.2.2:8080
