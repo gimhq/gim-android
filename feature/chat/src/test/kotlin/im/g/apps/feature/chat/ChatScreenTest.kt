@@ -124,6 +124,16 @@ class ChatScreenTest {
     }
 
     @Test
+    fun failedMessageAfterSuspension_offersNoRetry() {
+        show(listOf(message("m2", "Lost", TickState.FAILED).copy(retryable = false), message("m1", "Fine", TickState.READ)))
+
+        rule.onNodeWithText("Not sent").assertExists()
+        rule.onNodeWithText("Not sent. Tap to retry").assertDoesNotExist()
+        rule.onNodeWithText("Lost").performClick()
+        assertEquals(emptyList<String>(), retried)
+    }
+
+    @Test
     fun unavailableMedia_showsARetryButton() {
         val file = message("m2", "Route").copy(
             contentType = "message-file",
