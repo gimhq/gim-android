@@ -29,6 +29,9 @@ sealed interface LinkDeviceError {
     /** The hub throttles requests; retry after [seconds]. */
     data class TryAgainLater(val seconds: Long) : LinkDeviceError
 
+    /** The hub suspended this user (`UserSuspended`); [hub] names it when the user has several hubs. Not retried. */
+    data class Suspended(val hub: String?) : LinkDeviceError
+
     data object Generic : LinkDeviceError
 }
 

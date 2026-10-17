@@ -18,6 +18,7 @@ import im.g.apps.core.bridge.displayNameOrShortId
 import im.g.apps.core.bridge.flow.chatListFlow
 import im.g.apps.core.bridge.flow.itemsFlow
 import im.g.apps.core.bridge.flow.typingFlow
+import im.g.apps.core.bridge.suspendedHubName
 import im.g.apps.feature.chat.timeline.ChatEvent
 import im.g.apps.feature.chat.timeline.ChatHeaderUi
 import im.g.apps.feature.chat.timeline.ChatUiState
@@ -82,6 +83,7 @@ class ChatViewModel(
         val imagePaths: Map<String, String>,
         val avatarPath: String?,
         val unavailableMedia: Set<String>,
+        val suspendedSends: Set<String>,
     )
 
     private val mapper = TimelineMapper(zone, locale)
@@ -112,7 +114,18 @@ class ChatViewModel(
         .distinctUntilChanged()
         .shareIn(viewModelScope, SharingStarted.Eagerly, replay = 1)
 
-    private val extras = combine(isLoadingOlder, hasMoreOlder, imagePaths, avatarPath, unavailableMedia, ::Extras)
+    /** Failed messages that offer no retry; shared with the composer's actions sheet. */
+    val suspendedSends = SuspendedSends()
+
+    private val extras = combine(
+        isLoadingOlder,
+        hasMoreOlder,
+        imagePaths,
+        avatarPath,
+        combine(unavailableMedia, suspendedSends.ids, ::Pair),
+    ) { loadingOlder, moreOlder, images, avatar, (unavailable, suspended) ->
+        Extras(loadingOlder, moreOlder, images, avatar, unavailable, suspended)
+    }
 
     val uiState: StateFlow<ChatUiState> = combine(
         flow { emitAll(timeline.await().itemsFlow()) },
@@ -236,19 +249,21 @@ class ChatViewModel(
                 } else {
                     R.string.chat_error_open_file
                 }
-                _events.send(ChatEvent.Error(e.toUiText(fallback)))
+                _events.send(ChatEvent.Error(e.toUiText(fallback, client.suspendedHubName(e))))
             }
         }
     }
 
-    /** Re-queues a failed outbound message. */
+    /** Re-queues a failed outbound message; not after its send failed with `UserSuspended`. */
     fun retry(messageId: String) {
+        if (messageId in suspendedSends) return
         viewModelScope.launch {
             try {
                 client.retrySend(chatId, messageId)
             } catch (e: GimException) {
+                if (e is GimException.UserSuspended) suspendedSends.add(listOf(messageId))
                 // The message stays failed.
-                _events.send(ChatEvent.Error(e.toUiText(R.string.composer_error_retry)))
+                _events.send(ChatEvent.Error(e.toUiText(R.string.composer_error_retry, client.suspendedHubName(e))))
             }
         }
     }
@@ -294,6 +309,7 @@ class ChatViewModel(
                 extras.unavailableMedia,
                 selfUserId,
                 knownNames(items) + members,
+                extras.suspendedSends,
             ),
             isLoadingOlder = extras.isLoadingOlder,
             hasMoreOlder = extras.hasMoreOlder,

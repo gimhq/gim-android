@@ -112,6 +112,22 @@ class DevicesScreenTest {
     }
 
     @Test
+    fun suspension_without_devices_offers_no_retry() {
+        show(
+            DevicesUiState(
+                userId = "u-1",
+                loading = false,
+                error = DevicesError.Suspended("https://hub-b.example.eu"),
+                suspended = true,
+            ),
+        )
+
+        rule.onNodeWithText("Your account is suspended on https://hub-b.example.eu.").assertExists()
+        rule.onNodeWithText("No devices to show").assertExists()
+        rule.onNodeWithText("Retry").assertDoesNotExist()
+    }
+
+    @Test
     fun removed_device_can_only_sign_out() {
         var signedOut = 0
         show(listed.copy(removed = true), DevicesActions(onSignedOut = { signedOut++ }))

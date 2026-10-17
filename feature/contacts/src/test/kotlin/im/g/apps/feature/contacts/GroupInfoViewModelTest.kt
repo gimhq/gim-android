@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -117,6 +118,22 @@ class GroupInfoViewModelTest {
         advanceUntilIdle()
         assertNull(vm.state.value.pendingRemoval)
         assertFalse(DemoData.ana.userId in vm.memberIds())
+    }
+
+    @Test
+    fun removeMember_suspended_showsSuspendedAndKeepsTheGroup() = runTest {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        val hub = fake.addHub(HUB_B)
+        fake.simulateSuspension(hub.hubId)
+        vm.requestRemove(DemoData.ana)
+        vm.confirmRemove()
+        advanceUntilIdle()
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.Suspended(HUB_B)), vm.events.first())
+        assertTrue(DemoData.ana.userId in vm.memberIds())
+        assertEquals("Aegean Crew", vm.state.value.chat?.name)
+        assertFalse(vm.state.value.busy)
+        assertNotNull(fake.session())
     }
 
     @Test

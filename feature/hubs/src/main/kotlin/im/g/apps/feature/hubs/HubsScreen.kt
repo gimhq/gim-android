@@ -42,6 +42,7 @@ import im.g.apps.core.bridge.HubInfo
 import im.g.apps.core.bridge.HubState
 import im.g.apps.core.designsystem.component.EmptyState
 import im.g.apps.core.designsystem.component.GimPreviews
+import im.g.apps.core.designsystem.component.userSuspendedMessage
 import im.g.apps.core.designsystem.theme.GimTheme
 import java.net.URI
 import kotlinx.collections.immutable.persistentListOf
@@ -281,6 +282,7 @@ private fun errorMessage(error: HubsError): String = when (error) {
     HubsError.NotListed -> stringResource(R.string.hubs_error_not_listed)
     HubsError.NotRegistered -> stringResource(R.string.hubs_error_not_registered)
     HubsError.Server -> stringResource(R.string.hubs_error_server)
+    is HubsError.Suspended -> userSuspendedMessage(error.hub)
     HubsError.Unknown -> stringResource(R.string.hubs_error_unknown)
 }
 

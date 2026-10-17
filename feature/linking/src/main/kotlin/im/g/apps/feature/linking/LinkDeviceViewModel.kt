@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.PendingApproval
+import im.g.apps.core.bridge.suspendedHubName
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,7 +25,10 @@ class LinkDeviceViewModel(private val client: GimClient) : ViewModel() {
 
     private var approval: PendingApproval? = null
 
-    /** Last code `approveLink` rejected as invalid; the scanner keeps reporting it while the camera points at it. */
+    /**
+     * Last code `approveLink` rejected as invalid or for a suspended account (not retried); the scanner keeps reporting
+     * it while the camera points at it.
+     */
     private var rejectedCode: String? = null
 
     /** A QR code decoded by the camera; ignored unless scanning. */
@@ -55,7 +59,8 @@ class LinkDeviceViewModel(private val client: GimClient) : ViewModel() {
                 approval = null
                 _state.update { it.copy(step = LinkDeviceStep.DONE, linked = accepted) }
             } catch (e: GimException) {
-                _state.update { it.copy(step = LinkDeviceStep.CONFIRM, error = e.toError()) }
+                val error = e.toError(client.suspendedHubName(e))
+                _state.update { it.copy(step = LinkDeviceStep.CONFIRM, error = error) }
             }
         }
     }
@@ -72,16 +77,18 @@ class LinkDeviceViewModel(private val client: GimClient) : ViewModel() {
                     it.copy(step = LinkDeviceStep.CONFIRM, sas = pending.sas(), deviceId = pending.deviceId())
                 }
             } catch (e: GimException) {
-                if (e is GimException.InvalidInput) rejectedCode = code
-                _state.update { it.copy(step = LinkDeviceStep.SCAN, error = e.toError()) }
+                if (e is GimException.InvalidInput || e is GimException.UserSuspended) rejectedCode = code
+                val error = e.toError(client.suspendedHubName(e))
+                _state.update { it.copy(step = LinkDeviceStep.SCAN, error = error) }
             }
         }
     }
 
-    private fun GimException.toError(): LinkDeviceError = when (this) {
+    private fun GimException.toError(suspendedHub: String?): LinkDeviceError = when (this) {
         is GimException.InvalidInput -> LinkDeviceError.InvalidCode
         is GimException.Network -> LinkDeviceError.CannotReachServer
         is GimException.RetryLater -> LinkDeviceError.TryAgainLater(retryAfterSecs.coerceAtLeast(1))
+        is GimException.UserSuspended -> LinkDeviceError.Suspended(suspendedHub)
         else -> LinkDeviceError.Generic
     }
 }

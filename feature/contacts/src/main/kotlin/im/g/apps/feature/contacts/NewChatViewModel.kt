@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.suspendedHubName
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,7 +70,7 @@ class NewChatViewModel(private val client: GimClient) : ViewModel() {
             try {
                 _events.send(NewChatEvent.OpenChat(client.createDirectChat(user.userId)))
             } catch (e: GimException) {
-                _events.send(NewChatEvent.ShowError(e.toInviteError()))
+                _events.send(NewChatEvent.ShowError(e.toInviteError(client.suspendedHubName(e))))
             } finally {
                 _state.update { it.copy(starting = false) }
             }

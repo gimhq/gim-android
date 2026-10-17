@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import im.g.apps.core.bridge.DeviceInfo
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.suspendedHubName
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
@@ -31,6 +32,9 @@ sealed interface DevicesError {
 
     data object Server : DevicesError
 
+    /** The hub suspended this user (`UserSuspended`); [hub] names it when the user has several hubs. Not retried. */
+    data class Suspended(val hub: String?) : DevicesError
+
     data object Unknown : DevicesError
 }
 
@@ -46,6 +50,8 @@ data class DevicesUiState(
     val revoking: Boolean = false,
     /** The latest error, shown once and cleared by [DevicesViewModel.errorShown]. */
     val error: DevicesError? = null,
+    /** The last load or revoke failed with `UserSuspended`: no retry is offered. */
+    val suspended: Boolean = false,
     /** This device was revoked elsewhere ([GimException.NotRegistered]): only sign-out is left. */
     val removed: Boolean = false,
 ) {
@@ -99,29 +105,36 @@ class DevicesViewModel(private val client: GimClient) : ViewModel() {
             val devices = client.devices()
                 .sortedWith(compareBy({ !it.isCurrent }, { it.revoked }))
                 .toPersistentList()
-            _state.update { it.copy(devices = devices, loading = false) }
+            _state.update { it.copy(devices = devices, loading = false, suspended = false) }
         } catch (e: GimException) {
             fail(e)
         }
     }
 
-    private fun fail(e: GimException) {
+    private suspend fun fail(e: GimException) {
+        val suspendedHub = client.suspendedHubName(e)
         _state.update {
             if (e is GimException.NotRegistered) {
                 it.copy(loading = false, pendingRevoke = null, removed = true)
             } else {
-                it.copy(loading = false, error = e.toDevicesError())
+                it.copy(
+                    loading = false,
+                    error = e.toDevicesError(suspendedHub),
+                    suspended = e is GimException.UserSuspended,
+                )
             }
         }
     }
 }
 
-internal fun GimException.toDevicesError(): DevicesError = when (this) {
+/** [suspendedHub] is [suspendedHubName] of this error. */
+internal fun GimException.toDevicesError(suspendedHub: String? = null): DevicesError = when (this) {
     is GimException.Network -> DevicesError.Network
     is GimException.RetryLater -> DevicesError.RetryLater(retryAfterSecs)
     is GimException.InvalidInput -> DevicesError.CurrentDevice
     is GimException.NotFound -> DevicesError.NotFound
     is GimException.Server -> DevicesError.Server
+    is GimException.UserSuspended -> DevicesError.Suspended(suspendedHub)
     else -> DevicesError.Unknown
 }
 

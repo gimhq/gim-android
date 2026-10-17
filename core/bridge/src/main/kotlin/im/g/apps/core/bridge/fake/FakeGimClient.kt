@@ -188,6 +188,7 @@ class FakeGimClient(
     private val outbox = LinkedHashSet<MessageKey>()
     private val doomed = HashMap<MessageKey, String>()
     private var failNextReason: String? = null
+    private var suspendedHubId: String? = null
     private var nextId = 1
     private var chatList: List<ChatSummary> = emptyList()
     private val hubs = LinkedHashMap<String, FakeHub>()
@@ -262,6 +263,7 @@ class FakeGimClient(
     }
 
     override suspend fun approveLink(qrString: String): PendingApproval = synchronized(lock) {
+        checkSuspended()
         requireSession()
         if (!qrString.startsWith(LINK_PREFIX)) throw GimException.InvalidInput("qr: not a gim link code")
         val deviceId = "d-${nextId++}"
@@ -278,6 +280,7 @@ class FakeGimClient(
     }
 
     override suspend fun devices(): List<DeviceInfo> = synchronized(lock) {
+        checkSuspended()
         requireSession()
         ownDevices.toList()
     }
@@ -289,6 +292,7 @@ class FakeGimClient(
     }
 
     override suspend fun revokeDevice(deviceId: String) = synchronized(lock) {
+        checkSuspended()
         val me = requireSession()
         if (deviceId == me.deviceId) throw GimException.InvalidInput("cannot revoke the current device")
         val index = ownDevices.indexOfFirst { it.deviceId == deviceId }
@@ -302,6 +306,7 @@ class FakeGimClient(
     }
 
     override suspend fun addHub(url: String): HubInfo = synchronized(lock) {
+        checkSuspended()
         requireSession()
         val normalized = normalizeHubUrl(url)
         if (normalized in unverifiableHubUrls) throw GimException.HubNotVerified("$normalized did not prove its hub")
@@ -323,6 +328,7 @@ class FakeGimClient(
     }
 
     override suspend fun removeHub(hubId: String, confirmOwnedGroups: Boolean) = synchronized(lock) {
+        checkSuspended()
         requireSession()
         val listed = listedHubs()
         val hub = listed.firstOrNull { it.hubId == hubId }
@@ -339,6 +345,7 @@ class FakeGimClient(
     }
 
     override suspend fun setPrimaryHub(hubId: String) = synchronized(lock) {
+        checkSuspended()
         requireSession()
         val order = listedHubs().toMutableList()
         val position = order.indexOfFirst { it.hubId == hubId }
@@ -361,6 +368,7 @@ class FakeGimClient(
     }
 
     override suspend fun claimHandle(handle: String) = synchronized(lock) {
+        checkSuspended()
         val me = requireSession()
         val normalized = normalizeHandle(handle)
         if (!HANDLE_PATTERN.matches(normalized)) {
@@ -459,12 +467,14 @@ class FakeGimClient(
     }
 
     override suspend fun findUser(handle: String): UserProfile? = synchronized(lock) {
+        checkSuspended()
         requireSession()
         val normalized = normalizeHandle(handle)
         directory.values.firstOrNull { it.handle == normalized }
     }
 
     override suspend fun createDirectChat(userId: String): String = synchronized(lock) {
+        checkSuspended()
         val me = me()
         if (userId == me.userId) throw GimException.InvalidInput("cannot chat with yourself")
         val other = user(userId)
@@ -477,6 +487,7 @@ class FakeGimClient(
     }
 
     override suspend fun createGroupChat(name: String, memberUserIds: List<String>): String = synchronized(lock) {
+        checkSuspended()
         val me = me()
         val trimmed = name.trim()
         if (trimmed.isEmpty()) throw GimException.InvalidInput("name must not be blank")
@@ -523,6 +534,7 @@ class FakeGimClient(
 
     override suspend fun leaveChat(chatId: String) {
         synchronized(lock) {
+            checkSuspended()
             me()
             groupChat(chatId)
             if (chatId in left) throw GimException.ChatNotActive(chatId, ChatState.LEFT)
@@ -673,6 +685,7 @@ class FakeGimClient(
     override suspend fun stopTyping(chatId: String) = setTyping(chatId, false)
 
     override suspend fun fetchMedia(chatId: String, messageId: String, destPath: String): String = synchronized(lock) {
+        checkSuspended()
         me()
         val entry = mediaEntry(chatId, messageId)
         val target = File(destPath).absoluteFile
@@ -737,6 +750,7 @@ class FakeGimClient(
     }
 
     override suspend fun chatMembers(chatId: String): List<UserProfile> = synchronized(lock) {
+        checkSuspended()
         me()
         chat(chatId).members.toList()
     }
@@ -822,6 +836,13 @@ class FakeGimClient(
 
     /** Makes [addHub] of [url] fail with [GimException.HubNotVerified], as for a relay or a wrong public URL. */
     fun rejectHubUrl(url: String) = synchronized(lock) { unverifiableHubUrls += normalizeHubUrl(url) }
+
+    /**
+     * Simulates a hub admin suspending this user on [hubId] (null lifts it): until then, calls that sign in on a hub
+     * (sends, chat and member changes, member lists, user lookup, media downloads, devices, linking, handles and hub
+     * management) throw [GimException.UserSuspended]; the session and local chats are kept.
+     */
+    fun simulateSuspension(hubId: String?) = synchronized(lock) { suspendedHubId = hubId }
 
     /** Makes the next outbound send (or retry) end in [SendState.Failed] with [reason]. */
     fun failNextSend(reason: String = "Simulated send failure") = synchronized(lock) { failNextReason = reason }
@@ -1008,7 +1029,12 @@ class FakeGimClient(
         else -> ChatState.ACTIVE
     }
 
+    private fun checkSuspended() {
+        suspendedHubId?.let { throw GimException.UserSuspended(it) }
+    }
+
     private fun requireActive(chatId: String) {
+        checkSuspended()
         val state = state(chatId)
         if (state != ChatState.ACTIVE) throw GimException.ChatNotActive(chatId, state)
     }

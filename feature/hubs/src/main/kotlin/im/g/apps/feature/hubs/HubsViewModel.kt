@@ -11,6 +11,7 @@ import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.HubInfo
 import im.g.apps.core.bridge.HubState
 import im.g.apps.core.bridge.flow.hubListFlow
+import im.g.apps.core.bridge.suspendedHubName
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
@@ -53,6 +54,9 @@ sealed interface HubsError {
     data object NotRegistered : HubsError
 
     data object Server : HubsError
+
+    /** The hub suspended this user (`UserSuspended`); [hub] names it when the user has several hubs. Not retried. */
+    data class Suspended(val hub: String?) : HubsError
 
     data object Unknown : HubsError
 }
@@ -97,7 +101,7 @@ class HubsViewModel(private val client: GimClient) : ViewModel() {
             .onEach { hubs -> _state.update { it.withHubs(hubs) } }
             .catch { e ->
                 if (e !is GimException) throw e
-                _state.update { it.copy(loading = false, error = e.toHubsError(invalidInput = HubsError.Unknown)) }
+                _state.update { it.copy(loading = false, error = e.toHubsError(HubsError.Unknown, client.suspendedHubName(e))) }
             }
             .launchIn(viewModelScope)
     }
@@ -123,7 +127,7 @@ class HubsViewModel(private val client: GimClient) : ViewModel() {
                 client.addHub(add.url.trim())
                 _state.update { it.copy(addHub = null) }
             } catch (e: GimException) {
-                val error = e.toHubsError(invalidInput = HubsError.InvalidUrl)
+                val error = e.toHubsError(HubsError.InvalidUrl, client.suspendedHubName(e))
                 _state.update { it.copy(addHub = it.addHub?.copy(submitting = false, error = error)) }
             }
         }
@@ -158,7 +162,7 @@ class HubsViewModel(private val client: GimClient) : ViewModel() {
             try {
                 block()
             } catch (e: GimException) {
-                _state.update { it.copy(error = e.toHubsError(invalidInput)) }
+                _state.update { it.copy(error = e.toHubsError(invalidInput, client.suspendedHubName(e))) }
             } finally {
                 _state.update { it.copy(working = false) }
             }
@@ -173,9 +177,10 @@ private fun HubsUiState.withHubs(all: List<HubInfo>): HubsUiState {
 
 /**
  * Maps every [GimException] of the hub calls; [invalidInput] is what [GimException.InvalidInput] means for the call
- * (a bad URL for `addHub`, a hub without a session for `setPrimaryHub`, an unlisted hub for `removeHub`).
+ * (a bad URL for `addHub`, a hub without a session for `setPrimaryHub`, an unlisted hub for `removeHub`);
+ * [suspendedHub] is [GimClient.suspendedHubName] of this error.
  */
-internal fun GimException.toHubsError(invalidInput: HubsError): HubsError = when (this) {
+internal fun GimException.toHubsError(invalidInput: HubsError, suspendedHub: String? = null): HubsError = when (this) {
     is GimException.InvalidInput -> invalidInput
     is GimException.Network -> HubsError.Unreachable
     is GimException.HubNotVerified -> HubsError.NotVerified
@@ -186,6 +191,7 @@ internal fun GimException.toHubsError(invalidInput: HubsError): HubsError = when
     is GimException.HubNotDrained -> HubsError.NotDrained
     is GimException.NotRegistered -> HubsError.NotRegistered
     is GimException.Server -> HubsError.Server
+    is GimException.UserSuspended -> HubsError.Suspended(suspendedHub)
     is GimException.NotFound,
     is GimException.Crypto,
     is GimException.Storage,

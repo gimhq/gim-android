@@ -17,7 +17,9 @@ import im.g.apps.core.bridge.TimelineItem
 import im.g.apps.core.bridge.displayLabel
 import im.g.apps.core.bridge.flow.chatListFlow
 import im.g.apps.core.bridge.flow.itemsFlow
+import im.g.apps.core.bridge.suspendedHubName
 import im.g.apps.feature.chat.R
+import im.g.apps.feature.chat.SuspendedSends
 import im.g.apps.feature.chat.toUiText
 import im.g.apps.feature.chat.timeline.UiText
 import kotlinx.collections.immutable.toImmutableSet
@@ -56,6 +58,7 @@ class ComposerViewModel(
     private val clock: () -> Long = System::currentTimeMillis,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val suspendedSends: SuspendedSends = SuspendedSends(),
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ComposerUiState())
@@ -163,7 +166,7 @@ class ComposerViewModel(
     /** Opens the actions sheet for [messageId]; ignored for messages not in the timeline. */
     fun onMessageLongPress(messageId: String) {
         val message = messages[messageId] ?: return
-        _uiState.update { it.copy(actions = actionsFor(message, it.isMember)) }
+        _uiState.update { it.copy(actions = actionsFor(message, it.isMember, messageId !in suspendedSends)) }
     }
 
     fun dismissActions() = _uiState.update { it.copy(actions = null) }
@@ -223,7 +226,11 @@ class ComposerViewModel(
 
     fun retry(messageId: String) {
         takeAction(messageId) { it.canRetry } ?: return
-        viewModelScope.launch { runAction(R.string.composer_error_retry) { client.retrySend(chatId, messageId) } }
+        viewModelScope.launch {
+            runAction(R.string.composer_error_retry, onSuspended = { suspendedSends.add(listOf(messageId)) }) {
+                client.retrySend(chatId, messageId)
+            }
+        }
     }
 
     /** Removes a failed message from the outbox and the timeline ("Delete" on a failed message). */
@@ -254,7 +261,7 @@ class ComposerViewModel(
     private fun takeAction(messageId: String, allowed: (MessageActionsUi) -> Boolean): MessageItem? {
         dismissActions()
         val message = messages[messageId] ?: return null
-        return message.takeIf { allowed(actionsFor(it, _uiState.value.isMember)) }
+        return message.takeIf { allowed(actionsFor(it, _uiState.value.isMember, messageId !in suspendedSends)) }
     }
 
     private fun stopTyping() {
@@ -265,14 +272,20 @@ class ComposerViewModel(
         launchQuietly { client.setTyping(chatId, false) }
     }
 
-    private suspend fun runAction(@StringRes error: Int, action: suspend () -> Unit) {
+    /** Runs [action]; [onSuspended] records what a `UserSuspended` failure makes non-retryable. */
+    private suspend fun runAction(
+        @StringRes error: Int,
+        onSuspended: () -> Unit = {},
+        action: suspend () -> Unit,
+    ) {
         try {
             action()
         } catch (e: GimException.ChatNotActive) {
             // Show the chat read-only at once; the chat list row confirms the state.
             _uiState.update { it.copy(membership = e.state.toMembership(it.membership)) }
         } catch (e: GimException) {
-            _events.send(ComposerEvent.Error(e.toUiText(error)))
+            if (e is GimException.UserSuspended) onSuspended()
+            _events.send(ComposerEvent.Error(e.toUiText(error, client.suspendedHubName(e))))
         }
     }
 
@@ -293,8 +306,14 @@ class ComposerViewModel(
         const val TYPING_IDLE_MS = 5_000L
         const val MAX_ATTACHMENT_BYTES = 100L * 1024 * 1024
 
-        fun factory(client: GimClient, chatId: String, uriCopier: UriCopier): ViewModelProvider.Factory =
-            viewModelFactory { initializer { ComposerViewModel(client, chatId, uriCopier) } }
+        /** [suspendedSends] is [im.g.apps.feature.chat.ChatViewModel.suspendedSends] of the same chat. */
+        fun factory(
+            client: GimClient,
+            chatId: String,
+            uriCopier: UriCopier,
+            suspendedSends: SuspendedSends = SuspendedSends(),
+        ): ViewModelProvider.Factory =
+            viewModelFactory { initializer { ComposerViewModel(client, chatId, uriCopier, suspendedSends = suspendedSends) } }
 
         /**
          * The membership for gim-core's [state] (null while the chat is not known locally: joined). A `Left` chat is
@@ -320,9 +339,14 @@ class ComposerViewModel(
 
         /**
          * Actions for [message]; a chat that is not [active] (leaving or left) is read-only: copy, and dropping an own
-         * failed message, only.
+         * failed message, only. A failed message that is not [retryable] (its send failed with `UserSuspended`) can only
+         * be dropped.
          */
-        internal fun actionsFor(message: MessageItem, active: Boolean = true): MessageActionsUi {
+        internal fun actionsFor(
+            message: MessageItem,
+            active: Boolean = true,
+            retryable: Boolean = true,
+        ): MessageActionsUi {
             val content = message.content
             val deleted = content == MessageContent.Deleted
             val failed = message.isOwn && message.sendState is SendState.Failed
@@ -339,7 +363,7 @@ class ComposerViewModel(
                 canDelete = canDelete(message) && active,
                 canReact = !deleted && !failed && active,
                 ownReactions = message.reactions.filter { it.own }.map { it.emoji }.toImmutableSet(),
-                canRetry = failed && active,
+                canRetry = failed && active && retryable,
                 canDiscard = failed,
             )
         }

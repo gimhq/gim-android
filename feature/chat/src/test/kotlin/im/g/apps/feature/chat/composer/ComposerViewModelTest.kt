@@ -10,8 +10,11 @@ import im.g.apps.core.bridge.TimelineItem
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.flow.itemsFlow
+import im.g.apps.core.designsystem.R as DesignR
 import im.g.apps.feature.chat.R
+import im.g.apps.feature.chat.SuspendedSends
 import im.g.apps.feature.chat.timeline.UiText
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -26,6 +29,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -335,6 +339,42 @@ class ComposerViewModelTest {
     }
 
     @Test
+    fun sendSuspended_showsAccountSuspendedAndKeepsTheChat() = test {
+        val client = fake()
+        val vm = viewModel(client)
+        val before = client.messages()
+        client.simulateSuspension(client.hubs().single().hubId)
+
+        vm.onDraftChange("Hello")
+        vm.send()
+        runCurrent()
+
+        assertEquals(ComposerEvent.Error(UiText.Res(DesignR.string.gim_error_user_suspended)), vm.events.first())
+        assertEquals(before, client.messages())
+        assertTrue(vm.uiState.value.isMember)
+        assertNotNull(client.session())
+    }
+
+    @Test
+    fun sendSuspendedWithSeveralHubs_namesTheHub() = test {
+        val client = fake()
+        val other = client.addHub("https://hub-b.example.eu")
+        val vm = viewModel(client)
+        client.simulateSuspension(other.hubId)
+
+        vm.onDraftChange("Hello")
+        vm.send()
+        runCurrent()
+
+        assertEquals(
+            ComposerEvent.Error(
+                UiText.Res(DesignR.string.gim_error_user_suspended_on_hub, persistentListOf("https://hub-b.example.eu")),
+            ),
+            vm.events.first(),
+        )
+    }
+
+    @Test
     fun actions_availabilityMatrix() = test {
         val client = fake()
         val vm = viewModel(client)
@@ -381,6 +421,41 @@ class ComposerViewModelTest {
         vm.retry(failedId)
         runCurrent()
         assertEquals(SendState.Pending, client.messages().single { it.messageId == failedId }.sendState)
+    }
+
+    @Test
+    fun retrySuspended_removesRetryFromThatMessageOnly() = test {
+        val client = fake()
+        val suspendedSends = SuspendedSends()
+        val vm = ComposerViewModel(
+            client, chatId, FakeUriCopier(ByteArray(0)), { testScheduler.currentTime }, dispatcher, dispatcher,
+            suspendedSends,
+        ).also { runCurrent() }
+        client.failNextSend()
+        val suspendedId = client.sendText(chatId, "Lost", null)
+        client.failNextSend()
+        val otherId = client.sendText(chatId, "Also lost", null)
+        repeat(3) { client.advanceOutbox() }
+        runCurrent()
+
+        client.simulateSuspension(client.hubs().single().hubId)
+        vm.retry(suspendedId)
+        runCurrent()
+        assertEquals(ComposerEvent.Error(UiText.Res(DesignR.string.gim_error_user_suspended)), vm.events.first())
+        assertTrue(suspendedId in suspendedSends)
+
+        vm.onMessageLongPress(suspendedId)
+        with(vm.uiState.value.actions!!) {
+            assertFalse(canRetry)
+            assertTrue(canDiscard)
+        }
+        vm.onMessageLongPress(otherId)
+        assertTrue(vm.uiState.value.actions!!.canRetry)
+
+        client.simulateSuspension(null)
+        vm.retry(suspendedId)
+        runCurrent()
+        assertTrue(client.message("Lost").sendState is SendState.Failed)
     }
 
     @Test

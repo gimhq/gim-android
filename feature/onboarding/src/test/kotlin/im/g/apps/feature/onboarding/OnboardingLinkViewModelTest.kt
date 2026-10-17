@@ -262,6 +262,22 @@ class OnboardingLinkViewModelTest {
     }
 
     @Test
+    fun suspended_wait_shows_account_suspended_without_a_retry_or_discarding_the_client() = runTest(dispatcher) {
+        val vm = viewModel(manager { it.waitLinkError = GimException.UserSuspended("") })
+        vm.linkDevice()
+        advanceUntilIdle()
+
+        val state = vm.state.value
+        assertEquals(OnboardingError.AccountSuspended, state.error)
+        assertEquals(OnboardingStep.LINK_QR, state.step)
+        assertFalse(state.canRetryLink)
+        vm.retryLink()
+        advanceUntilIdle()
+        assertEquals(1, clients.single().startedHubs.size)
+        assertEquals(0, discarded)
+    }
+
+    @Test
     fun start_link_failure_stays_on_welcome_with_the_error() = runTest(dispatcher) {
         val vm = viewModel(manager { it.startLinkError = GimException.RetryLater(429, 12, "throttled") })
         vm.linkDevice()

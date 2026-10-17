@@ -11,6 +11,7 @@ import im.g.apps.core.bridge.Timeline
 import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.FakeGimClient
+import im.g.apps.core.designsystem.R as DesignR
 import im.g.apps.core.designsystem.component.TickState
 import im.g.apps.feature.chat.timeline.ChatEvent
 import im.g.apps.feature.chat.timeline.DateSeparatorRow
@@ -314,6 +315,38 @@ class ChatViewModelTest {
         runCurrent()
 
         assertEquals(TickState.PENDING, vm.message("Lost").tick)
+    }
+
+    @Test
+    fun failedMessage_retrySuspended_offersNoMoreRetry_otherFailuresKeepIt() = test {
+        val client = demoClient()
+        val vm = viewModel(client, DemoData.DIRECT_CHAT_ID)
+        client.failNextSend()
+        client.sendText(DemoData.DIRECT_CHAT_ID, "Lost", null)
+        client.failNextSend()
+        client.sendText(DemoData.DIRECT_CHAT_ID, "Also lost", null)
+        repeat(3) { client.advanceOutbox() }
+        runCurrent()
+        val lost = vm.message("Lost")
+        assertTrue(lost.failed && lost.retryable)
+
+        client.simulateSuspension(client.hubs().single().hubId)
+        vm.retry(lost.key)
+        runCurrent()
+
+        val suspended = vm.message("Lost")
+        assertTrue(suspended.failed)
+        assertFalse(suspended.retryable)
+        assertTrue(vm.message("Also lost").retryable)
+        assertEquals(ChatEvent.Error(UiText.Res(DesignR.string.gim_error_user_suspended)), vm.events.first())
+
+        client.simulateSuspension(null)
+        vm.retry(lost.key)
+        runCurrent()
+        assertEquals(TickState.FAILED, vm.message("Lost").tick)
+        vm.retry(vm.message("Also lost").key)
+        runCurrent()
+        assertEquals(TickState.PENDING, vm.message("Also lost").tick)
     }
 
     @Test
