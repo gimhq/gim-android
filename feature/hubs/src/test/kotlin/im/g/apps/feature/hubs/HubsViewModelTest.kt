@@ -263,6 +263,9 @@ class HubsViewModelTest {
             GimException.ChatNotActive("c", ChatState.LEFT) to HubsError.Unknown,
             GimException.Internal("x") to HubsError.Unknown,
             GimException.UserSuspended("h") to HubsError.Suspended(null),
+            GimException.UserNotAdmitted("h") to HubsError.NotAdmitted(null),
+            GimException.NotAdmittedByPeer("h", "c") to HubsError.Unknown,
+            GimException.ContactNotAdmitted(listOf("u")) to HubsError.Unknown,
         )
         cases.forEach { (e, expected) -> assertEquals(e.toString(), expected, e.toHubsError(invalid)) }
         assertEquals(HubsError.Suspended(HUB_B), GimException.UserSuspended(HUB_B_ID).toHubsError(invalid, HUB_B))
@@ -302,6 +305,29 @@ class HubsViewModelTest {
         t.vm.remove(t.vm.state.value.hubs[1])
         advanceUntilIdle()
         assertEquals(HubsError.Suspended(null), t.vm.state.value.error)
+    }
+
+    @Test
+    fun add_hub_not_admitted_names_the_url_keeps_the_dialog_and_the_session() = runTest {
+        val t = loaded()
+        t.fake.refuseHubUrl(HUB_B)
+
+        t.addHub(HUB_B)
+        advanceUntilIdle()
+        with(t.vm.state.value) {
+            assertEquals(HubsError.NotAdmitted(HUB_B), addHub?.error)
+            assertFalse(addHub!!.submitting)
+            assertEquals(listOf(HUB_A_ID), hubs.map { it.hubId })
+        }
+        assertTrue(t.fake.session() != null)
+
+        // The form stays usable for another hub URL.
+        t.vm.addHubUrlChanged("http://10.0.2.2:8082")
+        assertNull(t.vm.state.value.addHub?.error)
+        t.vm.submitAddHub()
+        advanceUntilIdle()
+        assertNull(t.vm.state.value.addHub)
+        assertEquals(2, t.vm.state.value.hubs.size)
     }
 
     @Test

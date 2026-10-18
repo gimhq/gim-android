@@ -21,6 +21,7 @@ import im.g.apps.core.bridge.NotificationKind
 import im.g.apps.core.bridge.PushRegistration
 import im.g.apps.core.bridge.ReactionGroup
 import im.g.apps.core.bridge.ReplyPreview
+import im.g.apps.core.bridge.SendFailure
 import im.g.apps.core.bridge.SendState
 import im.g.apps.core.bridge.Session
 import im.g.apps.core.bridge.TimelineDiff
@@ -174,7 +175,23 @@ internal fun im.g.gimcore.SendState.toMirror(): SendState = when (this) {
     im.g.gimcore.SendState.Sent -> SendState.Sent
     im.g.gimcore.SendState.Delivered -> SendState.Delivered
     im.g.gimcore.SendState.Read -> SendState.Read
-    is im.g.gimcore.SendState.Failed -> SendState.Failed(reason)
+    is im.g.gimcore.SendState.Failed -> SendState.Failed(reason, cause.toMirror())
+}
+
+internal fun im.g.gimcore.SendFailure.toMirror(): SendFailure = when (this) {
+    im.g.gimcore.SendFailure.USER_SUSPENDED -> SendFailure.USER_SUSPENDED
+    im.g.gimcore.SendFailure.USER_NOT_ADMITTED -> SendFailure.USER_NOT_ADMITTED
+    im.g.gimcore.SendFailure.NOT_ADMITTED_BY_PEER -> SendFailure.NOT_ADMITTED_BY_PEER
+    im.g.gimcore.SendFailure.REJECTED -> SendFailure.REJECTED
+    im.g.gimcore.SendFailure.OTHER -> SendFailure.OTHER
+}
+
+internal fun SendFailure.toCore(): im.g.gimcore.SendFailure = when (this) {
+    SendFailure.USER_SUSPENDED -> im.g.gimcore.SendFailure.USER_SUSPENDED
+    SendFailure.USER_NOT_ADMITTED -> im.g.gimcore.SendFailure.USER_NOT_ADMITTED
+    SendFailure.NOT_ADMITTED_BY_PEER -> im.g.gimcore.SendFailure.NOT_ADMITTED_BY_PEER
+    SendFailure.REJECTED -> im.g.gimcore.SendFailure.REJECTED
+    SendFailure.OTHER -> im.g.gimcore.SendFailure.OTHER
 }
 
 internal fun im.g.gimcore.ConnectionState.toMirror(): ConnectionState = when (this) {
@@ -268,6 +285,9 @@ internal fun im.g.gimcore.GimException.toMirror(): GimException = when (this) {
     is im.g.gimcore.GimException.HomeHub -> GimException.HomeHub(hubId)
     is im.g.gimcore.GimException.HubNotDrained -> GimException.HubNotDrained(hubId, reason)
     is im.g.gimcore.GimException.UserSuspended -> GimException.UserSuspended(hubId)
+    is im.g.gimcore.GimException.UserNotAdmitted -> GimException.UserNotAdmitted(hubId)
+    is im.g.gimcore.GimException.NotAdmittedByPeer -> GimException.NotAdmittedByPeer(hubId, chatId)
+    is im.g.gimcore.GimException.ContactNotAdmitted -> GimException.ContactNotAdmitted(userIds)
     is im.g.gimcore.GimException.Internal -> GimException.Internal(reason)
 }.also { it.initCause(this) }
 
@@ -291,5 +311,8 @@ internal fun GimException.toCore(): im.g.gimcore.GimException = when (this) {
     is GimException.HomeHub -> im.g.gimcore.GimException.HomeHub(hubId)
     is GimException.HubNotDrained -> im.g.gimcore.GimException.HubNotDrained(hubId, reason)
     is GimException.UserSuspended -> im.g.gimcore.GimException.UserSuspended(hubId)
+    is GimException.UserNotAdmitted -> im.g.gimcore.GimException.UserNotAdmitted(hubId)
+    is GimException.NotAdmittedByPeer -> im.g.gimcore.GimException.NotAdmittedByPeer(hubId, chatId)
+    is GimException.ContactNotAdmitted -> im.g.gimcore.GimException.ContactNotAdmitted(userIds)
     is GimException.Internal -> im.g.gimcore.GimException.Internal(reason)
 }.also { it.initCause(this) }

@@ -41,7 +41,6 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
         val groupedWithNext: Boolean,
         val imagePath: String?,
         val mediaUnavailable: Boolean,
-        val retryable: Boolean,
     )
 
     private data class DateInput(val dayStartMs: Long, val today: LocalDate)
@@ -66,7 +65,6 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
         unavailableMedia: Set<String> = emptySet(),
         selfUserId: String? = null,
         names: Map<String, String> = emptyMap(),
-        noRetry: Set<String> = emptySet(),
     ): ImmutableList<TimelineRowUi> {
         val today = localDate(nowMs)
         val next = HashMap<String, Cached>(items.size)
@@ -85,7 +83,6 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
                         groupedWithNext = grouped(items.getOrNull(index + 1), message),
                         imagePath = imagePaths[message.messageId],
                         mediaUnavailable = message.messageId in unavailableMedia,
-                        retryable = message.messageId !in noRetry,
                     )
                 }
                 is TimelineItem.DateSeparator -> DateInput(item.dayStartMs, today)
@@ -144,7 +141,7 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
             groupedWithPrevious = input.groupedWithPrevious,
             groupedWithNext = input.groupedWithNext,
             mediaUnavailable = input.mediaUnavailable,
-            retryable = input.retryable,
+            sendFailure = (message.sendState as? SendState.Failed)?.cause,
         )
     }
 

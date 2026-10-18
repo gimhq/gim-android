@@ -15,6 +15,7 @@
     <string name="contacts_error_invalid_input">That request isn\'t allowed.</string>
     <string name="contacts_error_not_found">It no longer exists.</string>
     <string name="contacts_error_user_not_found">User not found</string>
+    <string name="contacts_error_contact_not_admitted">%1$s does not accept contacts from you.</string>
     <string name="contacts_error_retry_later">Try again in %1$d s</string>
     <string name="contacts_error_server">The server rejected the request. Try again later.</string>
     <string name="contacts_error_not_supported">This isn\'t supported yet.</string>

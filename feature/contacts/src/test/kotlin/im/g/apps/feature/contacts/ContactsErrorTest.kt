@@ -2,6 +2,7 @@ package im.g.apps.feature.contacts
 
 import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.UserProfile
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -42,6 +43,30 @@ class ContactsErrorTest {
     fun userSuspended_namesTheHubWhenKnown() {
         assertEquals(ContactsError.Suspended(null), GimException.UserSuspended("hb").toContactsError())
         assertEquals(ContactsError.Suspended(HUB_B), GimException.UserSuspended("hb").toInviteError(HUB_B))
+    }
+
+    @Test
+    fun userPolicyErrors() {
+        assertEquals(ContactsError.NotAdmitted(null), GimException.UserNotAdmitted("hb").toContactsError())
+        assertEquals(ContactsError.NotAdmitted(HUB_B), GimException.UserNotAdmitted("hb").toInviteError(HUB_B))
+        assertEquals(ContactsError.NotAdmittedByPeer, GimException.NotAdmittedByPeer("hb", "c1").toContactsError())
+        assertEquals(
+            ContactsError.ContactNotAdmitted(listOf("u-x")),
+            GimException.ContactNotAdmitted(listOf("u-x")).toContactsError(),
+        )
+    }
+
+    @Test
+    fun contactNotAdmitted_namesKnownInvitees_elseHandleOrUserId() {
+        val invitees = listOf(
+            UserProfile("u-a", "ana", "Ana"),
+            UserProfile("u-b", "bo", ""),
+            UserProfile("u-c", "", "u-c"),
+        )
+        assertEquals(
+            ContactsError.ContactNotAdmitted(listOf("Ana", "@bo", "u-c", "u-d")),
+            GimException.ContactNotAdmitted(listOf("u-a", "u-b", "u-c", "u-d")).toInviteError(invitees = invitees),
+        )
     }
 
     @Test

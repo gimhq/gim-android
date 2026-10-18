@@ -48,6 +48,21 @@ class DevicesViewModelTest {
     }
 
     @Test
+    fun not_admitted_shows_the_policy_text_offers_no_retry_and_does_not_sign_out() = runTest {
+        val (vm, client, _) = loaded()
+        client.devicesError = GimException.UserNotAdmitted(client.hubs().single().hubId)
+
+        vm.refresh()
+        advanceUntilIdle()
+
+        val state = vm.state.value
+        assertEquals(DevicesError.NotAdmitted(null), state.error)
+        assertTrue(state.suspended)
+        assertFalse(state.removed)
+        assertNotNull(client.session())
+    }
+
+    @Test
     fun suspension_on_another_hub_names_it() = runTest {
         val (vm, client, _) = loaded()
         val other = client.addHub("https://hub-b.example.eu")

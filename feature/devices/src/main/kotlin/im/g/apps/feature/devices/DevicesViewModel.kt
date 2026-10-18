@@ -35,6 +35,9 @@ sealed interface DevicesError {
     /** The hub suspended this user (`UserSuspended`); [hub] names it when the user has several hubs. Not retried. */
     data class Suspended(val hub: String?) : DevicesError
 
+    /** The hub's user policy does not admit this user (`UserNotAdmitted`); [hub] as for [Suspended]. Not retried. */
+    data class NotAdmitted(val hub: String?) : DevicesError
+
     data object Unknown : DevicesError
 }
 
@@ -50,7 +53,7 @@ data class DevicesUiState(
     val revoking: Boolean = false,
     /** The latest error, shown once and cleared by [DevicesViewModel.errorShown]. */
     val error: DevicesError? = null,
-    /** The last load or revoke failed with `UserSuspended`: no retry is offered. */
+    /** The last load or revoke failed with `UserSuspended` or `UserNotAdmitted`: no retry is offered. */
     val suspended: Boolean = false,
     /** This device was revoked elsewhere ([GimException.NotRegistered]): only sign-out is left. */
     val removed: Boolean = false,
@@ -120,7 +123,7 @@ class DevicesViewModel(private val client: GimClient) : ViewModel() {
                 it.copy(
                     loading = false,
                     error = e.toDevicesError(suspendedHub),
-                    suspended = e is GimException.UserSuspended,
+                    suspended = e is GimException.UserSuspended || e is GimException.UserNotAdmitted,
                 )
             }
         }
@@ -135,6 +138,7 @@ internal fun GimException.toDevicesError(suspendedHub: String? = null): DevicesE
     is GimException.NotFound -> DevicesError.NotFound
     is GimException.Server -> DevicesError.Server
     is GimException.UserSuspended -> DevicesError.Suspended(suspendedHub)
+    is GimException.UserNotAdmitted -> DevicesError.NotAdmitted(suspendedHub)
     else -> DevicesError.Unknown
 }
 

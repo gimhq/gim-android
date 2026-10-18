@@ -70,7 +70,7 @@ class NewChatViewModel(private val client: GimClient) : ViewModel() {
             try {
                 _events.send(NewChatEvent.OpenChat(client.createDirectChat(user.userId)))
             } catch (e: GimException) {
-                _events.send(NewChatEvent.ShowError(e.toInviteError(client.suspendedHubName(e))))
+                _events.send(NewChatEvent.ShowError(e.toInviteError(client.suspendedHubName(e), listOf(user))))
             } finally {
                 _state.update { it.copy(starting = false) }
             }

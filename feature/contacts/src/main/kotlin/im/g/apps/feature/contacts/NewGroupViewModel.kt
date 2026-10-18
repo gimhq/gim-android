@@ -110,7 +110,7 @@ class NewGroupViewModel(private val client: GimClient) : ViewModel() {
                 val chatId = client.createGroupChat(current.name.trim(), current.members.map { it.userId })
                 _events.send(NewGroupEvent.OpenChat(chatId))
             } catch (e: GimException) {
-                _events.send(NewGroupEvent.ShowError(e.toInviteError(client.suspendedHubName(e))))
+                _events.send(NewGroupEvent.ShowError(e.toInviteError(client.suspendedHubName(e), current.members)))
             } finally {
                 _state.update { it.copy(creating = false) }
             }

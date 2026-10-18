@@ -113,6 +113,43 @@ class NewGroupViewModelTest {
     }
 
     @Test
+    fun create_partlyRefusedContacts_createsTheGroupWithTheAdmittedUsers() = runTest {
+        val fake = demoClient(backgroundScope).also { it.refuseContacts(DemoData.nikos.userId) }
+        val vm = NewGroupViewModel(fake)
+        advanceUntilIdle()
+        vm.addMember(DemoData.ana)
+        vm.addMember(DemoData.nikos)
+        vm.next()
+        vm.onNameChange("Adriatic Run")
+        vm.create()
+        advanceUntilIdle()
+
+        val event = vm.events.first() as NewGroupEvent.OpenChat
+        assertEquals(listOf(DemoData.me, DemoData.ana), fake.chatMembers(event.chatId))
+    }
+
+    @Test
+    fun create_allContactsRefused_namesThemAndCreatesNothing() = runTest {
+        val fake = demoClient(backgroundScope).also { it.refuseContacts(DemoData.ana.userId, DemoData.nikos.userId) }
+        val vm = NewGroupViewModel(fake)
+        advanceUntilIdle()
+        val before = fake.chatListFlow().first().size
+        vm.addMember(DemoData.ana)
+        vm.addMember(DemoData.nikos)
+        vm.next()
+        vm.onNameChange("Adriatic Run")
+        vm.create()
+        advanceUntilIdle()
+
+        assertEquals(
+            NewGroupEvent.ShowError(ContactsError.ContactNotAdmitted(listOf("Ana Kovač", "Nikos Papadakis"))),
+            vm.events.first(),
+        )
+        assertEquals(before, fake.chatListFlow().first().size)
+        assertTrue(vm.state.value.canCreate)
+    }
+
+    @Test
     fun create_failure_emitsError() = runTest {
         val (vm, client) = newViewModel()
         client.createGroupChatError = GimException.InvalidInput("too many members")

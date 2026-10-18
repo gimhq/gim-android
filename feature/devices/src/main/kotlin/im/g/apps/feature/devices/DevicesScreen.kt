@@ -46,6 +46,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import im.g.apps.core.bridge.DeviceInfo
 import im.g.apps.core.designsystem.component.EmptyState
 import im.g.apps.core.designsystem.component.GimPreviews
+import im.g.apps.core.designsystem.component.userNotAdmittedMessage
 import im.g.apps.core.designsystem.component.userSuspendedMessage
 import im.g.apps.core.designsystem.theme.GimTheme
 import java.text.DateFormat
@@ -280,6 +281,7 @@ private fun errorMessage(error: DevicesError): String = when (error) {
     DevicesError.NotFound -> stringResource(R.string.devices_error_not_found)
     DevicesError.Server -> stringResource(R.string.devices_error_server)
     is DevicesError.Suspended -> userSuspendedMessage(error.hub)
+    is DevicesError.NotAdmitted -> userNotAdmittedMessage(error.hub)
     DevicesError.Unknown -> stringResource(R.string.devices_error_unknown)
 }
 

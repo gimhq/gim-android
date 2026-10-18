@@ -13,6 +13,7 @@ import im.g.apps.core.bridge.MessageItem
 import im.g.apps.core.bridge.MessagePreview
 import im.g.apps.core.bridge.ReactionGroup
 import im.g.apps.core.bridge.ReplyPreview
+import im.g.apps.core.bridge.SendFailure
 import im.g.apps.core.bridge.SendState
 import im.g.apps.core.bridge.Session
 import im.g.apps.core.bridge.TimelineDiff
@@ -313,7 +314,7 @@ class FakeGimClientTest {
         client.failNextSend("Server unreachable")
         val id = client.sendText(DIRECT_CHAT_ID, "Weather window looks good", replyTo = null)
         client.advanceOutbox()
-        assertEquals(SendState.Failed("Server unreachable"), timeline.last().sendState)
+        assertEquals(SendState.Failed("Server unreachable", SendFailure.OTHER), timeline.last().sendState)
 
         client.retrySend(DIRECT_CHAT_ID, id)
         assertEquals(SendState.Pending, timeline.last().sendState)

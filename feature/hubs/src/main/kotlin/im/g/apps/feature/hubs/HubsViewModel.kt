@@ -58,6 +58,12 @@ sealed interface HubsError {
     /** The hub suspended this user (`UserSuspended`); [hub] names it when the user has several hubs. Not retried. */
     data class Suspended(val hub: String?) : HubsError
 
+    /**
+     * The hub's user policy does not admit this user (`UserNotAdmitted`); [hub] as for [Suspended], or the URL of the
+     * hub [GimClient.addHub] tried (it stays unlisted). Not retried.
+     */
+    data class NotAdmitted(val hub: String?) : HubsError
+
     data object Unknown : HubsError
 }
 
@@ -127,7 +133,12 @@ class HubsViewModel(private val client: GimClient) : ViewModel() {
                 client.addHub(add.url.trim())
                 _state.update { it.copy(addHub = null) }
             } catch (e: GimException) {
-                val error = e.toHubsError(HubsError.InvalidUrl, client.suspendedHubName(e))
+                val error = if (e is GimException.UserNotAdmitted) {
+                    // The refused hub stays unlisted: name the URL the user typed.
+                    HubsError.NotAdmitted(add.url.trim())
+                } else {
+                    e.toHubsError(HubsError.InvalidUrl, client.suspendedHubName(e))
+                }
                 _state.update { it.copy(addHub = it.addHub?.copy(submitting = false, error = error)) }
             }
         }
@@ -192,12 +203,15 @@ internal fun GimException.toHubsError(invalidInput: HubsError, suspendedHub: Str
     is GimException.NotRegistered -> HubsError.NotRegistered
     is GimException.Server -> HubsError.Server
     is GimException.UserSuspended -> HubsError.Suspended(suspendedHub)
+    is GimException.UserNotAdmitted -> HubsError.NotAdmitted(suspendedHub)
     is GimException.NotFound,
     is GimException.Crypto,
     is GimException.Storage,
     is GimException.Cancelled,
     is GimException.NotImplemented,
     is GimException.ChatNotActive,
+    is GimException.NotAdmittedByPeer,
+    is GimException.ContactNotAdmitted,
     is GimException.Internal,
     -> HubsError.Unknown
 }

@@ -278,6 +278,20 @@ class OnboardingLinkViewModelTest {
     }
 
     @Test
+    fun not_admitted_wait_names_the_hub_without_a_retry() = runTest(dispatcher) {
+        val vm = viewModel(manager { it.waitLinkError = GimException.UserNotAdmitted("") })
+        vm.linkDevice()
+        advanceUntilIdle()
+
+        val state = vm.state.value
+        assertEquals(OnboardingError.NotAdmitted(SERVER_URL), state.error)
+        assertFalse(state.canRetryLink)
+        vm.cancelLink()
+        advanceUntilIdle()
+        assertEquals(OnboardingStep.WELCOME, vm.state.value.step)
+    }
+
+    @Test
     fun start_link_failure_stays_on_welcome_with_the_error() = runTest(dispatcher) {
         val vm = viewModel(manager { it.startLinkError = GimException.RetryLater(429, 12, "throttled") })
         vm.linkDevice()

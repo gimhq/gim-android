@@ -21,6 +21,7 @@ import im.g.apps.core.bridge.NotificationKind
 import im.g.apps.core.bridge.PushRegistration
 import im.g.apps.core.bridge.ReactionGroup
 import im.g.apps.core.bridge.ReplyPreview
+import im.g.apps.core.bridge.SendFailure
 import im.g.apps.core.bridge.SendState
 import im.g.apps.core.bridge.Session
 import im.g.apps.core.bridge.TimelineDiff
@@ -218,7 +219,31 @@ class MappersTest {
         assertSame(SendState.Sent, im.g.gimcore.SendState.Sent.toMirror())
         assertSame(SendState.Delivered, im.g.gimcore.SendState.Delivered.toMirror())
         assertSame(SendState.Read, im.g.gimcore.SendState.Read.toMirror())
-        assertEquals(SendState.Failed("boom"), im.g.gimcore.SendState.Failed("boom").toMirror())
+        assertEquals(
+            SendState.Failed("boom", SendFailure.NOT_ADMITTED_BY_PEER),
+            im.g.gimcore.SendState.Failed("boom", im.g.gimcore.SendFailure.NOT_ADMITTED_BY_PEER).toMirror(),
+        )
+    }
+
+    @Test
+    fun sendFailureRoundTrips() {
+        val cases = listOf(
+            im.g.gimcore.SendFailure.USER_SUSPENDED to SendFailure.USER_SUSPENDED,
+            im.g.gimcore.SendFailure.USER_NOT_ADMITTED to SendFailure.USER_NOT_ADMITTED,
+            im.g.gimcore.SendFailure.NOT_ADMITTED_BY_PEER to SendFailure.NOT_ADMITTED_BY_PEER,
+            im.g.gimcore.SendFailure.REJECTED to SendFailure.REJECTED,
+            im.g.gimcore.SendFailure.OTHER to SendFailure.OTHER,
+        )
+        assertEquals(SendFailure.entries.size, cases.size)
+        for ((core, mirror) in cases) {
+            assertEquals(mirror, core.toMirror())
+            assertEquals(core, mirror.toCore())
+            assertEquals(SendState.Failed("r", mirror), im.g.gimcore.SendState.Failed("r", core).toMirror())
+        }
+        assertEquals(
+            listOf(SendFailure.REJECTED, SendFailure.OTHER),
+            SendFailure.entries.filter { it.retryable },
+        )
     }
 
     @Test
@@ -395,6 +420,21 @@ class MappersTest {
         check(im.g.gimcore.GimException.UserSuspended(""), GimException.UserSuspended(""))
         val suspended = im.g.gimcore.GimException.UserSuspended("hb").toMirror() as GimException.UserSuspended
         assertEquals("hb", suspended.hubId)
+        check(im.g.gimcore.GimException.UserNotAdmitted("hb"), GimException.UserNotAdmitted("hb"))
+        check(im.g.gimcore.GimException.UserNotAdmitted(""), GimException.UserNotAdmitted(""))
+        check(im.g.gimcore.GimException.NotAdmittedByPeer("hb", "c1"), GimException.NotAdmittedByPeer("hb", "c1"))
+        check(
+            im.g.gimcore.GimException.ContactNotAdmitted(listOf("u1", "u2")),
+            GimException.ContactNotAdmitted(listOf("u1", "u2")),
+        )
+        val notAdmitted = im.g.gimcore.GimException.UserNotAdmitted("hb").toMirror() as GimException.UserNotAdmitted
+        assertEquals("hb", notAdmitted.hubId)
+        val byPeer = im.g.gimcore.GimException.NotAdmittedByPeer("hb", "c1").toMirror() as GimException.NotAdmittedByPeer
+        assertEquals("hb", byPeer.hubId)
+        assertEquals("c1", byPeer.chatId)
+        val contacts = im.g.gimcore.GimException.ContactNotAdmitted(listOf("u1", "u2")).toMirror()
+            as GimException.ContactNotAdmitted
+        assertEquals(listOf("u1", "u2"), contacts.userIds)
         val owns = im.g.gimcore.GimException.HubOwnsGroups("hb", 3u).toMirror() as GimException.HubOwnsGroups
         assertEquals("hb", owns.hubId)
         assertEquals(3, owns.groupCount)
@@ -435,6 +475,17 @@ class MappersTest {
         check(GimException.HomeHub("ha"), im.g.gimcore.GimException.HomeHub("ha"))
         check(GimException.HubNotDrained("hb", "busy"), im.g.gimcore.GimException.HubNotDrained("hb", "busy"))
         check(GimException.UserSuspended("hb"), im.g.gimcore.GimException.UserSuspended("hb"))
+        check(GimException.UserNotAdmitted("hb"), im.g.gimcore.GimException.UserNotAdmitted("hb"))
+        check(GimException.NotAdmittedByPeer("hb", "c1"), im.g.gimcore.GimException.NotAdmittedByPeer("hb", "c1"))
+        check(
+            GimException.ContactNotAdmitted(listOf("u1")),
+            im.g.gimcore.GimException.ContactNotAdmitted(listOf("u1")),
+        )
+        val byPeer = GimException.NotAdmittedByPeer("hb", "c1").toCore() as im.g.gimcore.GimException.NotAdmittedByPeer
+        assertEquals("hb", byPeer.hubId)
+        assertEquals("c1", byPeer.chatId)
+        val contacts = GimException.ContactNotAdmitted(listOf("u1")).toCore() as im.g.gimcore.GimException.ContactNotAdmitted
+        assertEquals(listOf("u1"), contacts.userIds)
     }
 
     @Test

@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import im.g.apps.core.bridge.SendFailure
 import im.g.apps.core.designsystem.component.TickState
 import im.g.apps.core.designsystem.theme.GimTheme
 import im.g.apps.feature.chat.timeline.ChatHeaderUi
@@ -125,12 +126,33 @@ class ChatScreenTest {
 
     @Test
     fun failedMessageAfterSuspension_offersNoRetry() {
-        show(listOf(message("m2", "Lost", TickState.FAILED).copy(retryable = false), message("m1", "Fine", TickState.READ)))
+        val lost = message("m2", "Lost", TickState.FAILED).copy(sendFailure = SendFailure.USER_SUSPENDED)
+        show(listOf(lost, message("m1", "Fine", TickState.READ)))
 
         rule.onNodeWithText("Not sent").assertExists()
         rule.onNodeWithText("Not sent. Tap to retry").assertDoesNotExist()
         rule.onNodeWithText("Lost").performClick()
         assertEquals(emptyList<String>(), retried)
+    }
+
+    @Test
+    fun failedMessageNotAdmittedByPeer_showsTheChatHubText_noRetry() {
+        val refused = message("m2", "Refused", TickState.FAILED).copy(sendFailure = SendFailure.NOT_ADMITTED_BY_PEER)
+        show(listOf(refused, message("m1", "Fine", TickState.READ)))
+
+        rule.onNodeWithText("This chat's hub does not accept messages from you.").assertExists()
+        rule.onNodeWithText("Not sent. Tap to retry").assertDoesNotExist()
+        rule.onNodeWithText("Refused").performClick()
+        assertEquals(emptyList<String>(), retried)
+    }
+
+    @Test
+    fun failedMessageRejected_keepsTapToRetry() {
+        show(listOf(message("m2", "Lost", TickState.FAILED).copy(sendFailure = SendFailure.REJECTED)))
+
+        rule.onNodeWithText("Not sent. Tap to retry").assertExists()
+        rule.onNodeWithText("Lost").performClick()
+        assertEquals(listOf("m2"), retried)
     }
 
     @Test
