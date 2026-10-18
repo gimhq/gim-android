@@ -5,6 +5,7 @@ import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.MessageContent
 import im.g.apps.core.bridge.MessageItem
 import im.g.apps.core.bridge.ReactionGroup
+import im.g.apps.core.bridge.SendFailure
 import im.g.apps.core.bridge.SendState
 import im.g.apps.core.bridge.TimelineItem
 import im.g.apps.core.bridge.fake.DemoData
@@ -12,7 +13,6 @@ import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.flow.itemsFlow
 import im.g.apps.core.designsystem.R as DesignR
 import im.g.apps.feature.chat.R
-import im.g.apps.feature.chat.SuspendedSends
 import im.g.apps.feature.chat.timeline.UiText
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
@@ -424,38 +424,40 @@ class ComposerViewModelTest {
     }
 
     @Test
-    fun retrySuspended_removesRetryFromThatMessageOnly() = test {
+    fun actions_retryHiddenForRefusedCauses_discardKept() = test {
         val client = fake()
-        val suspendedSends = SuspendedSends()
-        val vm = ComposerViewModel(
-            client, chatId, FakeUriCopier(ByteArray(0)), { testScheduler.currentTime }, dispatcher, dispatcher,
-            suspendedSends,
-        ).also { runCurrent() }
-        client.failNextSend()
-        val suspendedId = client.sendText(chatId, "Lost", null)
-        client.failNextSend()
-        val otherId = client.sendText(chatId, "Also lost", null)
-        repeat(3) { client.advanceOutbox() }
-        runCurrent()
-
-        client.simulateSuspension(client.hubs().single().hubId)
-        vm.retry(suspendedId)
-        runCurrent()
-        assertEquals(ComposerEvent.Error(UiText.Res(DesignR.string.gim_error_user_suspended)), vm.events.first())
-        assertTrue(suspendedId in suspendedSends)
-
-        vm.onMessageLongPress(suspendedId)
-        with(vm.uiState.value.actions!!) {
-            assertFalse(canRetry)
-            assertTrue(canDiscard)
+        val vm = viewModel(client)
+        val ids = SendFailure.entries.associateWith { cause ->
+            client.failNextSend(cause = cause)
+            client.sendText(chatId, "Lost $cause", null)
         }
-        vm.onMessageLongPress(otherId)
-        assertTrue(vm.uiState.value.actions!!.canRetry)
-
-        client.simulateSuspension(null)
-        vm.retry(suspendedId)
+        client.advanceOutbox()
         runCurrent()
-        assertTrue(client.message("Lost").sendState is SendState.Failed)
+
+        val canRetry = ids.mapValues { (_, id) ->
+            vm.onMessageLongPress(id)
+            val actions = vm.uiState.value.actions!!
+            vm.dismissActions()
+            assertTrue(actions.canDiscard)
+            actions.canRetry
+        }
+        assertEquals(
+            mapOf(
+                SendFailure.USER_SUSPENDED to false,
+                SendFailure.USER_NOT_ADMITTED to false,
+                SendFailure.NOT_ADMITTED_BY_PEER to false,
+                SendFailure.REJECTED to true,
+                SendFailure.OTHER to true,
+            ),
+            canRetry,
+        )
+
+        // Retry of a refused message is ignored; Retry of another failure requeues it.
+        vm.retry(ids.getValue(SendFailure.USER_SUSPENDED))
+        vm.retry(ids.getValue(SendFailure.REJECTED))
+        runCurrent()
+        assertTrue(client.message("Lost USER_SUSPENDED").sendState is SendState.Failed)
+        assertEquals(SendState.Pending, client.message("Lost REJECTED").sendState)
     }
 
     @Test

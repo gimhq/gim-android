@@ -80,23 +80,48 @@ sealed class GimException(message: String) : Exception(message) {
      */
     class UserSuspended(val hubId: String) : GimException("user suspended on hub $hubId")
 
+    /**
+     * The user policy of hub [hubId] does not admit this user: the hub refused the registration (onboarding,
+     * [GimClient.addHub]: nothing was kept, so the call may be retried against another hub) or a sign-in. Handled like
+     * [UserSuspended]: do not retry and do not sign out. [hubId] is empty if unknown.
+     */
+    class UserNotAdmitted(val hubId: String) : GimException("user not admitted on hub $hubId")
+
+    /**
+     * Hub [hubId], which owns chat [chatId], does not admit this user: the message or member change was refused there
+     * and is not retried. Other chats are not affected; do not offer a retry.
+     */
+    class NotAdmittedByPeer(val hubId: String, val chatId: String) :
+        GimException("not admitted by hub $hubId of chat $chatId")
+
+    /**
+     * [GimClient.createDirectChat] / [GimClient.createGroupChat] / [GimClient.addMembers]: no user could be added, and
+     * the hubs of [userIds] do not admit this user.
+     */
+    class ContactNotAdmitted(val userIds: List<String>) : GimException("contacts not admitted: $userIds")
+
     /** A bug or an unexpected failure inside gim-core or a platform callback. */
     class Internal(val reason: String) : GimException("internal error: $reason")
 }
 
 /**
- * The hub an "account suspended" message for [e] names: its URL when the user has several hubs and
- * [GimException.UserSuspended.hubId] is one of them. Null (the generic "this hub" text) for one hub, an empty or unknown
- * hub id, a hub list that cannot be read, or any other error.
+ * The hub an "account suspended" or "not admitted" message for [e] names: its URL when the user has several hubs and
+ * the [GimException.UserSuspended.hubId] / [GimException.UserNotAdmitted.hubId] is one of them. Null (the generic "this
+ * hub" text) for one hub, an empty or unknown hub id, a hub list that cannot be read, or any other error.
  */
 suspend fun GimClient.suspendedHubName(e: GimException): String? {
-    if (e !is GimException.UserSuspended || e.hubId.isEmpty()) return null
+    val hubId = when (e) {
+        is GimException.UserSuspended -> e.hubId
+        is GimException.UserNotAdmitted -> e.hubId
+        else -> return null
+    }
+    if (hubId.isEmpty()) return null
     val hubs = try {
         hubs()
     } catch (_: GimException) {
         return null
     }
-    return if (hubs.size > 1) hubs.firstOrNull { it.hubId == e.hubId }?.url else null
+    return if (hubs.size > 1) hubs.firstOrNull { it.hubId == hubId }?.url else null
 }
 
 /** Same check as gim-core's `create_client`: an `http`/`https` URL with a host, else [GimException.InvalidInput]. */

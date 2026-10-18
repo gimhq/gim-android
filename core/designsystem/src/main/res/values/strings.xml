@@ -20,4 +20,7 @@
     <string name="gim_reaction_mine">%1$s, including yours</string>
     <string name="gim_error_user_suspended">Your account is suspended on this hub.</string>
     <string name="gim_error_user_suspended_on_hub">Your account is suspended on %1$s.</string>
+    <string name="gim_error_user_not_admitted">Your account is not admitted on this hub.</string>
+    <string name="gim_error_user_not_admitted_on_hub">Your account is not admitted on %1$s.</string>
+    <string name="gim_error_not_admitted_by_peer">This chat\'s hub does not accept messages from you.</string>
 </resources>

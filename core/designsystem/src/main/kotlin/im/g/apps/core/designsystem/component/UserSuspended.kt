@@ -20,3 +20,19 @@ fun userSuspendedMessage(hub: String?): String =
     } else {
         stringResource(R.string.gim_error_user_suspended_on_hub, hub)
     }
+
+/** The "not admitted" message of every screen (`UserNotAdmitted`); [hub] follows the rule of [userSuspendedMessage]. */
+fun userNotAdmittedMessage(context: Context, hub: String?): String =
+    if (hub == null) {
+        context.getString(R.string.gim_error_user_not_admitted)
+    } else {
+        context.getString(R.string.gim_error_user_not_admitted_on_hub, hub)
+    }
+
+@Composable
+fun userNotAdmittedMessage(hub: String?): String =
+    if (hub == null) {
+        stringResource(R.string.gim_error_user_not_admitted)
+    } else {
+        stringResource(R.string.gim_error_user_not_admitted_on_hub, hub)
+    }

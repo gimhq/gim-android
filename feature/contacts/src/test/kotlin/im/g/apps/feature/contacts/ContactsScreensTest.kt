@@ -1,5 +1,7 @@
 package im.g.apps.feature.contacts
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.Text
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasContentDescription
@@ -53,6 +55,22 @@ class ContactsScreensTest {
         rule.onNodeWithText("@lukas").assertExists()
         rule.onNodeWithText("Start chat").assertIsEnabled().performClick()
         assertEquals(1, started)
+    }
+
+    @Test
+    fun userPolicyErrors_showTheirMessages() {
+        rule.setContent {
+            GimTheme {
+                Column {
+                    Text(ContactsError.ContactNotAdmitted(listOf("Ana Kovač", "@nikos")).message())
+                    Text(ContactsError.NotAdmittedByPeer.message())
+                    Text(ContactsError.NotAdmitted(null).message())
+                }
+            }
+        }
+        rule.onNodeWithText("Ana Kovač, @nikos does not accept contacts from you.").assertExists()
+        rule.onNodeWithText("This chat's hub does not accept messages from you.").assertExists()
+        rule.onNodeWithText("Your account is not admitted on this hub.").assertExists()
     }
 
     @Test

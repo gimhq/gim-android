@@ -180,8 +180,30 @@ sealed class SendState {
     /** Read on every device of every other member. */
     data object Read : SendState()
 
-    /** Gave up; [GimClient.retrySend] or [GimClient.cancelSend]. */
-    data class Failed(val reason: String) : SendState()
+    /** Gave up; [GimClient.retrySend] or [GimClient.cancelSend]. Hide Retry when [cause] is not [SendFailure.retryable]. */
+    data class Failed(val reason: String, val cause: SendFailure) : SendState()
+}
+
+/** Why a message is [SendState.Failed]. */
+enum class SendFailure {
+    /** A hub suspended this user. */
+    USER_SUSPENDED,
+
+    /** The user's hub does not admit this user. */
+    USER_NOT_ADMITTED,
+
+    /** The hub owning the chat does not admit this user. */
+    NOT_ADMITTED_BY_PEER,
+
+    /** The hub refused the message for good (e.g. not a member any more). */
+    REJECTED,
+
+    /** Anything else (retries used up, a local failure, an older failure). */
+    OTHER,
+    ;
+
+    /** gim-core's guidance: no Retry for a suspended or not admitted user. */
+    val retryable: Boolean get() = this == REJECTED || this == OTHER
 }
 
 enum class ConnectionState {

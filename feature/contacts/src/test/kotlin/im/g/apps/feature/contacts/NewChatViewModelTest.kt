@@ -167,6 +167,32 @@ class NewChatViewModelTest {
     }
 
     @Test
+    fun startChat_contactNotAdmitted_namesTheUserAndCreatesNoChat() = runTest {
+        val (vm, client) = newViewModel()
+        val before = client.chatListFlow().first().size
+        client.createDirectChatError = GimException.ContactNotAdmitted(listOf(DemoData.ana.userId))
+        vm.onQueryChange("ana")
+        advanceUntilIdle()
+        vm.startChat()
+        advanceUntilIdle()
+        assertEquals(NewChatEvent.ShowError(ContactsError.ContactNotAdmitted(listOf("Ana Kovač"))), vm.events.first())
+        assertEquals(before, client.chatListFlow().first().size)
+        assertFalse(vm.state.value.starting)
+    }
+
+    @Test
+    fun startChat_notAdmitted_showsTheHubRefusalAndKeepsTheSession() = runTest {
+        val (vm, client) = newViewModel()
+        client.createDirectChatError = GimException.UserNotAdmitted(client.hubs().single().hubId)
+        vm.onQueryChange("ana")
+        advanceUntilIdle()
+        vm.startChat()
+        advanceUntilIdle()
+        assertEquals(NewChatEvent.ShowError(ContactsError.NotAdmitted(null)), vm.events.first())
+        assertNotNull(client.session())
+    }
+
+    @Test
     fun startChat_retryLater_showsTheWait() = runTest {
         val (vm, client) = newViewModel()
         client.createDirectChatError = GimException.RetryLater(503, 12, "peer_unavailable")

@@ -360,6 +360,38 @@ class OnboardingViewModelTest {
     }
 
     @Test
+    fun not_admitted_on_create_names_the_hub_and_another_hub_can_be_picked() = runTest(dispatcher) {
+        val refusing = "https://closed.example.eu"
+        val vm = OnboardingViewModel(
+            manager(FakeGimClientFactory { config, _ ->
+                FakeGimClient(backgroundScope, outboxDelays = null).also {
+                    if (config.serverUrl == refusing) it.simulateNotAdmitted("")
+                }
+            }),
+            refusing,
+        )
+        vm.createAccount()
+        vm.onDisplayNameChange("Sofia")
+        vm.submitDisplayName()
+        advanceUntilIdle()
+
+        with(vm.state.value) {
+            assertEquals(OnboardingError.NotAdmitted(refusing), error)
+            assertEquals(OnboardingStep.DISPLAY_NAME, step)
+            assertFalse(isLoading)
+        }
+        assertEquals(refusing, store.get())
+
+        vm.back()
+        vm.onServerUrlChange(SERVER_URL)
+        vm.createAccount()
+        vm.submitDisplayName()
+        advanceUntilIdle()
+        assertNull(vm.state.value.error)
+        assertEquals(OnboardingStep.RECOVERY_CODE, vm.state.value.step)
+    }
+
+    @Test
     fun network_error_while_connecting_maps_to_cannot_reach_server() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager { _, _ -> throw GimException.Network("unreachable") }, SERVER_URL)
         vm.createAccount()
