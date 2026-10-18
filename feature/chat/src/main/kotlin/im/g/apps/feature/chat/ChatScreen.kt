@@ -67,6 +67,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import coil.compose.AsyncImage
+import im.g.apps.core.bridge.SendFailure
+import im.g.apps.core.designsystem.R as DesignR
 import im.g.apps.core.designsystem.component.Avatar
 import im.g.apps.core.designsystem.component.DateSeparator
 import im.g.apps.core.designsystem.component.MessageBubble
@@ -357,7 +359,13 @@ private fun MessageRowItem(
             }
             if (row.failed) {
                 Text(
-                    text = stringResource(if (row.retryable) R.string.chat_message_failed else R.string.chat_message_not_sent),
+                    text = stringResource(
+                        when {
+                            row.retryable -> R.string.chat_message_failed
+                            row.sendFailure == SendFailure.NOT_ADMITTED_BY_PEER -> DesignR.string.gim_error_not_admitted_by_peer
+                            else -> R.string.chat_message_not_sent
+                        },
+                    ),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.error,
                 )

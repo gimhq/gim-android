@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.MediaRef
+import im.g.apps.core.bridge.SendFailure
 import im.g.apps.core.bridge.Timeline
 import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.fake.DemoData
@@ -318,35 +319,67 @@ class ChatViewModelTest {
     }
 
     @Test
-    fun failedMessage_retrySuspended_offersNoMoreRetry_otherFailuresKeepIt() = test {
+    fun failedMessage_retryHiddenForRefusedCauses_keptForOthers() = test {
         val client = demoClient()
         val vm = viewModel(client, DemoData.DIRECT_CHAT_ID)
-        client.failNextSend()
+        for (cause in SendFailure.entries) {
+            client.failNextSend(cause = cause)
+            client.sendText(DemoData.DIRECT_CHAT_ID, "Lost $cause", null)
+        }
+        client.advanceOutbox()
+        runCurrent()
+
+        assertTrue(SendFailure.entries.all { vm.message("Lost $it").failed })
+        val retryable = SendFailure.entries.associateWith { vm.message("Lost $it").retryable }
+        assertEquals(
+            mapOf(
+                SendFailure.USER_SUSPENDED to false,
+                SendFailure.USER_NOT_ADMITTED to false,
+                SendFailure.NOT_ADMITTED_BY_PEER to false,
+                SendFailure.REJECTED to true,
+                SendFailure.OTHER to true,
+            ),
+            retryable,
+        )
+    }
+
+    @Test
+    fun backgroundOutboxFailureSuspended_offersNoRetry_withoutARetryAttempt() = test {
+        val client = demoClient()
+        val vm = viewModel(client, DemoData.DIRECT_CHAT_ID)
+        client.failNextSend("user_suspended", SendFailure.USER_SUSPENDED)
         client.sendText(DemoData.DIRECT_CHAT_ID, "Lost", null)
-        client.failNextSend()
-        client.sendText(DemoData.DIRECT_CHAT_ID, "Also lost", null)
-        repeat(3) { client.advanceOutbox() }
+        client.advanceOutbox()
         runCurrent()
+
         val lost = vm.message("Lost")
-        assertTrue(lost.failed && lost.retryable)
+        assertTrue(lost.failed)
+        assertFalse(lost.retryable)
+        assertEquals(SendFailure.USER_SUSPENDED, lost.sendFailure)
 
-        client.simulateSuspension(client.hubs().single().hubId)
-        vm.retry(lost.key)
-        runCurrent()
-
-        val suspended = vm.message("Lost")
-        assertTrue(suspended.failed)
-        assertFalse(suspended.retryable)
-        assertTrue(vm.message("Also lost").retryable)
-        assertEquals(ChatEvent.Error(UiText.Res(DesignR.string.gim_error_user_suspended)), vm.events.first())
-
-        client.simulateSuspension(null)
+        // A tap does not reach retrySend: the message stays failed and no error is reported.
         vm.retry(lost.key)
         runCurrent()
         assertEquals(TickState.FAILED, vm.message("Lost").tick)
-        vm.retry(vm.message("Also lost").key)
+    }
+
+    @Test
+    fun failedMessageNotAdmittedByPeer_failsAtOnce_otherChatsUnaffected() = test {
+        val client = demoClient()
+        val vm = viewModel(client, DemoData.DIRECT_CHAT_ID)
+        client.simulateNotAdmittedByPeer(DemoData.DIRECT_CHAT_ID)
+        client.sendText(DemoData.DIRECT_CHAT_ID, "Refused", null)
         runCurrent()
-        assertEquals(TickState.PENDING, vm.message("Also lost").tick)
+
+        val refused = vm.message("Refused")
+        assertTrue(refused.failed)
+        assertEquals(SendFailure.NOT_ADMITTED_BY_PEER, refused.sendFailure)
+        assertFalse(refused.retryable)
+        val group = viewModel(client, DemoData.GROUP_CHAT_ID)
+        client.sendText(DemoData.GROUP_CHAT_ID, "Fine", null)
+        client.advanceOutbox()
+        runCurrent()
+        assertEquals(TickState.SENT, group.message("Fine").tick)
     }
 
     @Test

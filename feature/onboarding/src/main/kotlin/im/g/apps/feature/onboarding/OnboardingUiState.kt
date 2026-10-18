@@ -57,6 +57,12 @@ sealed interface OnboardingError {
     /** The hub suspended this user (`UserSuspended`); onboarding talks to one hub, so it is not named. Not retried. */
     data object AccountSuspended : OnboardingError
 
+    /**
+     * The user policy of [hub] (the server address) does not admit this user (`UserNotAdmitted`); nothing was kept, so
+     * the user can go back and pick another hub. Not retried.
+     */
+    data class NotAdmitted(val hub: String) : OnboardingError
+
     data object Generic : OnboardingError
 }
 
@@ -95,10 +101,16 @@ data class OnboardingUiState(
     val canClaimHandle: Boolean
         get() = !isLoading && isValidHandle(handle) && handleError == null
 
-    /** On [OnboardingStep.LINK_QR] after the wait ended with an error, unless suspended: a new link can be started. */
+    /**
+     * On [OnboardingStep.LINK_QR] after the wait ended with an error, unless suspended or not admitted: a new link can
+     * be started.
+     */
     val canRetryLink: Boolean
-        get() = step == OnboardingStep.LINK_QR && !isLoading && linkQr == null &&
-            error != OnboardingError.AccountSuspended
+        get() = step == OnboardingStep.LINK_QR && !isLoading && linkQr == null && !accountRefused
+
+    /** The hub refused this user (`UserSuspended` or `UserNotAdmitted`): the same call is not retried. */
+    val accountRefused: Boolean
+        get() = error == OnboardingError.AccountSuspended || error is OnboardingError.NotAdmitted
 
     val canRestore: Boolean
         get() = !isLoading && isValidUserId(restoreUserId) && restoreUserIdError == null &&

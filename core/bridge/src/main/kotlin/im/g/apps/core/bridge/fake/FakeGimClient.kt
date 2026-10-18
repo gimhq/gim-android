@@ -26,6 +26,7 @@ import im.g.apps.core.bridge.PendingApproval
 import im.g.apps.core.bridge.PushRegistration
 import im.g.apps.core.bridge.ReactionGroup
 import im.g.apps.core.bridge.ReplyPreview
+import im.g.apps.core.bridge.SendFailure
 import im.g.apps.core.bridge.SendState
 import im.g.apps.core.bridge.Session
 import im.g.apps.core.bridge.TaskHandle
@@ -186,14 +187,22 @@ class FakeGimClient(
     private val typingUsers = HashMap<String, List<String>>()
     private val myTyping = HashMap<String, Boolean>()
     private val outbox = LinkedHashSet<MessageKey>()
-    private val doomed = HashMap<MessageKey, String>()
-    private var failNextReason: String? = null
+    private val doomed = HashMap<MessageKey, SendState.Failed>()
+    private var failNext: SendState.Failed? = null
     private var suspendedHubId: String? = null
+    private var notAdmittedHubId: String? = null
+
+    /** Chat id -> the id of its hub that does not admit this user. */
+    private val peerRefusals = HashMap<String, String>()
+
+    /** Users whose hubs do not admit this user as a contact. */
+    private val refusingUsers = HashSet<String>()
     private var nextId = 1
     private var chatList: List<ChatSummary> = emptyList()
     private val hubs = LinkedHashMap<String, FakeHub>()
     private val chatOwners = HashMap<String, String>()
     private val unverifiableHubUrls = HashSet<String>()
+    private val notAdmittingHubUrls = HashSet<String>()
     private var pushRegistration: PushRegistration? = null
 
     private val chatListRegs = mutableListOf<Registration<ChatListListener>>()
@@ -219,6 +228,7 @@ class FakeGimClient(
     override suspend fun createIdentity(displayName: String): String = synchronized(lock) {
         requireSignedOut()
         val name = requireDisplayName(displayName)
+        checkAdmitted()
         val number = nextId++
         signIn(Session("u-$number", "d-${nextId++}", "", name))
         fakeRecoveryCode(number)
@@ -231,6 +241,7 @@ class FakeGimClient(
                 ?: throw GimException.InvalidInput("recovery code: wrong length or invalid character")
             val (profile, expected) = recoverable[userId] ?: throw GimException.NotFound("device list of $userId")
             if (normalizeRecoveryCode(expected) != code) throw GimException.Crypto("recovery code does not open the backup")
+            checkAdmitted()
             val previous = ownDevices.toList()
             signIn(Session(profile.userId, "d-${nextId++}", profile.handle, profile.displayName))
             ownDevices.addAll(0, previous.map { if (revokeOthers) it.copy(createdAtMs = 0, revoked = true) else it })
@@ -248,6 +259,7 @@ class FakeGimClient(
             throw GimException.InvalidInput("link: unknown or already used session")
         }
         startedLink = null
+        checkAdmitted()
         val user = linkedUser
         signIn(Session(user.userId, "d-${nextId++}", user.handle, user.displayName))
         linkAwaitingConfirm = true
@@ -311,6 +323,7 @@ class FakeGimClient(
         val normalized = normalizeHubUrl(url)
         if (normalized in unverifiableHubUrls) throw GimException.HubNotVerified("$normalized did not prove its hub")
         val hubId = fakeHubId(normalized)
+        if (normalized in notAdmittingHubUrls) throw GimException.UserNotAdmitted(hubId)
         val existing = hubs[hubId]
         if (existing != null && existing.state != HubState.REMOVED) {
             if (hubId != homeHubId()) {
@@ -480,6 +493,7 @@ class FakeGimClient(
         val other = user(userId)
         chats.values.firstOrNull { it.kind == ChatKind.DIRECT && it.members.any { m -> m.userId == userId } }
             ?.let { return@synchronized it.id }
+        if (userId in refusingUsers) throw GimException.ContactNotAdmitted(listOf(userId))
         val chat = FakeChat("chat-${nextId++}", ChatKind.DIRECT, other.displayName, mutableListOf(me, other), clock())
         chats[chat.id] = chat
         publishChat(chat.id)
@@ -492,10 +506,15 @@ class FakeGimClient(
         val trimmed = name.trim()
         if (trimmed.isEmpty()) throw GimException.InvalidInput("name must not be blank")
         val invitees = memberUserIds.filter { it != me.userId }.distinct()
-        val others = invitees.mapNotNull { directory[it] }
-        if (invitees.isNotEmpty() && others.isEmpty()) throw GimException.NotFound("users: none of the invitees exist")
+        val refused = invitees.filter { it in refusingUsers }
+        val others = invitees.mapNotNull { directory[it] }.filter { it.userId !in refusingUsers }
+        if (invitees.isNotEmpty() && others.isEmpty()) {
+            if (refused.isNotEmpty()) throw GimException.ContactNotAdmitted(refused)
+            throw GimException.NotFound("users: none of the invitees exist")
+        }
         val chat = FakeChat("chat-${nextId++}", ChatKind.GROUP, trimmed, (listOf(me) + others).toMutableList(), clock())
         others.forEach { chat.events += membership(it, MembershipChangeKind.ADDED, actor = me) }
+        refused.forEach { chat.events += membership(refusedUser(it), MembershipChangeKind.REMOVED, actor = me) }
         chat.loaded = chat.events.size
         chat.rendered = render(chat)
         chats[chat.id] = chat
@@ -508,14 +527,20 @@ class FakeGimClient(
         val chat = groupChat(chatId)
         requireActive(chatId)
         if (userIds.isEmpty()) throw GimException.InvalidInput("userIds must not be empty")
-        val users = userIds.distinct().mapNotNull { directory[it] }
-        if (users.isEmpty()) throw GimException.NotFound("users: none of the users exist")
+        checkPeerAdmits(chatId)
+        val refused = userIds.distinct().filter { it in refusingUsers }
+        val users = userIds.distinct().mapNotNull { directory[it] }.filter { it.userId !in refusingUsers }
+        if (users.isEmpty()) {
+            if (refused.isNotEmpty()) throw GimException.ContactNotAdmitted(refused)
+            throw GimException.NotFound("users: none of the users exist")
+        }
         users.firstOrNull { u -> chat.members.any { it.userId == u.userId } }
             ?.let { throw GimException.InvalidInput("${it.userId} is already a member") }
         users.forEach {
             chat.members += it
             appendEvent(chat, membership(it, MembershipChangeKind.ADDED, actor = me))
         }
+        refused.forEach { appendEvent(chat, membership(refusedUser(it), MembershipChangeKind.REMOVED, actor = me)) }
         refreshTimeline(chat)
         publishChat(chat.id)
     }
@@ -525,6 +550,7 @@ class FakeGimClient(
         val chat = groupChat(chatId)
         requireActive(chatId)
         if (userId == me.userId) throw GimException.InvalidInput("use leaveChat to leave")
+        checkPeerAdmits(chatId)
         val member = chat.members.firstOrNull { it.userId == userId } ?: throw GimException.NotFound("member $userId")
         chat.members.remove(member)
         appendEvent(chat, membership(member, MembershipChangeKind.REMOVED, actor = me))
@@ -538,6 +564,7 @@ class FakeGimClient(
             me()
             groupChat(chatId)
             if (chatId in left) throw GimException.ChatNotActive(chatId, ChatState.LEFT)
+            checkPeerAdmits(chatId)
             leaving += chatId
             publishChat(chatId)
         }
@@ -844,8 +871,35 @@ class FakeGimClient(
      */
     fun simulateSuspension(hubId: String?) = synchronized(lock) { suspendedHubId = hubId }
 
-    /** Makes the next outbound send (or retry) end in [SendState.Failed] with [reason]. */
-    fun failNextSend(reason: String = "Simulated send failure") = synchronized(lock) { failNextReason = reason }
+    /**
+     * Simulates the user policy of hub [hubId] refusing this user (null lifts it): registration ([createIdentity],
+     * [restoreFromRecovery], [waitLink]) fails with [GimException.UserNotAdmitted] and keeps nothing, and the calls
+     * [simulateSuspension] covers fail the same way; the session and local chats are kept.
+     */
+    fun simulateNotAdmitted(hubId: String?) = synchronized(lock) { notAdmittedHubId = hubId }
+
+    /** Makes [addHub] of [url] fail with [GimException.UserNotAdmitted]; the hub stays unlisted. */
+    fun refuseHubUrl(url: String) = synchronized(lock) { notAdmittingHubUrls += normalizeHubUrl(url) }
+
+    /**
+     * Simulates hub [hubId] (default: the chat's owner), owning [chatId], not admitting this user: sends in that chat
+     * fail at once with [SendFailure.NOT_ADMITTED_BY_PEER], member changes and leave throw
+     * [GimException.NotAdmittedByPeer]. Other chats are not affected.
+     */
+    fun simulateNotAdmittedByPeer(chatId: String, hubId: String? = null) = synchronized(lock) {
+        peerRefusals[chatId] = hubId ?: chatOwners[chatId] ?: homeHubId()
+    }
+
+    /**
+     * Simulates the hubs of [userIds] not admitting this user as a contact: [createDirectChat] with one of them fails
+     * with [GimException.ContactNotAdmitted]; [createGroupChat] and [addMembers] skip them (a `REMOVED` change each)
+     * and fail only when no user could be added.
+     */
+    fun refuseContacts(vararg userIds: String) = synchronized(lock) { refusingUsers += userIds }
+
+    /** Makes the next outbound send (or retry) end in [SendState.Failed] with [reason] and [cause]. */
+    fun failNextSend(reason: String = "Simulated send failure", cause: SendFailure = SendFailure.OTHER) =
+        synchronized(lock) { failNext = SendState.Failed(reason, cause) }
 
     /** Advances every in-flight outbound message by one send state (manual outbox mode). */
     fun advanceOutbox() = synchronized(lock) { outbox.toList().forEach(::step) }
@@ -1031,7 +1085,19 @@ class FakeGimClient(
 
     private fun checkSuspended() {
         suspendedHubId?.let { throw GimException.UserSuspended(it) }
+        checkAdmitted()
     }
+
+    private fun checkAdmitted() {
+        notAdmittedHubId?.let { throw GimException.UserNotAdmitted(it) }
+    }
+
+    private fun checkPeerAdmits(chatId: String) {
+        peerRefusals[chatId]?.let { throw GimException.NotAdmittedByPeer(it, chatId) }
+    }
+
+    /** A refused invitee as the `REMOVED` change names them; the user id if not in the directory. */
+    private fun refusedUser(userId: String): UserProfile = directory[userId] ?: UserProfile(userId, "", userId)
 
     private fun requireActive(chatId: String) {
         checkSuspended()
@@ -1065,9 +1131,17 @@ class FakeGimClient(
     }
 
     private fun startDelivery(key: MessageKey) {
-        failNextReason?.let {
-            failNextReason = null
+        failNext?.let {
+            failNext = null
             doomed[key] = it
+        }
+        if (key.chatId in peerRefusals) {
+            // The chat's hub answers `not_admitted_by_peer`: a definite failure, at once.
+            updateMessage(key.chatId, key.messageId) {
+                it.copy(sendState = SendState.Failed("not admitted by peer", SendFailure.NOT_ADMITTED_BY_PEER))
+            }
+            doomed.remove(key)
+            return
         }
         outbox.add(key)
         val delays = outboxDelays ?: return
@@ -1087,7 +1161,7 @@ class FakeGimClient(
         val failure = doomed.remove(key)
         val next = when {
             message == null -> null
-            failure != null -> SendState.Failed(failure)
+            failure != null -> failure
             message.sendState == SendState.Pending -> SendState.Sent
             message.sendState == SendState.Sent -> SendState.Delivered
             message.sendState == SendState.Delivered -> SendState.Read

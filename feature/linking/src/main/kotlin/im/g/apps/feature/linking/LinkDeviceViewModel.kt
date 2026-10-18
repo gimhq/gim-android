@@ -26,8 +26,8 @@ class LinkDeviceViewModel(private val client: GimClient) : ViewModel() {
     private var approval: PendingApproval? = null
 
     /**
-     * Last code `approveLink` rejected as invalid or for a suspended account (not retried); the scanner keeps reporting
-     * it while the camera points at it.
+     * Last code `approveLink` rejected as invalid or for a suspended or not admitted account (not retried); the scanner
+     * keeps reporting it while the camera points at it.
      */
     private var rejectedCode: String? = null
 
@@ -77,7 +77,9 @@ class LinkDeviceViewModel(private val client: GimClient) : ViewModel() {
                     it.copy(step = LinkDeviceStep.CONFIRM, sas = pending.sas(), deviceId = pending.deviceId())
                 }
             } catch (e: GimException) {
-                if (e is GimException.InvalidInput || e is GimException.UserSuspended) rejectedCode = code
+                if (e is GimException.InvalidInput || e is GimException.UserSuspended || e is GimException.UserNotAdmitted) {
+                    rejectedCode = code
+                }
                 val error = e.toError(client.suspendedHubName(e))
                 _state.update { it.copy(step = LinkDeviceStep.SCAN, error = error) }
             }
@@ -89,6 +91,7 @@ class LinkDeviceViewModel(private val client: GimClient) : ViewModel() {
         is GimException.Network -> LinkDeviceError.CannotReachServer
         is GimException.RetryLater -> LinkDeviceError.TryAgainLater(retryAfterSecs.coerceAtLeast(1))
         is GimException.UserSuspended -> LinkDeviceError.Suspended(suspendedHub)
+        is GimException.UserNotAdmitted -> LinkDeviceError.NotAdmitted(suspendedHub)
         else -> LinkDeviceError.Generic
     }
 }

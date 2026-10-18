@@ -32,6 +32,9 @@ sealed interface LinkDeviceError {
     /** The hub suspended this user (`UserSuspended`); [hub] names it when the user has several hubs. Not retried. */
     data class Suspended(val hub: String?) : LinkDeviceError
 
+    /** The hub's user policy does not admit this user (`UserNotAdmitted`); [hub] as for [Suspended]. Not retried. */
+    data class NotAdmitted(val hub: String?) : LinkDeviceError
+
     data object Generic : LinkDeviceError
 }
 

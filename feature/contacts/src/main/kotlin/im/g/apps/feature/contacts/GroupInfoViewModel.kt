@@ -135,7 +135,7 @@ class GroupInfoViewModel(
     fun addMember(user: UserProfile) {
         if (!_state.value.canAdd(user)) return
         _state.update { it.copy(addMemberDialog = null) }
-        mutate(error = GimException::toInviteError) { client.addMembers(chatId, listOf(user.userId)) }
+        mutate(error = { e, hub -> e.toInviteError(hub, listOf(user)) }) { client.addMembers(chatId, listOf(user.userId)) }
     }
 
     // endregion

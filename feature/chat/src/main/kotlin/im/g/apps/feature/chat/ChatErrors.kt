@@ -11,8 +11,9 @@ private const val HTTP_BAD_GATEWAY = 502
 
 /**
  * Message for a failed user action: "Try again in N s" when gim-core asks to retry later, a read-only notice when the
- * chat is leaving or left ([GimException.ChatNotActive]), "account suspended" naming [suspendedHub]
- * ([suspendedHubName]) for [GimException.UserSuspended], else [fallback].
+ * chat is leaving or left ([GimException.ChatNotActive]), "account suspended" / "not admitted" naming [suspendedHub]
+ * ([suspendedHubName]) for [GimException.UserSuspended] / [GimException.UserNotAdmitted], the chat's hub refusal for
+ * [GimException.NotAdmittedByPeer], else [fallback].
  */
 internal fun GimException.toUiText(@StringRes fallback: Int, suspendedHub: String? = null): UiText = when (this) {
     is GimException.RetryLater ->
@@ -23,6 +24,12 @@ internal fun GimException.toUiText(@StringRes fallback: Int, suspendedHub: Strin
     } else {
         UiText.Res(DesignR.string.gim_error_user_suspended_on_hub, persistentListOf(suspendedHub))
     }
+    is GimException.UserNotAdmitted -> if (suspendedHub == null) {
+        UiText.Res(DesignR.string.gim_error_user_not_admitted)
+    } else {
+        UiText.Res(DesignR.string.gim_error_user_not_admitted_on_hub, persistentListOf(suspendedHub))
+    }
+    is GimException.NotAdmittedByPeer -> UiText.Res(DesignR.string.gim_error_not_admitted_by_peer)
     else -> UiText.Res(fallback)
 }
 

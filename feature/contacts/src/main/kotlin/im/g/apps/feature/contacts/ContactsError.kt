@@ -6,7 +6,10 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.platform.LocalContext
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.suspendedHubName
+import im.g.apps.core.designsystem.R as DesignR
+import im.g.apps.core.designsystem.component.userNotAdmittedMessage
 import im.g.apps.core.designsystem.component.userSuspendedMessage
 
 /** User-facing error categories of the contacts screens; mapped from [GimException]. */
@@ -36,6 +39,15 @@ sealed interface ContactsError {
     /** The hub suspended this user (`UserSuspended`); [hub] names it when the user has several hubs. Not retried. */
     data class Suspended(val hub: String?) : ContactsError
 
+    /** The hub's user policy does not admit this user (`UserNotAdmitted`); [hub] as for [Suspended]. Not retried. */
+    data class NotAdmitted(val hub: String?) : ContactsError
+
+    /** The hub owning the chat does not admit this user (`NotAdmittedByPeer`). Not retried. */
+    data object NotAdmittedByPeer : ContactsError
+
+    /** No invitee could be added: the hubs of [users] (names, or user ids if unknown) do not admit this user. */
+    data class ContactNotAdmitted(val users: List<String>) : ContactsError
+
     data object Unknown : ContactsError
 }
 
@@ -50,6 +62,9 @@ internal fun GimException.toContactsError(suspendedHub: String? = null): Contact
     is GimException.NotImplemented -> ContactsError.NotSupported
     is GimException.ChatNotActive -> ContactsError.ChatNotActive
     is GimException.UserSuspended -> ContactsError.Suspended(suspendedHub)
+    is GimException.UserNotAdmitted -> ContactsError.NotAdmitted(suspendedHub)
+    is GimException.NotAdmittedByPeer -> ContactsError.NotAdmittedByPeer
+    is GimException.ContactNotAdmitted -> ContactsError.ContactNotAdmitted(userIds)
     is GimException.Crypto,
     is GimException.Storage,
     is GimException.Cancelled,
@@ -64,10 +79,25 @@ internal fun GimException.toContactsError(suspendedHub: String? = null): Contact
 
 /**
  * Like [toContactsError] for `createDirectChat`, `createGroupChat` and `addMembers`, whose `NotFound` means that
- * none of the invited users exists.
+ * none of the invited users exists; `ContactNotAdmitted` names the refused users found in [invitees].
  */
-internal fun GimException.toInviteError(suspendedHub: String? = null): ContactsError =
-    if (this is GimException.NotFound) ContactsError.UserNotFound else toContactsError(suspendedHub)
+internal fun GimException.toInviteError(
+    suspendedHub: String? = null,
+    invitees: List<UserProfile> = emptyList(),
+): ContactsError = when (this) {
+    is GimException.NotFound -> ContactsError.UserNotFound
+    is GimException.ContactNotAdmitted -> ContactsError.ContactNotAdmitted(
+        userIds.map { id -> invitees.firstOrNull { it.userId == id }?.contactName() ?: id },
+    )
+    else -> toContactsError(suspendedHub)
+}
+
+/** The display name, else "@handle", else the user id. */
+private fun UserProfile.contactName(): String = when {
+    displayName.isNotBlank() && displayName != userId -> displayName
+    handle.isNotBlank() -> "@$handle"
+    else -> userId
+}
 
 internal fun ContactsError.message(context: Context): String = when (this) {
     ContactsError.Network -> context.getString(R.string.contacts_error_network)
@@ -80,6 +110,10 @@ internal fun ContactsError.message(context: Context): String = when (this) {
     ContactsError.NotSupported -> context.getString(R.string.contacts_error_not_supported)
     ContactsError.ChatNotActive -> context.getString(R.string.contacts_error_chat_not_active)
     is ContactsError.Suspended -> userSuspendedMessage(context, hub)
+    is ContactsError.NotAdmitted -> userNotAdmittedMessage(context, hub)
+    ContactsError.NotAdmittedByPeer -> context.getString(DesignR.string.gim_error_not_admitted_by_peer)
+    is ContactsError.ContactNotAdmitted ->
+        context.getString(R.string.contacts_error_contact_not_admitted, users.joinToString(", "))
     ContactsError.Unknown -> context.getString(R.string.contacts_error_unknown)
 }
 

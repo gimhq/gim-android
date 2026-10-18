@@ -1,6 +1,7 @@
 package im.g.apps.feature.chat.timeline
 
 import androidx.compose.runtime.Immutable
+import im.g.apps.core.bridge.SendFailure
 import im.g.apps.core.designsystem.component.ReactionChipModel
 import im.g.apps.core.designsystem.component.TickState
 import kotlinx.collections.immutable.ImmutableList
@@ -38,10 +39,13 @@ data class MessageRow(
     val groupedWithNext: Boolean,
     /** The attachment could not be fetched from the uploader's hub for now: offer a retry. */
     val mediaUnavailable: Boolean = false,
-    /** A failed send may be retried; false after it failed with `UserSuspended`. */
-    val retryable: Boolean = true,
+    /** Why the send failed; set for a failed own message. */
+    val sendFailure: SendFailure? = null,
 ) : TimelineRowUi {
     val failed: Boolean get() = tick == TickState.FAILED
+
+    /** A failed send may be retried unless its [sendFailure] says the user is refused (gim-core's guidance). */
+    val retryable: Boolean get() = sendFailure?.retryable ?: true
 }
 
 @Immutable

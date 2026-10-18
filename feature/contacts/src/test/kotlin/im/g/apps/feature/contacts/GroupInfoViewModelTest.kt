@@ -137,6 +137,43 @@ class GroupInfoViewModelTest {
     }
 
     @Test
+    fun memberChangeAndLeave_notAdmittedByPeer_showChatHubRefusal() = runTest {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        fake.simulateNotAdmittedByPeer(DemoData.GROUP_CHAT_ID)
+
+        vm.requestRemove(DemoData.ana)
+        vm.confirmRemove()
+        advanceUntilIdle()
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.NotAdmittedByPeer), vm.events.first())
+        assertTrue(DemoData.ana.userId in vm.memberIds())
+
+        vm.addMember(marta)
+        advanceUntilIdle()
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.NotAdmittedByPeer), vm.events.first())
+        assertFalse(marta.userId in vm.memberIds())
+
+        vm.requestLeave()
+        vm.confirmLeave()
+        advanceUntilIdle()
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.NotAdmittedByPeer), vm.events.first())
+        assertFalse(vm.state.value.busy)
+        assertNotNull(fake.session())
+    }
+
+    @Test
+    fun addMember_contactNotAdmitted_namesTheUser() = runTest {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        fake.refuseContacts(marta.userId)
+
+        vm.addMember(marta)
+        advanceUntilIdle()
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.ContactNotAdmitted(listOf("Marta Rossi"))), vm.events.first())
+        assertFalse(marta.userId in vm.memberIds())
+    }
+
+    @Test
     fun removeMember_failure_emitsError() = runTest {
         val vm = newViewModel()
         advanceUntilIdle()

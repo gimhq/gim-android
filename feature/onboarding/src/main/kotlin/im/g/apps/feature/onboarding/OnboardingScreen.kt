@@ -62,6 +62,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import im.g.apps.core.designsystem.component.GimPreviews
+import im.g.apps.core.designsystem.component.userNotAdmittedMessage
 import im.g.apps.core.designsystem.component.userSuspendedMessage
 import im.g.apps.core.designsystem.theme.GimTheme
 
@@ -437,7 +438,7 @@ private fun ColumnScope.LinkQrStep(state: OnboardingUiState, callbacks: Onboardi
         ) {
             Text(stringResource(R.string.onboarding_link_copy))
         }
-    } else if (state.error != OnboardingError.AccountSuspended) {
+    } else if (!state.accountRefused) {
         Button(
             onClick = callbacks.onRetryLink,
             enabled = state.canRetryLink,
@@ -669,6 +670,7 @@ private fun OnboardingError.message(): String = when (this) {
     OnboardingError.LinkTimedOut -> stringResource(R.string.onboarding_error_link_timed_out)
     OnboardingError.LinkFailed -> stringResource(R.string.onboarding_error_link_failed)
     OnboardingError.AccountSuspended -> userSuspendedMessage(null)
+    is OnboardingError.NotAdmitted -> userNotAdmittedMessage(hub)
     OnboardingError.Generic -> stringResource(R.string.onboarding_error_generic)
 }
 

@@ -329,7 +329,7 @@ class OnboardingViewModel(
                 if (state.step != OnboardingStep.LINK_QR) return@update state
                 result.fold(
                     onSuccess = { sas -> state.copy(step = OnboardingStep.LINK_SAS, linkQr = null, linkSas = sas) },
-                    onFailure = { e -> state.copy(linkQr = null, error = linkError(e)) },
+                    onFailure = { e -> state.copy(linkQr = null, error = linkError(e, state.serverUrl)) },
                 )
             }
         }
@@ -359,6 +359,7 @@ class OnboardingViewModel(
                 is GimException.HubNotVerified -> OnboardingError.HubNotVerified
                 is GimException.RetryLater -> OnboardingError.TryAgainLater(e.retryAfterSecs.coerceAtLeast(1))
                 is GimException.UserSuspended -> OnboardingError.AccountSuspended
+                is GimException.UserNotAdmitted -> OnboardingError.NotAdmitted(it.serverUrl.trim())
                 else -> OnboardingError.Generic
             },
         )
@@ -370,12 +371,13 @@ class OnboardingViewModel(
         /** gim-core's own `waitLink` limit. */
         val LINK_TIMEOUT = 10.minutes
 
-        private fun linkError(e: Throwable): OnboardingError = when (e) {
+        private fun linkError(e: Throwable, serverUrl: String): OnboardingError = when (e) {
             is TimeoutCancellationException -> OnboardingError.LinkTimedOut
             is GimException.Network -> OnboardingError.CannotReachServer
             is GimException.HubNotVerified -> OnboardingError.HubNotVerified
             is GimException.RetryLater -> OnboardingError.TryAgainLater(e.retryAfterSecs.coerceAtLeast(1))
             is GimException.UserSuspended -> OnboardingError.AccountSuspended
+            is GimException.UserNotAdmitted -> OnboardingError.NotAdmitted(serverUrl.trim())
             else -> OnboardingError.LinkFailed
         }
     }
