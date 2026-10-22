@@ -108,6 +108,10 @@ comes from the `gimServerUrl` instrumentation argument, default `http://10.0.2.2
   boot from a freshly saved snapshot and doubled test timeouts (each knob can be overridden, e.g.
   `DEVICE_PROFILE`, `CORES`, `GPU`). On failure the full device logcat is written to
   `.tmp/device-tests/`.
+- **Build memory:** `gradle.properties` sets a 4 GB Gradle daemon heap, `org.gradle.workers.max=8` and a 2 GB
+  Kotlin daemon. In-process D8 needs heap per worker; with the default worker count (= CPUs, 32 on the build
+  host) a cold androidTest build outgrew the former 2 GB heap (`D8: java.lang.OutOfMemoryError` in
+  `mergeExtDexDebugAndroidTest`). With 8 workers it peaks at ~1.9 GB.
 - **CI:** job `device-tests` in `.github/workflows/ci.yml` checks out `gimhq/gim-hub` at the pinned commit
   (deploy key secret `GIM_HUB_DEPLOY_KEY`), builds it with its Dockerfile (the image is cached per commit),
   publishes it on port 8080 with `GIM_HUB_PUBLIC_URL=http://10.0.2.2:8080` and runs the same Gradle task on an
