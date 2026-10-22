@@ -22,6 +22,10 @@
 #                     network namespace on :8090 as every hub's push webhook with a shared random secret; the app
 #                     reaches it at http://10.0.2.2:8090, passed as instrumentation argument gimPushMockUrl, which
 #                     PushE2eTest needs and otherwise skips)
+#   GIM_HUB_ADMIN=0   do not enable hub A's admin API (default 1: listener 127.0.0.1:8082 in the hub's network
+#                     namespace, so only the emulator reaches it, at http://10.0.2.2:8082, with a random per-run token;
+#                     passed as instrumentation arguments gimAdminUrl and gimAdminToken, which SuspensionE2eTest and
+#                     PolicyE2eTest need and otherwise skip)
 #
 # Flow:
 #   1. Builds (once) ai-agent/gim-android-emulator: ghcr.io/cirruslabs/android-sdk:35 plus the emulator
@@ -40,7 +44,7 @@
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,39p' "$0"
+    sed -n '2,43p' "$0"
     exit 0
 fi
 
@@ -78,10 +82,15 @@ if [[ ${GIM_PUSH_MOCK:-1} == 1 ]]; then
     # The mock joins the hub's network namespace below, so the hubs reach it on loopback.
     gim_push_prepare http://127.0.0.1:8090/push
 fi
+if [[ ${GIM_HUB_ADMIN:-1} == 1 ]]; then
+    gim_admin_prepare 127.0.0.1:8082
+    hub_args+=("-Pandroid.testInstrumentationRunnerArguments.gimAdminUrl=http://10.0.2.2:8082"
+        "-Pandroid.testInstrumentationRunnerArguments.gimAdminToken=$GIM_ADMIN_TOKEN")
+fi
 if [[ ${GIM_HUB2:-0} == 1 ]]; then
     gim_start_hub "$hub" "$repo_root" fed
     gim_start_hub2 "$hub" "$hub2" "$repo_root"
-    hub_args=("-Pandroid.testInstrumentationRunnerArguments.gimServerUrl2=$GIM_EMULATOR_SERVER_URL2")
+    hub_args+=("-Pandroid.testInstrumentationRunnerArguments.gimServerUrl2=$GIM_EMULATOR_SERVER_URL2")
 else
     gim_start_hub "$hub" "$repo_root"
 fi

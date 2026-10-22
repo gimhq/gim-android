@@ -70,6 +70,22 @@ class GimClientManager(
         create(url).also { serverUrlStore.set(url) }
     }
 
+    /**
+     * Replaces the current client with a new one for the same server URL, as a process restart would; null without a
+     * client. For device tests: gim-core keeps per-run state in memory only, such as the 10-minute sign-in back-off
+     * after `UserSuspended` / `UserNotAdmitted`. The old client's sync is stopped and the client dropped, not signed
+     * out (session and store stay); screens created before keep it until they are recreated.
+     */
+    suspend fun reopen(): GimClient? = mutex.withLock {
+        val url = clientUrl ?: return null
+        try {
+            _client.value?.stopSync()
+        } catch (_: GimException) {
+            // Dropped either way.
+        }
+        create(url)
+    }
+
     /** Signs the current client out, forgets the server URL and drops the client, even when sign-out throws. */
     suspend fun signOut() = mutex.withLock {
         try {
