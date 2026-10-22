@@ -40,7 +40,9 @@
 #   gim_real_gradle_env           docker run arguments (array GIM_REAL_GRADLE_ENV) that pin the debug keystore
 #   gim_real_start_hub NAME ROOT  start the pinned gim-hub image as NAME (GIM_REAL_NET mode, free port from 18080 up)
 #                                 with GIM_HUB_PUBLIC_URL=GIM_REAL_HUB_URL, wait for /healthz; sets GIM_REAL_PORT and
-#                                 GIM_REAL_HUB_URL (the phone's URL, the one every client uses)
+#                                 GIM_REAL_HUB_URL (the phone's URL, the one every client uses). In lan mode, after
+#                                 gim_admin_prepare 0.0.0.0:8082, also publishes the admin API on port + 300 and sets
+#                                 GIM_REAL_ADMIN_URL (the phone's URL of it); reverse mode never enables it
 #   gim_real_stop_hub NAME        remove the reverse (reverse mode) and the hub container NAME
 #   gim_real_start_push_mock NAME ROOT
 #                                 lan mode only, before gim_real_start_hub: run gim-push-mock as NAME publishing a free
@@ -67,6 +69,7 @@ GIM_REAL_ANDROID_HOME=${GIM_REAL_ANDROID_HOME:-/srv/.tmp/cache/android-debug-key
 GIM_REAL_LOCK=/tmp/.lock-device
 GIM_REAL_APP=im.g.apps
 GIM_REAL_PORT=
+GIM_REAL_ADMIN_URL=
 GIM_REAL_EXIT_NOT_ATTACHED=4
 GIM_REAL_EXIT_INTERRUPTED=5
 GIM_REAL_EXIT_NOT_READY=6
@@ -194,7 +197,7 @@ gim_real_netns_ports() {
 }
 
 gim_real_start_hub() {
-    local name=$1 root=$2 port _ out
+    local name=$1 root=$2 port _ out admin_publish
     gim_ensure_hub_image "$root"
     # shellcheck disable=SC2054 # the commas belong to the --tmpfs options
     local run_args=(-d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$name"
@@ -203,9 +206,14 @@ gim_real_start_hub() {
         lan)
             # The host's free ports are not visible from here; let the daemon refuse taken ones.
             for port in $(seq 18080 18179); do
-                if out=$(docker run "${run_args[@]}" "${GIM_HUB_PUSH_ARGS[@]}" -p "$port:8080" -e GIM_HUB_LISTEN=0.0.0.0:8080 \
+                admin_publish=()
+                # The admin API (gim_admin_prepare 0.0.0.0:8082) on port + 300, only for this run's hub container.
+                ((${#GIM_HUB_ADMIN_ARGS[@]} == 0)) || admin_publish=(-p "$((port + 300)):8082")
+                if out=$(docker run "${run_args[@]}" "${GIM_HUB_PUSH_ARGS[@]}" "${GIM_HUB_ADMIN_ARGS[@]}" \
+                    -p "$port:8080" "${admin_publish[@]}" -e GIM_HUB_LISTEN=0.0.0.0:8080 \
                     -e "GIM_HUB_PUBLIC_URL=http://$GIM_REAL_LAN_HOST:$port" "$GIM_HUB_IMAGE" 2>&1); then
                     GIM_REAL_PORT=$port
+                    ((${#admin_publish[@]} == 0)) || GIM_REAL_ADMIN_URL=http://$GIM_REAL_LAN_HOST:$((port + 300))
                     break
                 fi
                 docker rm -f "$name" >/dev/null 2>&1 || true

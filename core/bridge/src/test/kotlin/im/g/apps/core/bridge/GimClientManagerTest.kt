@@ -114,4 +114,20 @@ class GimClientManagerTest {
         assertNull(manager.client.value)
         assertNull(manager.restore())
     }
+
+    @Test
+    fun reopen_replaces_the_client_for_the_same_url_without_signing_out() = runTest {
+        val factory = factory()
+        val manager = GimClientManager(factory, hooks, store)
+        assertNull(manager.reopen())
+        assertTrue(factory.created.isEmpty())
+
+        val first = manager.connect(DemoData.SERVER_URL)
+        val second = manager.reopen()
+        assertNotSame(first, second)
+        assertSame(second, manager.client.value)
+        assertEquals(DemoData.session, first.session())
+        assertEquals(DemoData.SERVER_URL, store.get())
+        assertEquals(listOf(first, second), factory.created)
+    }
 }

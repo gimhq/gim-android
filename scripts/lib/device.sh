@@ -25,6 +25,10 @@
 #   gim_push_prepare WEBHOOK_URL  pick a random shared secret (GIM_PUSH_MOCK_SECRET, kept when set) and set GIM_HUB_PUSH_ARGS, the
 #                                 hub env pointing its push webhook at WEBHOOK_URL; gim_start_hub, gim_start_hub2 and
 #                                 gim_real_start_hub pass GIM_HUB_PUSH_ARGS to every hub they start
+#   gim_admin_prepare LISTEN      pick a random admin token (GIM_ADMIN_TOKEN) and set GIM_HUB_ADMIN_ARGS, the hub env
+#                                 enabling gim-hub's admin API (docs/admin.md) on LISTEN with that token; gim_start_hub
+#                                 and gim_real_start_hub pass GIM_HUB_ADMIN_ARGS to hub A (never to hub B). Tests reach
+#                                 it through instrumentation arguments gimAdminUrl and gimAdminToken.
 #   gim_start_push_mock NAME ROOT DOCKER_ARGS...
 #                                 run gim-push-mock (docs/push-mock.md in gim-hub) as NAME with GIM_PUSH_MOCK_SECRET and
 #                                 DOCKER_ARGS (network / ports), wait for its /healthz
@@ -62,6 +66,7 @@ GIM_EMULATOR_SERVER_URL2=http://10.0.2.2:8081
 GIM_HUB_SRC=${GIM_HUB_SRC:-/srv/gimhq/im-client/hub}
 GIM_RUN_LABEL=${GIM_RUN_LABEL:-gim-android-$$}
 GIM_HUB_PUSH_ARGS=()
+GIM_HUB_ADMIN_ARGS=()
 
 gim_check_host_paths() {
     command -v docker >/dev/null || { echo "error: docker is required" >&2; return 1; }
@@ -132,6 +137,12 @@ gim_push_prepare() {
     # The hub requires at least 32 bytes. Kept when already set, so the mock can start before its URL is known.
     [[ -n ${GIM_PUSH_MOCK_SECRET:-} ]] || GIM_PUSH_MOCK_SECRET=$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')
     GIM_HUB_PUSH_ARGS=(-e "GIM_HUB_PUSH_WEBHOOK_URL=$1" -e "GIM_HUB_PUSH_WEBHOOK_SECRET=$GIM_PUSH_MOCK_SECRET")
+}
+
+gim_admin_prepare() {
+    # The hub requires at least 32 characters; the token lives as long as the run's hub container.
+    GIM_ADMIN_TOKEN=$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')
+    GIM_HUB_ADMIN_ARGS=(-e "GIM_HUB_ADMIN_LISTEN=$1" -e "GIM_HUB_ADMIN_TOKEN=$GIM_ADMIN_TOKEN")
 }
 
 gim_start_push_mock() {
@@ -247,7 +258,8 @@ gim_start_hub() {
     # Disposable: the hub's data lives in memory (or the run's volume) and goes with the run.
     docker run -d --label ai-agent=true --label "ai-agent-run=$GIM_RUN_LABEL" --name "$name" "${data[@]}" \
         -e GIM_HUB_LISTEN=0.0.0.0:8080 -e GIM_HUB_DATA_DIR=/data -e "GIM_HUB_PUBLIC_URL=$GIM_EMULATOR_SERVER_URL" \
-        -e RUST_LOG=info "${GIM_FED_ARGS[@]}" "${GIM_HUB_PUSH_ARGS[@]}" "$GIM_HUB_IMAGE" >/dev/null
+        -e RUST_LOG=info "${GIM_FED_ARGS[@]}" "${GIM_HUB_PUSH_ARGS[@]}" "${GIM_HUB_ADMIN_ARGS[@]}" \
+        "$GIM_HUB_IMAGE" >/dev/null
     gim_wait_hub_healthy "$name" || return 1
     gim_alias_emulator_host "$name"
 }

@@ -108,6 +108,10 @@ comes from the `gimServerUrl` instrumentation argument, default `http://10.0.2.2
   boot from a freshly saved snapshot and doubled test timeouts (each knob can be overridden, e.g.
   `DEVICE_PROFILE`, `CORES`, `GPU`). On failure the full device logcat is written to
   `.tmp/device-tests/`.
+- **Build memory:** `gradle.properties` sets a 4 GB Gradle daemon heap, `org.gradle.workers.max=8` and a 2 GB
+  Kotlin daemon. In-process D8 needs heap per worker; with the default worker count (= CPUs, 32 on the build
+  host) a cold androidTest build outgrew the former 2 GB heap (`D8: java.lang.OutOfMemoryError` in
+  `mergeExtDexDebugAndroidTest`). With 8 workers it peaks at ~1.9 GB.
 - **CI:** job `device-tests` in `.github/workflows/ci.yml` checks out `gimhq/gim-hub` at the pinned commit
   (deploy key secret `GIM_HUB_DEPLOY_KEY`), builds it with its Dockerfile (the image is cached per commit),
   publishes it on port 8080 with `GIM_HUB_PUBLIC_URL=http://10.0.2.2:8080` and runs the same Gradle task on an
@@ -118,6 +122,17 @@ comes from the `gimServerUrl` instrumentation argument, default `http://10.0.2.2
   gim-cli peers reach the same URLs from the hub's network namespace, where 10.0.2.2 is added to `lo` (see
   `scripts/lib/device.sh`). Real-device runs use `http://GIM_REAL_LAN_HOST:<port>` (or `http://127.0.0.1:<port>`
   with `GIM_REAL_NET=reverse`) for the phone and the CLI alike.
+
+- **Hub admin API:** `scripts/run-device-tests.sh` enables hub A's admin API (gim-hub `docs/admin.md`) on
+  `127.0.0.1:8082` in the hub's network namespace (the emulator reaches it at `http://10.0.2.2:8082`, nothing else
+  does) with a random per-run token; `scripts/run-real-device-tests.sh` (lan mode) publishes it on the hub's port
+  + 300 for the run's hub container only. Both pass instrumentation arguments `gimAdminUrl` and `gimAdminToken`
+  (`GIM_HUB_ADMIN=0` turns this off). `SuspensionE2eTest` (suspend / unsuspend) and `PolicyE2eTest` (`deny` policy
+  with the user listed, then the stored policy deleted back to `open`, also in teardown) use it and are skipped
+  without these arguments (CI). Both check that the next send fails with no Retry, the Devices screen shows the
+  "suspended" / "not admitted" message, and the app stays signed in with its chats readable. gim-core waits 10
+  minutes before it signs in again on a hub that refused the user, so the tests check recovery through a reopened
+  client (`GimClientManager.reopen()`, what an app restart does), which then sends again.
 
 ### CLI x Android interop
 
@@ -187,7 +202,7 @@ script and CI follow it.
 - `core/bridge/src/main/kotlin/im/g/gimcore/gim_core.kt` (UniFFI bindings)
 
 The vendored version and source commit are pinned in `GIM_CORE_VERSION` at the repo root (currently gim-core
-`c1b7503`, tested against gim-hub `bd8c9ca` from `e2e/GIM_HUB_VERSION`). Refresh them from a gim-core checkout, or
+`c1b7503`, tested against gim-hub `0d756b9` from `e2e/GIM_HUB_VERSION`). Refresh them from a gim-core checkout, or
 from a clean export of a commit (then `--commit` with its full sha is required):
 
 ```bash
