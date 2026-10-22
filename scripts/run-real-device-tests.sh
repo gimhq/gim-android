@@ -25,6 +25,9 @@
 #   GIM_PUSH_MOCK=0     do not start gim-push-mock (default 1, lan mode only: built from the pinned gim-hub commit,
 #                       published on a free host port from 18190, the hub's push webhook with a random shared secret;
 #                       its phone URL is passed as instrumentation argument gimPushMockUrl, which PushE2eTest needs)
+#   GIM_HUB_ADMIN=0     do not enable the hub's admin API (default 1, lan mode only: published on the hub's port + 300
+#                       for this run's hub container only, with a random per-run token; passed as instrumentation
+#                       arguments gimAdminUrl and gimAdminToken, which SuspensionE2eTest and PolicyE2eTest need)
 #
 # Flow:
 #   1. Builds the debug and androidTest APKs in ghcr.io/cirruslabs/android-sdk:35 with the pinned debug keystore.
@@ -53,7 +56,7 @@
 set -euo pipefail
 
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
-    sed -n '2,52p' "$0"
+    sed -n '2,55p' "$0"
     exit 0
 fi
 
@@ -230,7 +233,8 @@ instrument() {
         return "$GIM_REAL_EXIT_NOT_READY"
     fi
     clear_app "$name" | tee -a "$log_dir/instrumentation.txt" || return 1
-    echo "== $name: am instrument -w -r $* $target" | tee -a "$log_dir/instrumentation.txt"
+    # The admin token stays out of the logs.
+    echo "== $name: am instrument -w -r ${*//${GIM_ADMIN_TOKEN:-}/***} $target" | tee -a "$log_dir/instrumentation.txt"
     # Like gim_real_bg, but bounded: the pid file lets cleanup stop the container-side adb after a timeout.
     # shellcheck disable=SC2016 # expanded by the container's sh
     timeout "${INSTRUMENT_TIMEOUT:-1800}" docker exec "$GIM_REAL_ADB_CONTAINER" sh -c 'echo $$ >"$0"; exec "$@"' \
@@ -319,8 +323,11 @@ if [[ ${GIM_PUSH_MOCK:-1} == 1 && $GIM_REAL_NET == lan ]]; then
     gim_real_start_push_mock "$push_mock" "$repo_root"
     push_args=(-e gimPushMockUrl "$GIM_REAL_PUSH_MOCK_URL")
 fi
+[[ ${GIM_HUB_ADMIN:-1} != 1 || $GIM_REAL_NET != lan ]] || gim_admin_prepare 0.0.0.0:8082
 gim_real_start_hub "$hub" "$repo_root"
 url=$GIM_REAL_HUB_URL
+admin_args=()
+[[ -z $GIM_REAL_ADMIN_URL ]] || admin_args=(-e gimAdminUrl "$GIM_REAL_ADMIN_URL" -e gimAdminToken "$GIM_ADMIN_TOKEN")
 echo "hub container: $hub"
 
 gim_real_install "$app_apk" "$test_apk"
@@ -350,7 +357,7 @@ for class in $classes "$camera_test"; do
             -e realCamera true -e class "$class" || result=$?
     else
         instrument "${class##*.}" "$test_pkg/$runner" -e gimServerUrl "$url" -e timeoutScale "${TIMEOUT_SCALE:-1}" \
-            "${push_args[@]}" -e class "$class" || result=$?
+            "${push_args[@]}" "${admin_args[@]}" -e class "$class" || result=$?
     fi
     if ((result == GIM_REAL_EXIT_INTERRUPTED || result == GIM_REAL_EXIT_NOT_READY)); then
         status=$result
