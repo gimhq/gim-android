@@ -150,7 +150,8 @@ class InteropTest {
 
         // e. Reply both ways (quoted preview of the app's message).
         compose.waitForText(text("Alice replies"))
-        compose.waitFor(hasContentDescription(text("Android in the group"), substring = true))
+        // The quoted preview, not the app's own bubble, whose description also holds the text.
+        compose.waitFor(hasContentDescription(text("Android in the group"), substring = true) and !hasClickAction())
         messageAction(text("Alice replies"), string(ChatR.string.composer_action_reply))
         send(text("Android replies"))
         rendezvous.mark("android-replied")

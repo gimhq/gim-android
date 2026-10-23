@@ -216,7 +216,8 @@ class MessagingE2eTest {
         val replyText = "Swim at noon $suffix"
         val replyId = runBlocking { peer.sendText(chatId, replyText, appMessage.messageId) }
         waitForText("app shows the peer reply", replyText)
-        waitFor("app shows the quoted preview", hasContentDescription(appText, substring = true))
+        // The quoted preview, not the app's own bubble, whose description also holds the text.
+        waitFor("app shows the quoted preview", hasContentDescription(appText, substring = true) and !hasClickAction())
 
         // App reacts to the peer message; the peer sees it.
         compose.onNode(hasText(replyText) and hasClickAction()).performTouchInput { longClick() }
