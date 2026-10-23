@@ -31,7 +31,7 @@ import java.util.concurrent.Executors
  * when no camera can be bound (for example, an emulator without one). Requires the CAMERA permission.
  */
 @Composable
-internal fun QrScanner(onQrCode: (String) -> Unit, onUnavailable: () -> Unit, modifier: Modifier = Modifier) {
+fun QrScanner(onQrCode: (String) -> Unit, onUnavailable: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val currentOnQrCode by rememberUpdatedState(onQrCode)

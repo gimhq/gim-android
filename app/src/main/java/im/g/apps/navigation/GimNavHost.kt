@@ -37,6 +37,7 @@ import im.g.apps.feature.devices.devicesViewModelFactory
 import im.g.apps.feature.hubs.HubsRoute
 import im.g.apps.feature.hubs.hubsViewModelFactory
 import im.g.apps.feature.linking.LinkDeviceRoute
+import im.g.apps.feature.linking.QrScanner
 import im.g.apps.feature.linking.linkDeviceViewModelFactory
 import im.g.apps.feature.onboarding.OnboardingRoute
 import im.g.apps.feature.onboarding.OnboardingViewModel
@@ -140,6 +141,7 @@ fun GimNavHost(
                 viewModel = viewModel(factory = newChatViewModelFactory(current)),
                 onOpenChat = { navController.openChatReplacing(it) },
                 onBack = { navController.popBackStack() },
+                scanner = { onQrCode, onUnavailable, modifier -> QrScanner(onQrCode, onUnavailable, modifier) },
             )
         }
         composable(Routes.NEW_GROUP) {
