@@ -2,10 +2,12 @@ package im.g.apps.navigation
 
 import android.app.Application
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -30,6 +32,7 @@ import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakeGimClientFactory
 import im.g.apps.core.designsystem.theme.GimTheme
+import im.g.apps.feature.settings.ThemeMode
 import im.g.apps.testContainer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -213,6 +216,43 @@ class GimNavHostTest {
         rule.onNodeWithTag("help_licences").performScrollTo().performClick()
         rule.waitUntilAtLeastOneExists(hasText("AndroidX and Jetpack Compose"), TIMEOUT)
         rule.runOnIdle { assertEquals(Routes.SETTINGS_LICENCES, nav.currentDestination?.route) }
+    }
+
+    @Test
+    fun settings_opens_appearance_and_choosing_dark_saves_it() {
+        val container = testContainer(scope = scope)
+        launch(container)
+
+        openSettingsRow("Appearance")
+
+        rule.waitUntilAtLeastOneExists(hasTestTag("appearance_dark"), TIMEOUT)
+        rule.runOnIdle { assertEquals(Routes.SETTINGS_APPEARANCE, nav.currentDestination?.route) }
+        rule.onNodeWithTag("appearance_dark").performClick()
+        rule.runOnIdle { assertEquals(ThemeMode.DARK, container.themeModeStore.mode.value) }
+    }
+
+    @Test
+    fun settings_opens_language_and_the_back_stack_survives_recreation() {
+        val container = testContainer(scope = scope)
+        val start = runBlocking { resolveStartDestination(container.manager) }
+        val restoration = StateRestorationTester(rule)
+        restoration.setContent {
+            nav = rememberNavController()
+            GimTheme { GimNavHost(container, start, navController = nav) }
+        }
+
+        openSettingsRow("Language")
+        rule.waitUntilAtLeastOneExists(hasTestTag("language_phone"), TIMEOUT)
+        rule.onNodeWithTag("language_en").performClick()
+        assertEquals("en", container.appLocales.current())
+        // Applying a language recreates the activity; the saved back stack must keep the user here.
+        restoration.emulateSavedInstanceStateRestore()
+
+        rule.runOnIdle {
+            assertEquals(Routes.SETTINGS_LANGUAGE, nav.currentDestination?.route)
+            assertEquals(Routes.SETTINGS, nav.previousBackStackEntry?.destination?.route)
+        }
+        rule.onNodeWithTag("language_en").assertIsSelected()
     }
 
     @Test

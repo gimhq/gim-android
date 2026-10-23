@@ -6,6 +6,9 @@
     <string name="settings_section_account">Account and devices</string>
     <string name="settings_linked_devices">Linked devices</string>
     <string name="settings_link_device">Link a new device</string>
+    <string name="settings_section_look">Look and language</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_language">Language</string>
     <string name="settings_section_advanced">Advanced</string>
     <string name="settings_servers">Servers</string>
     <string name="settings_section_help">Help and about</string>
@@ -46,6 +49,14 @@
     <string name="profile_error_username_taken">That username is taken. Try another one.</string>
     <string name="profile_error_network">Couldn\'t save. Check your internet and try again.</string>
     <string name="profile_error_unknown">Couldn\'t save. Try again.</string>
+
+    <string name="appearance_title">Appearance</string>
+    <string name="appearance_system">Use phone setting</string>
+    <string name="appearance_light">Light</string>
+    <string name="appearance_dark">Dark</string>
+
+    <string name="language_title">Language</string>
+    <string name="language_phone">Use phone language</string>
 
     <string name="help_title">Help and about</string>
     <string name="help_how_gim_works">How gim works</string>

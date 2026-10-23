@@ -46,13 +46,18 @@ import im.g.apps.feature.linking.linkDeviceViewModelFactory
 import im.g.apps.feature.onboarding.OnboardingRoute
 import im.g.apps.feature.onboarding.OnboardingViewModel
 import im.g.apps.feature.onboarding.onboardingViewModelFactory
+import im.g.apps.feature.settings.AppearanceRoute
 import im.g.apps.feature.settings.HelpScreen
+import im.g.apps.feature.settings.LanguageRoute
 import im.g.apps.feature.settings.LicencesScreen
 import im.g.apps.feature.settings.ProfileRoute
 import im.g.apps.feature.settings.SettingsActions
 import im.g.apps.feature.settings.SettingsRoute
+import im.g.apps.feature.settings.appearanceViewModelFactory
+import im.g.apps.feature.settings.languageViewModelFactory
 import im.g.apps.feature.settings.profileViewModelFactory
 import im.g.apps.feature.settings.settingsViewModelFactory
+import im.g.apps.feature.settings.supportedLanguageTags
 import im.g.apps.deleteRecoveryKitFiles
 import im.g.apps.openFile
 import im.g.apps.shareRecoveryKit
@@ -117,6 +122,7 @@ fun GimNavHost(
         }
         composable(Routes.SETTINGS) {
             val current = client ?: return@composable
+            val themeMode by container.themeModeStore.mode.collectAsState()
             SettingsRoute(
                 viewModel = viewModel(factory = settingsViewModelFactory(current)),
                 actions = SettingsActions(
@@ -125,6 +131,8 @@ fun GimNavHost(
                     onDevices = { navController.navigate(Routes.DEVICES) },
                     onLinkDevice = { navController.navigate(Routes.LINK_DEVICE) },
                     onServers = { navController.navigate(Routes.HUBS) },
+                    onAppearance = { navController.navigate(Routes.SETTINGS_APPEARANCE) },
+                    onLanguage = { navController.navigate(Routes.SETTINGS_LANGUAGE) },
                     onHelp = { navController.navigate(Routes.SETTINGS_HELP) },
                     onSignOut = {
                         // Main: sign-out resumes from background work and NavController is main-thread only.
@@ -134,6 +142,22 @@ fun GimNavHost(
                         }
                     },
                 ),
+                themeMode = themeMode,
+                // Re-read on every visit: a new language recreates the activity anyway.
+                languageTag = container.appLocales.current(),
+            )
+        }
+        composable(Routes.SETTINGS_APPEARANCE) {
+            AppearanceRoute(
+                viewModel = viewModel(factory = appearanceViewModelFactory(container.themeModeStore)),
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(Routes.SETTINGS_LANGUAGE) {
+            val context = LocalContext.current
+            LanguageRoute(
+                viewModel = viewModel(factory = languageViewModelFactory(container.appLocales, supportedLanguageTags(context))),
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Routes.SETTINGS_PROFILE) {
