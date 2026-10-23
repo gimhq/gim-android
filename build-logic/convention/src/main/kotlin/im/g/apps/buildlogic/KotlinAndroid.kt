@@ -46,6 +46,7 @@ internal fun Project.configureKotlinAndroid(commonExtension: CommonExtension<*, 
 
         lint {
             abortOnError = true
+            error += "HardcodedText"
         }
     }
 
