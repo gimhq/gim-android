@@ -10,7 +10,7 @@
     <string name="contacts_search_searching">Searching…</string>
     <string name="contacts_search_not_found">No one has the username \@%1$s. Check the spelling and try again.</string>
 
-    <string name="contacts_error_network">Can\'t connect. Check your internet and try again.</string>
+    <string name="contacts_error_network">Can\'t connect to the server. Check your internet and try again.</string>
     <string name="contacts_error_not_registered">You\'re signed out. Sign in again to continue.</string>
     <string name="contacts_error_invalid_input">Couldn\'t do that. Check what you entered and try again.</string>
     <string name="contacts_error_not_found">This is no longer there. Go back and try again.</string>

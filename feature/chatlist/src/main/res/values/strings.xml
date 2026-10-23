@@ -10,7 +10,7 @@
     <string name="chatlist_state_left">You\'re no longer in this chat</string>
     <string name="chatlist_empty_title">No chats yet</string>
     <string name="chatlist_empty_body">Start a chat and it will show up here.</string>
-    <string name="chatlist_start_chat">Start a chat</string>
+    <string name="chatlist_start_chat">Start chat</string>
     <string name="chatlist_new_message">New message</string>
     <string name="chatlist_new_chat">New chat</string>
     <string name="chatlist_new_group">New group</string>
