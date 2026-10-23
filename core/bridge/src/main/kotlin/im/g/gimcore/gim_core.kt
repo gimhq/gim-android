@@ -864,7 +864,17 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_gim_core_checksum_func_core_version(
     ): Int
+    external fun uniffi_gim_core_checksum_func_muted_forever(
+    ): Int
     external fun uniffi_gim_core_checksum_func_create_client(
+    ): Int
+    external fun uniffi_gim_core_checksum_func_format_recovery_kit(
+    ): Int
+    external fun uniffi_gim_core_checksum_func_matches_recovery_key_ending(
+    ): Int
+    external fun uniffi_gim_core_checksum_func_parse_recovery_kit(
+    ): Int
+    external fun uniffi_gim_core_checksum_func_recovery_key_ending(
     ): Int
     external fun uniffi_gim_core_checksum_method_chatlistlistener_on_update(
     ): Int
@@ -875,6 +885,8 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_gim_core_checksum_method_gimclient_add_members(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_approve_link(
+    ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_block_user(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_cancel_send(
     ): Int
@@ -898,15 +910,21 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_create_identity(
     ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_delete_account(
+    ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_delete_message(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_devices(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_edit_message(
     ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_fetch_chat_avatar(
+    ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_fetch_media(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_fetch_thumbnail(
+    ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_fetch_user_avatar(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_find_user(
     ): Int
@@ -920,6 +938,10 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_mark_read(
     ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_own_profile(
+    ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_privacy(
+    ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_process_push(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_react(
@@ -928,9 +950,13 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_release_handle(
     ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_remove_avatar(
+    ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_remove_hub(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_remove_member(
+    ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_report_user(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_restore_from_recovery(
     ): Int
@@ -938,11 +964,21 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_revoke_device(
     ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_rotate_recovery_code(
+    ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_send_media(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_send_text(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_session(
+    ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_set_avatar(
+    ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_set_chat_archived(
+    ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_set_chat_muted(
+    ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_set_chat_pinned(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_set_display_name(
     ): Int
@@ -954,7 +990,11 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_set_primary_hub(
     ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_set_read_receipts(
+    ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_set_typing(
+    ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_set_typing_indicators(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_sign_out(
     ): Int
@@ -969,6 +1009,8 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_gim_core_checksum_method_gimclient_timeline(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_typing(
+    ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_unblock_user(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_unreact(
     ): Int
@@ -1069,6 +1111,8 @@ internal object UniffiLib {
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_approve_link(`ptr`: Long,`qrString`: RustBuffer.ByValue,
     ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_block_user(`ptr`: Long,`userId`: RustBuffer.ByValue,
+    ): Long
     external fun uniffi_gim_core_fn_method_gimclient_cancel_send(`ptr`: Long,`chatId`: RustBuffer.ByValue,`messageId`: RustBuffer.ByValue,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_chat_list(`ptr`: Long,`listener`: Long,
@@ -1091,15 +1135,21 @@ internal object UniffiLib {
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_create_identity(`ptr`: Long,`displayName`: RustBuffer.ByValue,
     ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_delete_account(`ptr`: Long,
+    ): Long
     external fun uniffi_gim_core_fn_method_gimclient_delete_message(`ptr`: Long,`chatId`: RustBuffer.ByValue,`messageId`: RustBuffer.ByValue,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_devices(`ptr`: Long,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_edit_message(`ptr`: Long,`chatId`: RustBuffer.ByValue,`messageId`: RustBuffer.ByValue,`newBody`: RustBuffer.ByValue,
     ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_fetch_chat_avatar(`ptr`: Long,`chatId`: RustBuffer.ByValue,`destPath`: RustBuffer.ByValue,
+    ): Long
     external fun uniffi_gim_core_fn_method_gimclient_fetch_media(`ptr`: Long,`chatId`: RustBuffer.ByValue,`messageId`: RustBuffer.ByValue,`destPath`: RustBuffer.ByValue,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_fetch_thumbnail(`ptr`: Long,`chatId`: RustBuffer.ByValue,`messageId`: RustBuffer.ByValue,`destPath`: RustBuffer.ByValue,
+    ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_fetch_user_avatar(`ptr`: Long,`userId`: RustBuffer.ByValue,`destPath`: RustBuffer.ByValue,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_find_user(`ptr`: Long,`handle`: RustBuffer.ByValue,
     ): Long
@@ -1113,6 +1163,10 @@ internal object UniffiLib {
     ): Byte
     external fun uniffi_gim_core_fn_method_gimclient_mark_read(`ptr`: Long,`chatId`: RustBuffer.ByValue,`upToMessageId`: RustBuffer.ByValue,
     ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_own_profile(`ptr`: Long,
+    ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_privacy(`ptr`: Long,
+    ): Long
     external fun uniffi_gim_core_fn_method_gimclient_process_push(`ptr`: Long,`payload`: RustBuffer.ByValue,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_react(`ptr`: Long,`chatId`: RustBuffer.ByValue,`messageId`: RustBuffer.ByValue,`emoji`: RustBuffer.ByValue,
@@ -1121,9 +1175,13 @@ internal object UniffiLib {
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_release_handle(`ptr`: Long,
     ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_remove_avatar(`ptr`: Long,
+    ): Long
     external fun uniffi_gim_core_fn_method_gimclient_remove_hub(`ptr`: Long,`hubId`: RustBuffer.ByValue,`confirmOwnedGroups`: Byte,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_remove_member(`ptr`: Long,`chatId`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,
+    ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_report_user(`ptr`: Long,`userId`: RustBuffer.ByValue,`reason`: RustBuffer.ByValue,`note`: RustBuffer.ByValue,`messageIds`: RustBuffer.ByValue,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_restore_from_recovery(`ptr`: Long,`userId`: RustBuffer.ByValue,`recoveryCode`: RustBuffer.ByValue,`revokeOthers`: Byte,
     ): Long
@@ -1131,11 +1189,21 @@ internal object UniffiLib {
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_revoke_device(`ptr`: Long,`deviceId`: RustBuffer.ByValue,
     ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_rotate_recovery_code(`ptr`: Long,
+    ): Long
     external fun uniffi_gim_core_fn_method_gimclient_send_media(`ptr`: Long,`chatId`: RustBuffer.ByValue,`filePath`: RustBuffer.ByValue,`mime`: RustBuffer.ByValue,`caption`: RustBuffer.ByValue,`replyTo`: RustBuffer.ByValue,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_send_text(`ptr`: Long,`chatId`: RustBuffer.ByValue,`body`: RustBuffer.ByValue,`replyTo`: RustBuffer.ByValue,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_session(`ptr`: Long,
+    ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_set_avatar(`ptr`: Long,`filePath`: RustBuffer.ByValue,`mime`: RustBuffer.ByValue,
+    ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_set_chat_archived(`ptr`: Long,`chatId`: RustBuffer.ByValue,`archived`: Byte,
+    ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_set_chat_muted(`ptr`: Long,`chatId`: RustBuffer.ByValue,`mutedUntilMs`: Long,
+    ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_set_chat_pinned(`ptr`: Long,`chatId`: RustBuffer.ByValue,`pinned`: Byte,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_set_display_name(`ptr`: Long,`name`: RustBuffer.ByValue,
     ): Long
@@ -1147,7 +1215,11 @@ internal object UniffiLib {
     ): Unit
     external fun uniffi_gim_core_fn_method_gimclient_set_primary_hub(`ptr`: Long,`hubId`: RustBuffer.ByValue,
     ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_set_read_receipts(`ptr`: Long,`enabled`: Byte,
+    ): Long
     external fun uniffi_gim_core_fn_method_gimclient_set_typing(`ptr`: Long,`chatId`: RustBuffer.ByValue,`active`: Byte,
+    ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_set_typing_indicators(`ptr`: Long,`enabled`: Byte,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_sign_out(`ptr`: Long,
     ): Long
@@ -1162,6 +1234,8 @@ internal object UniffiLib {
     external fun uniffi_gim_core_fn_method_gimclient_timeline(`ptr`: Long,`chatId`: RustBuffer.ByValue,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_typing(`ptr`: Long,`chatId`: RustBuffer.ByValue,`listener`: Long,
+    ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_unblock_user(`ptr`: Long,`userId`: RustBuffer.ByValue,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_unreact(`ptr`: Long,`chatId`: RustBuffer.ByValue,`messageId`: RustBuffer.ByValue,`emoji`: RustBuffer.ByValue,
     ): Long
@@ -1259,8 +1333,18 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_gim_core_fn_func_core_version(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_gim_core_fn_func_muted_forever(uniffi_out_err: UniffiRustCallStatus, 
+    ): Long
     external fun uniffi_gim_core_fn_func_create_client(`config`: RustBuffer.ByValue,`hooks`: Long,
     ): Long
+    external fun uniffi_gim_core_fn_func_format_recovery_kit(`userId`: RustBuffer.ByValue,`recoveryCode`: RustBuffer.ByValue,`labels`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_gim_core_fn_func_matches_recovery_key_ending(`recoveryCode`: RustBuffer.ByValue,`typed`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Byte
+    external fun uniffi_gim_core_fn_func_parse_recovery_kit(`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_gim_core_fn_func_recovery_key_ending(`recoveryCode`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun ffi_gim_core_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun ffi_gim_core_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1386,7 +1470,22 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_func_core_version() and 0xFFFF) != 57646) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_gim_core_checksum_func_muted_forever() and 0xFFFF) != 62756) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_gim_core_checksum_func_create_client() and 0xFFFF) != 59196) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_func_format_recovery_kit() and 0xFFFF) != 12801) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_func_matches_recovery_key_ending() and 0xFFFF) != 59755) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_func_parse_recovery_kit() and 0xFFFF) != 33039) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_func_recovery_key_ending() and 0xFFFF) != 19920) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_chatlistlistener_on_update() and 0xFFFF) != 37204) {
@@ -1402,6 +1501,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_approve_link() and 0xFFFF) != 21168) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_block_user() and 0xFFFF) != 56650) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_cancel_send() and 0xFFFF) != 2342) {
@@ -1437,6 +1539,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_method_gimclient_create_identity() and 0xFFFF) != 56233) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_delete_account() and 0xFFFF) != 22928) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_delete_message() and 0xFFFF) != 40750) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1446,10 +1551,16 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_method_gimclient_edit_message() and 0xFFFF) != 16801) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_fetch_chat_avatar() and 0xFFFF) != 18238) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_fetch_media() and 0xFFFF) != 36104) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_fetch_thumbnail() and 0xFFFF) != 17497) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_fetch_user_avatar() and 0xFFFF) != 26902) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_find_user() and 0xFFFF) != 25186) {
@@ -1470,6 +1581,12 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_method_gimclient_mark_read() and 0xFFFF) != 19929) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_own_profile() and 0xFFFF) != 38117) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_privacy() and 0xFFFF) != 52348) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_process_push() and 0xFFFF) != 42819) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1482,10 +1599,16 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_method_gimclient_release_handle() and 0xFFFF) != 61692) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_remove_avatar() and 0xFFFF) != 37794) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_remove_hub() and 0xFFFF) != 44259) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_remove_member() and 0xFFFF) != 31958) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_report_user() and 0xFFFF) != 50031) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_restore_from_recovery() and 0xFFFF) != 59727) {
@@ -1497,6 +1620,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_method_gimclient_revoke_device() and 0xFFFF) != 54975) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_rotate_recovery_code() and 0xFFFF) != 7811) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_send_media() and 0xFFFF) != 37766) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1504,6 +1630,18 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_session() and 0xFFFF) != 243) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_set_avatar() and 0xFFFF) != 28009) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_set_chat_archived() and 0xFFFF) != 48068) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_set_chat_muted() and 0xFFFF) != 9201) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_set_chat_pinned() and 0xFFFF) != 959) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_set_display_name() and 0xFFFF) != 26277) {
@@ -1521,7 +1659,13 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_method_gimclient_set_primary_hub() and 0xFFFF) != 23675) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_set_read_receipts() and 0xFFFF) != 58191) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_set_typing() and 0xFFFF) != 10433) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_set_typing_indicators() and 0xFFFF) != 63983) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_sign_out() and 0xFFFF) != 25542) {
@@ -1543,6 +1687,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_typing() and 0xFFFF) != 41149) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_unblock_user() and 0xFFFF) != 64924) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_unreact() and 0xFFFF) != 48531) {
@@ -2846,6 +2993,13 @@ public interface GimClientInterface {
     suspend fun `approveLink`(`qrString`: kotlin.String): PendingApproval
     
     /**
+     * Blocks a user: their messages and invites are dropped and no chat
+     * can be created with them or add them (`InvalidInput`). Existing
+     * chats stay; a direct chat shows `blocked`.
+     */
+    suspend fun `blockUser`(`userId`: kotlin.String)
+    
+    /**
      * Removes an unsent message from the outbox and the timeline.
      */
     suspend fun `cancelSend`(`chatId`: kotlin.String, `messageId`: kotlin.String)
@@ -2915,6 +3069,16 @@ public interface GimClientInterface {
      */
     suspend fun `createIdentity`(`displayName`: kotlin.String): kotlin.String
     
+    /**
+     * Deletes the account for good: the meta server's data, every chat
+     * (the user leaves), the account on every hub, then everything on
+     * this device as `sign_out` does. Returns the ids of the user's other
+     * hubs that could not be reached (their records expire on their own).
+     * On an error nothing local is deleted and it can be called again.
+     * Irreversible: confirm with the user first.
+     */
+    suspend fun `deleteAccount`(): List<kotlin.String>
+    
     suspend fun `deleteMessage`(`chatId`: kotlin.String, `messageId`: kotlin.String)
     
     /**
@@ -2923,6 +3087,12 @@ public interface GimClientInterface {
     suspend fun `devices`(): List<DeviceInfo>
     
     suspend fun `editMessage`(`chatId`: kotlin.String, `messageId`: kotlin.String, `newBody`: kotlin.String)
+    
+    /**
+     * Downloads and decrypts the avatar of a group chat to `dest_path` and
+     * returns the path; `NotFound` if it has none.
+     */
+    suspend fun `fetchChatAvatar`(`chatId`: kotlin.String, `destPath`: kotlin.String): kotlin.String
     
     /**
      * Downloads and decrypts an attachment to `dest_path` and returns the
@@ -2934,6 +3104,13 @@ public interface GimClientInterface {
      * Like `fetch_media` for the thumbnail; `None` if there is none.
      */
     suspend fun `fetchThumbnail`(`chatId`: kotlin.String, `messageId`: kotlin.String, `destPath`: kotlin.String): kotlin.String?
+    
+    /**
+     * Downloads and decrypts the profile photo of `user_id` (the own user
+     * included) to `dest_path` and returns the path; `NotFound` if they
+     * have none.
+     */
+    suspend fun `fetchUserAvatar`(`userId`: kotlin.String, `destPath`: kotlin.String): kotlin.String
     
     /**
      * Looks up a user by handle; `None` if no such user exists.
@@ -2975,6 +3152,16 @@ public interface GimClientInterface {
     suspend fun `markRead`(`chatId`: kotlin.String, `upToMessageId`: kotlin.String)
     
     /**
+     * The signed-in user's own profile; `None` before it is stored.
+     */
+    suspend fun `ownProfile`(): UserProfile?
+    
+    /**
+     * The privacy settings.
+     */
+    suspend fun `privacy`(): PrivacySettings
+    
+    /**
      * Turns a received push into notification content; for a Notification
      * Service Extension or a background push handler. `payload` is the
      * push server's payload object as JSON (`push.md` §3). Does one
@@ -3008,6 +3195,11 @@ public interface GimClientInterface {
     suspend fun `releaseHandle`()
     
     /**
+     * Removes the signed-in user's profile photo.
+     */
+    suspend fun `removeAvatar`()
+    
+    /**
      * Removes a hub from the hosting record. `HomeHub` for the hub this
      * client was created for, `LastHub` for the only listed hub,
      * `HubOwnsGroups` (with the number of chats) unless
@@ -3017,6 +3209,15 @@ public interface GimClientInterface {
     suspend fun `removeHub`(`hubId`: kotlin.String, `confirmOwnedGroups`: kotlin.Boolean)
     
     suspend fun `removeMember`(`chatId`: kotlin.String, `userId`: kotlin.String)
+    
+    /**
+     * Reports a user to the meta server's moderators with the messages
+     * `message_ids` (at most 50, from the local history) in plaintext, and
+     * an optional `note` (at most 1000 characters). Returns the report id.
+     * Does not block: call `block_user` too if wanted. `InvalidInput`
+     * without a meta server (`ClientConfig::meta_server_url`).
+     */
+    suspend fun `reportUser`(`userId`: kotlin.String, `reason`: ReportReason, `note`: kotlin.String?, `messageIds`: List<kotlin.String>): kotlin.String
     
     /**
      * Restores the user on this (fresh) device from its recovery code
@@ -3048,6 +3249,15 @@ public interface GimClientInterface {
     suspend fun `revokeDevice`(`deviceId`: kotlin.String)
     
     /**
+     * Replaces the recovery code with a new one, for a user who lost it:
+     * the previous code stops working on every hub that takes the new
+     * backup (the home hub always does, or the call fails without any
+     * change). Returns the new code, which is not stored and must be shown
+     * to the user once.
+     */
+    suspend fun `rotateRecoveryCode`(): RecoveryRotation
+    
+    /**
      * Encrypts, uploads and sends a file; returns its message id. The file
      * at `file_path` is copied before this returns.
      */
@@ -3063,6 +3273,23 @@ public interface GimClientInterface {
      * device (`create_identity`, `restore_from_recovery` or a device link).
      */
     suspend fun `session`(): Session?
+    
+    /**
+     * Sets the signed-in user's profile photo from an image file (crop and
+     * scale it first: every chat member downloads it); synced and announced
+     * like `set_display_name`.
+     */
+    suspend fun `setAvatar`(`filePath`: kotlin.String, `mime`: kotlin.String)
+    
+    suspend fun `setChatArchived`(`chatId`: kotlin.String, `archived`: kotlin.Boolean)
+    
+    /**
+     * Mutes a chat's notifications until `muted_until_ms` (Unix
+     * milliseconds; `muted_forever()` for good, 0 to unmute).
+     */
+    suspend fun `setChatMuted`(`chatId`: kotlin.String, `mutedUntilMs`: kotlin.ULong)
+    
+    suspend fun `setChatPinned`(`chatId`: kotlin.String, `pinned`: kotlin.Boolean)
     
     /**
      * Sets the signed-in user's display name; synced to the user's other
@@ -3098,11 +3325,21 @@ public interface GimClientInterface {
     suspend fun `setPrimaryHub`(`hubId`: kotlin.String)
     
     /**
+     * Turns sending (and showing) read receipts on or off.
+     */
+    suspend fun `setReadReceipts`(`enabled`: kotlin.Boolean)
+    
+    /**
      * Reports whether the user is typing. Call it with `true` on every
      * keystroke (notifications are rate-limited) and with `false` when
      * typing stops; see `stop_typing`.
      */
     suspend fun `setTyping`(`chatId`: kotlin.String, `active`: kotlin.Boolean)
+    
+    /**
+     * Turns sending (and showing) typing indicators on or off.
+     */
+    suspend fun `setTypingIndicators`(`enabled`: kotlin.Boolean)
     
     /**
      * Stops sync and the listeners and deletes the session, local data and
@@ -3148,6 +3385,8 @@ public interface GimClientInterface {
      * Subscribes to typing notifications of one chat.
      */
     suspend fun `typing`(`chatId`: kotlin.String, `listener`: TypingListener): TaskHandle
+    
+    suspend fun `unblockUser`(`userId`: kotlin.String)
     
     suspend fun `unreact`(`chatId`: kotlin.String, `messageId`: kotlin.String, `emoji`: kotlin.String)
     
@@ -3366,6 +3605,34 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
         { future -> UniffiLib.ffi_gim_core_rust_future_free_u64(future) },
         // lift function
         { FfiConverterTypePendingApproval.lift(it) },
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * Blocks a user: their messages and invites are dropped and no chat
+     * can be created with them or add them (`InvalidInput`). Existing
+     * chats stay; a direct chat shows `blocked`.
+     */
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `blockUser`(`userId`: kotlin.String) {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_block_user(
+                uniffiHandle,
+                
+        FfiConverterString.lower(`userId`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_void(future) },
+        // lift function
+        { },
+        
         // Error FFI converter
         GimException.ErrorHandler,
     )
@@ -3669,6 +3936,35 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
     }
 
     
+    /**
+     * Deletes the account for good: the meta server's data, every chat
+     * (the user leaves), the account on every hub, then everything on
+     * this device as `sign_out` does. Returns the ids of the user's other
+     * hubs that could not be reached (their records expire on their own).
+     * On an error nothing local is deleted and it can be called again.
+     * Irreversible: confirm with the user first.
+     */
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `deleteAccount`() : List<kotlin.String> {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_delete_account(
+                uniffiHandle,
+                
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterSequenceString.lift(it) },
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
     @Throws(GimException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
     override suspend fun `deleteMessage`(`chatId`: kotlin.String, `messageId`: kotlin.String) {
@@ -3743,6 +4039,33 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
 
     
     /**
+     * Downloads and decrypts the avatar of a group chat to `dest_path` and
+     * returns the path; `NotFound` if it has none.
+     */
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `fetchChatAvatar`(`chatId`: kotlin.String, `destPath`: kotlin.String) : kotlin.String {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_fetch_chat_avatar(
+                uniffiHandle,
+                
+        FfiConverterString.lower(`chatId`),
+        FfiConverterString.lower(`destPath`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterString.lift(it) },
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
+    /**
      * Downloads and decrypts an attachment to `dest_path` and returns the
      * path of the decrypted file.
      */
@@ -3791,6 +4114,34 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
         { future -> UniffiLib.ffi_gim_core_rust_future_free_rust_buffer(future) },
         // lift function
         { FfiConverterOptionalString.lift(it) },
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * Downloads and decrypts the profile photo of `user_id` (the own user
+     * included) to `dest_path` and returns the path; `NotFound` if they
+     * have none.
+     */
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `fetchUserAvatar`(`userId`: kotlin.String, `destPath`: kotlin.String) : kotlin.String {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_fetch_user_avatar(
+                uniffiHandle,
+                
+        FfiConverterString.lower(`userId`),
+        FfiConverterString.lower(`destPath`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterString.lift(it) },
         // Error FFI converter
         GimException.ErrorHandler,
     )
@@ -3950,6 +4301,54 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
 
     
     /**
+     * The signed-in user's own profile; `None` before it is stored.
+     */
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `ownProfile`() : UserProfile? {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_own_profile(
+                uniffiHandle,
+                
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterOptionalTypeUserProfile.lift(it) },
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * The privacy settings.
+     */
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `privacy`() : PrivacySettings {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_privacy(
+                uniffiHandle,
+                
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypePrivacySettings.lift(it) },
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
+    /**
      * Turns a received push into notification content; for a Notification
      * Service Extension or a background push handler. `payload` is the
      * push server's payload object as JSON (`push.md` §3). Does one
@@ -4067,6 +4466,31 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
 
     
     /**
+     * Removes the signed-in user's profile photo.
+     */
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `removeAvatar`() {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_remove_avatar(
+                uniffiHandle,
+                
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_void(future) },
+        // lift function
+        { },
+        
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
+    /**
      * Removes a hub from the hosting record. `HomeHub` for the hub this
      * client was created for, `LastHub` for the only listed hub,
      * `HubOwnsGroups` (with the number of chats) unless
@@ -4115,6 +4539,38 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
         // lift function
         { },
         
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * Reports a user to the meta server's moderators with the messages
+     * `message_ids` (at most 50, from the local history) in plaintext, and
+     * an optional `note` (at most 1000 characters). Returns the report id.
+     * Does not block: call `block_user` too if wanted. `InvalidInput`
+     * without a meta server (`ClientConfig::meta_server_url`).
+     */
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `reportUser`(`userId`: kotlin.String, `reason`: ReportReason, `note`: kotlin.String?, `messageIds`: List<kotlin.String>) : kotlin.String {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_report_user(
+                uniffiHandle,
+                
+        FfiConverterString.lower(`userId`),
+        FfiConverterTypeReportReason.lower(`reason`),
+        FfiConverterOptionalString.lower(`note`),
+        FfiConverterSequenceString.lower(`messageIds`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterString.lift(it) },
         // Error FFI converter
         GimException.ErrorHandler,
     )
@@ -4217,6 +4673,34 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
 
     
     /**
+     * Replaces the recovery code with a new one, for a user who lost it:
+     * the previous code stops working on every hub that takes the new
+     * backup (the home hub always does, or the call fails without any
+     * change). Returns the new code, which is not stored and must be shown
+     * to the user once.
+     */
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `rotateRecoveryCode`() : RecoveryRotation {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_rotate_recovery_code(
+                uniffiHandle,
+                
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypeRecoveryRotation.lift(it) },
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
+    /**
      * Encrypts, uploads and sends a file; returns its message id. The file
      * at `file_path` is copied before this returns.
      */
@@ -4292,6 +4776,111 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
         { future -> UniffiLib.ffi_gim_core_rust_future_free_rust_buffer(future) },
         // lift function
         { FfiConverterOptionalTypeSession.lift(it) },
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * Sets the signed-in user's profile photo from an image file (crop and
+     * scale it first: every chat member downloads it); synced and announced
+     * like `set_display_name`.
+     */
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `setAvatar`(`filePath`: kotlin.String, `mime`: kotlin.String) {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_set_avatar(
+                uniffiHandle,
+                
+        FfiConverterString.lower(`filePath`),
+        FfiConverterString.lower(`mime`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_void(future) },
+        // lift function
+        { },
+        
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `setChatArchived`(`chatId`: kotlin.String, `archived`: kotlin.Boolean) {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_set_chat_archived(
+                uniffiHandle,
+                
+        FfiConverterString.lower(`chatId`),
+        FfiConverterBoolean.lower(`archived`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_void(future) },
+        // lift function
+        { },
+        
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * Mutes a chat's notifications until `muted_until_ms` (Unix
+     * milliseconds; `muted_forever()` for good, 0 to unmute).
+     */
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `setChatMuted`(`chatId`: kotlin.String, `mutedUntilMs`: kotlin.ULong) {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_set_chat_muted(
+                uniffiHandle,
+                
+        FfiConverterString.lower(`chatId`),
+        FfiConverterULong.lower(`mutedUntilMs`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_void(future) },
+        // lift function
+        { },
+        
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `setChatPinned`(`chatId`: kotlin.String, `pinned`: kotlin.Boolean) {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_set_chat_pinned(
+                uniffiHandle,
+                
+        FfiConverterString.lower(`chatId`),
+        FfiConverterBoolean.lower(`pinned`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_void(future) },
+        // lift function
+        { },
+        
         // Error FFI converter
         GimException.ErrorHandler,
     )
@@ -4419,6 +5008,32 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
 
     
     /**
+     * Turns sending (and showing) read receipts on or off.
+     */
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `setReadReceipts`(`enabled`: kotlin.Boolean) {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_set_read_receipts(
+                uniffiHandle,
+                
+        FfiConverterBoolean.lower(`enabled`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_void(future) },
+        // lift function
+        { },
+        
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
+    /**
      * Reports whether the user is typing. Call it with `true` on every
      * keystroke (notifications are rate-limited) and with `false` when
      * typing stops; see `stop_typing`.
@@ -4433,6 +5048,32 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
                 
         FfiConverterString.lower(`chatId`),
         FfiConverterBoolean.lower(`active`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_void(future) },
+        // lift function
+        { },
+        
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * Turns sending (and showing) typing indicators on or off.
+     */
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `setTypingIndicators`(`enabled`: kotlin.Boolean) {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_set_typing_indicators(
+                uniffiHandle,
+                
+        FfiConverterBoolean.lower(`enabled`),
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_void(future, callback, continuation) },
@@ -4621,6 +5262,29 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
         { future -> UniffiLib.ffi_gim_core_rust_future_free_u64(future) },
         // lift function
         { FfiConverterTypeTaskHandle.lift(it) },
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `unblockUser`(`userId`: kotlin.String) {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_unblock_user(
+                uniffiHandle,
+                
+        FfiConverterString.lower(`userId`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_void(future) },
+        // lift function
+        { },
+        
         // Error FFI converter
         GimException.ErrorHandler,
     )
@@ -7802,6 +8466,33 @@ data class ChatSummary (
      * right from the first callback after a restart.
      */
     var `state`: ChatState
+    , 
+    /**
+     * For a direct chat: the other user. Show their photo
+     * (`fetch_user_avatar`) when the chat has no avatar.
+     */
+    var `peer`: UserProfile?
+    , 
+    /**
+     * Notifications are muted until then (Unix milliseconds; 0: not muted,
+     * `muted_forever()`: until unmuted). Compare with the current time.
+     */
+    var `mutedUntilMs`: kotlin.ULong
+    , 
+    /**
+     * Pinned chats come first.
+     */
+    var `pinned`: kotlin.Boolean
+    , 
+    /**
+     * Show archived chats apart from the others.
+     */
+    var `archived`: kotlin.Boolean
+    , 
+    /**
+     * A direct chat with a blocked user.
+     */
+    var `blocked`: kotlin.Boolean
     
 ){
     
@@ -7827,6 +8518,11 @@ public object FfiConverterTypeChatSummary: FfiConverterRustBuffer<ChatSummary> {
             FfiConverterULong.read(buf),
             FfiConverterUInt.read(buf),
             FfiConverterTypeChatState.read(buf),
+            FfiConverterOptionalTypeUserProfile.read(buf),
+            FfiConverterULong.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
         )
     }
 
@@ -7839,7 +8535,12 @@ public object FfiConverterTypeChatSummary: FfiConverterRustBuffer<ChatSummary> {
             FfiConverterUInt.allocationSize(value.`unreadCount`) +
             FfiConverterULong.allocationSize(value.`updatedAtMs`) +
             FfiConverterUInt.allocationSize(value.`memberCount`) +
-            FfiConverterTypeChatState.allocationSize(value.`state`)
+            FfiConverterTypeChatState.allocationSize(value.`state`) +
+            FfiConverterOptionalTypeUserProfile.allocationSize(value.`peer`) +
+            FfiConverterULong.allocationSize(value.`mutedUntilMs`) +
+            FfiConverterBoolean.allocationSize(value.`pinned`) +
+            FfiConverterBoolean.allocationSize(value.`archived`) +
+            FfiConverterBoolean.allocationSize(value.`blocked`)
     )
 
     override fun write(value: ChatSummary, buf: ByteBuffer) {
@@ -7852,6 +8553,11 @@ public object FfiConverterTypeChatSummary: FfiConverterRustBuffer<ChatSummary> {
             FfiConverterULong.write(value.`updatedAtMs`, buf)
             FfiConverterUInt.write(value.`memberCount`, buf)
             FfiConverterTypeChatState.write(value.`state`, buf)
+            FfiConverterOptionalTypeUserProfile.write(value.`peer`, buf)
+            FfiConverterULong.write(value.`mutedUntilMs`, buf)
+            FfiConverterBoolean.write(value.`pinned`, buf)
+            FfiConverterBoolean.write(value.`archived`, buf)
+            FfiConverterBoolean.write(value.`blocked`, buf)
     }
 }
 
@@ -7867,6 +8573,13 @@ data class ClientConfig (
      * The process kind; `None` is `ClientMode::App`.
      */
     var `mode`: ClientMode? = null 
+    , 
+    /**
+     * Base URL of the gim meta server (`http://` or `https://`): the
+     * encrypted settings backup and abuse reports. `None`: settings are
+     * not backed up and `report_user` fails.
+     */
+    var `metaServerUrl`: kotlin.String? = null 
     
 ){
     
@@ -7885,17 +8598,20 @@ public object FfiConverterTypeClientConfig: FfiConverterRustBuffer<ClientConfig>
         return ClientConfig(
             FfiConverterString.read(buf),
             FfiConverterOptionalTypeClientMode.read(buf),
+            FfiConverterOptionalString.read(buf),
         )
     }
 
     override fun allocationSize(value: ClientConfig) = (
             FfiConverterString.allocationSize(value.`serverUrl`) +
-            FfiConverterOptionalTypeClientMode.allocationSize(value.`mode`)
+            FfiConverterOptionalTypeClientMode.allocationSize(value.`mode`) +
+            FfiConverterOptionalString.allocationSize(value.`metaServerUrl`)
     )
 
     override fun write(value: ClientConfig, buf: ByteBuffer) {
             FfiConverterString.write(value.`serverUrl`, buf)
             FfiConverterOptionalTypeClientMode.write(value.`mode`, buf)
+            FfiConverterOptionalString.write(value.`metaServerUrl`, buf)
     }
 }
 
@@ -8195,6 +8911,12 @@ data class MessagePreview (
     var `sentAtMs`: kotlin.ULong
     , 
     var `isOwn`: kotlin.Boolean
+    , 
+    /**
+     * Delivery state of an own message, for the ticks of the row (as
+     * `MessageItem.send_state`); `None` for messages from others.
+     */
+    var `sendState`: SendState?
     
 ){
     
@@ -8215,6 +8937,7 @@ public object FfiConverterTypeMessagePreview: FfiConverterRustBuffer<MessagePrev
             FfiConverterString.read(buf),
             FfiConverterULong.read(buf),
             FfiConverterBoolean.read(buf),
+            FfiConverterOptionalTypeSendState.read(buf),
         )
     }
 
@@ -8222,7 +8945,8 @@ public object FfiConverterTypeMessagePreview: FfiConverterRustBuffer<MessagePrev
             FfiConverterString.allocationSize(value.`senderName`) +
             FfiConverterString.allocationSize(value.`text`) +
             FfiConverterULong.allocationSize(value.`sentAtMs`) +
-            FfiConverterBoolean.allocationSize(value.`isOwn`)
+            FfiConverterBoolean.allocationSize(value.`isOwn`) +
+            FfiConverterOptionalTypeSendState.allocationSize(value.`sendState`)
     )
 
     override fun write(value: MessagePreview, buf: ByteBuffer) {
@@ -8230,6 +8954,7 @@ public object FfiConverterTypeMessagePreview: FfiConverterRustBuffer<MessagePrev
             FfiConverterString.write(value.`text`, buf)
             FfiConverterULong.write(value.`sentAtMs`, buf)
             FfiConverterBoolean.write(value.`isOwn`, buf)
+            FfiConverterOptionalTypeSendState.write(value.`sendState`, buf)
     }
 }
 
@@ -8330,6 +9055,103 @@ public object FfiConverterTypeNotificationContent: FfiConverterRustBuffer<Notifi
             FfiConverterTypeNotificationKind.write(value.`kind`, buf)
             FfiConverterBoolean.write(value.`shouldDisplay`, buf)
             FfiConverterULong.write(value.`timestamp`, buf)
+    }
+}
+
+
+
+/**
+ * What `parse_recovery_kit` found: the normalized, valid user id and
+ * recovery code (39 symbols, no separators), each if present.
+ */
+data class ParsedRecoveryKit (
+    var `userId`: kotlin.String?
+    , 
+    var `recoveryCode`: kotlin.String?
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeParsedRecoveryKit: FfiConverterRustBuffer<ParsedRecoveryKit> {
+    override fun read(buf: ByteBuffer): ParsedRecoveryKit {
+        return ParsedRecoveryKit(
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ParsedRecoveryKit) = (
+            FfiConverterOptionalString.allocationSize(value.`userId`) +
+            FfiConverterOptionalString.allocationSize(value.`recoveryCode`)
+    )
+
+    override fun write(value: ParsedRecoveryKit, buf: ByteBuffer) {
+            FfiConverterOptionalString.write(value.`userId`, buf)
+            FfiConverterOptionalString.write(value.`recoveryCode`, buf)
+    }
+}
+
+
+
+/**
+ * The privacy settings, synced across the user's devices.
+ */
+data class PrivacySettings (
+    /**
+     * Send read receipts; off, the others' are not shown either.
+     */
+    var `readReceipts`: kotlin.Boolean
+    , 
+    /**
+     * Send typing indicators; off, the others' are not shown either.
+     */
+    var `typingIndicators`: kotlin.Boolean
+    , 
+    /**
+     * Users whose messages and invites are dropped.
+     */
+    var `blockedUserIds`: List<kotlin.String>
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypePrivacySettings: FfiConverterRustBuffer<PrivacySettings> {
+    override fun read(buf: ByteBuffer): PrivacySettings {
+        return PrivacySettings(
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterSequenceString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: PrivacySettings) = (
+            FfiConverterBoolean.allocationSize(value.`readReceipts`) +
+            FfiConverterBoolean.allocationSize(value.`typingIndicators`) +
+            FfiConverterSequenceString.allocationSize(value.`blockedUserIds`)
+    )
+
+    override fun write(value: PrivacySettings, buf: ByteBuffer) {
+            FfiConverterBoolean.write(value.`readReceipts`, buf)
+            FfiConverterBoolean.write(value.`typingIndicators`, buf)
+            FfiConverterSequenceString.write(value.`blockedUserIds`, buf)
     }
 }
 
@@ -8464,6 +9286,105 @@ public object FfiConverterTypeReactionGroup: FfiConverterRustBuffer<ReactionGrou
 
 
 /**
+ * The app's localized words of the kit text.
+ */
+data class RecoveryKitLabels (
+    var `title`: kotlin.String
+    , 
+    var `accountId`: kotlin.String
+    , 
+    var `recoveryKey`: kotlin.String
+    , 
+    var `note`: kotlin.String
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeRecoveryKitLabels: FfiConverterRustBuffer<RecoveryKitLabels> {
+    override fun read(buf: ByteBuffer): RecoveryKitLabels {
+        return RecoveryKitLabels(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: RecoveryKitLabels) = (
+            FfiConverterString.allocationSize(value.`title`) +
+            FfiConverterString.allocationSize(value.`accountId`) +
+            FfiConverterString.allocationSize(value.`recoveryKey`) +
+            FfiConverterString.allocationSize(value.`note`)
+    )
+
+    override fun write(value: RecoveryKitLabels, buf: ByteBuffer) {
+            FfiConverterString.write(value.`title`, buf)
+            FfiConverterString.write(value.`accountId`, buf)
+            FfiConverterString.write(value.`recoveryKey`, buf)
+            FfiConverterString.write(value.`note`, buf)
+    }
+}
+
+
+
+/**
+ * Result of `rotate_recovery_code`.
+ */
+data class RecoveryRotation (
+    /**
+     * The new recovery code; not stored, show it to the user once.
+     */
+    var `recoveryCode`: kotlin.String
+    , 
+    /**
+     * Listed hubs that did not take the new backup: the previous code still
+     * works there until a later rotation reaches them.
+     */
+    var `unsyncedHubIds`: List<kotlin.String>
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeRecoveryRotation: FfiConverterRustBuffer<RecoveryRotation> {
+    override fun read(buf: ByteBuffer): RecoveryRotation {
+        return RecoveryRotation(
+            FfiConverterString.read(buf),
+            FfiConverterSequenceString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: RecoveryRotation) = (
+            FfiConverterString.allocationSize(value.`recoveryCode`) +
+            FfiConverterSequenceString.allocationSize(value.`unsyncedHubIds`)
+    )
+
+    override fun write(value: RecoveryRotation, buf: ByteBuffer) {
+            FfiConverterString.write(value.`recoveryCode`, buf)
+            FfiConverterSequenceString.write(value.`unsyncedHubIds`, buf)
+    }
+}
+
+
+
+/**
  * Quoted message shown above a reply.
  */
 data class ReplyPreview (
@@ -8572,6 +9493,11 @@ data class UserProfile (
     var `handle`: kotlin.String
     , 
     var `displayName`: kotlin.String
+    , 
+    /**
+     * The user has a profile photo; get it with `fetch_user_avatar`.
+     */
+    var `hasAvatar`: kotlin.Boolean
     
 ){
     
@@ -8591,19 +9517,22 @@ public object FfiConverterTypeUserProfile: FfiConverterRustBuffer<UserProfile> {
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
+            FfiConverterBoolean.read(buf),
         )
     }
 
     override fun allocationSize(value: UserProfile) = (
             FfiConverterString.allocationSize(value.`userId`) +
             FfiConverterString.allocationSize(value.`handle`) +
-            FfiConverterString.allocationSize(value.`displayName`)
+            FfiConverterString.allocationSize(value.`displayName`) +
+            FfiConverterBoolean.allocationSize(value.`hasAvatar`)
     )
 
     override fun write(value: UserProfile, buf: ByteBuffer) {
             FfiConverterString.write(value.`userId`, buf)
             FfiConverterString.write(value.`handle`, buf)
             FfiConverterString.write(value.`displayName`, buf)
+            FfiConverterBoolean.write(value.`hasAvatar`, buf)
     }
 }
 
@@ -9956,6 +10885,49 @@ public object FfiConverterTypeNotificationKind: FfiConverterRustBuffer<Notificat
 
 
 /**
+ * Why a user is reported (`report_user`).
+ */
+
+enum class ReportReason {
+    
+    SPAM,
+    HARASSMENT,
+    /**
+     * Content not suitable for the user (sexual, violent, ...).
+     */
+    INAPPROPRIATE,
+    SCAM,
+    OTHER;
+
+    
+
+
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeReportReason: FfiConverterRustBuffer<ReportReason> {
+    override fun read(buf: ByteBuffer) = try {
+        ReportReason.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: ReportReason) = 4UL
+
+    override fun write(value: ReportReason, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
+/**
  * Why a message is `SendState::Failed`.
  */
 
@@ -11263,6 +12235,20 @@ public object FfiConverterSequenceTypeTimelineItem: FfiConverterRustBuffer<List<
     
 
         /**
+         * `muted_until_ms` of a chat muted until it is unmuted
+         * (`set_chat_muted`).
+         */ fun `mutedForever`(): kotlin.ULong {
+            return FfiConverterULong.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_gim_core_fn_func_muted_forever(
+    
+        _status)
+}
+    )
+    }
+    
+
+        /**
          * Creates the client. Opens (or creates) local state under
          * `hooks.data_dir()`; it does not touch the network.
          */
@@ -11282,5 +12268,66 @@ public object FfiConverterSequenceTypeTimelineItem: FfiConverterRustBuffer<List<
         GimException.ErrorHandler,
     )
     }
+
+        /**
+         * The kit text: title, `"<accountId>: <user id>"`,
+         * `"<recoveryKey>: <code grouped by four>"`, a blank line and the note.
+         */ fun `formatRecoveryKit`(`userId`: kotlin.String, `recoveryCode`: kotlin.String, `labels`: RecoveryKitLabels): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_gim_core_fn_func_format_recovery_kit(
+    
+        
+        FfiConverterString.lower(`userId`),
+        FfiConverterString.lower(`recoveryCode`),
+        FfiConverterTypeRecoveryKitLabels.lower(`labels`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * `typed` is the code's last four symbols (case, `-` and spaces ignored).
+         */ fun `matchesRecoveryKeyEnding`(`recoveryCode`: kotlin.String, `typed`: kotlin.String): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_gim_core_fn_func_matches_recovery_key_ending(
+    
+        
+        FfiConverterString.lower(`recoveryCode`),
+        FfiConverterString.lower(`typed`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Finds the user id and the recovery code in pasted text, whatever the
+         * labels' language.
+         */ fun `parseRecoveryKit`(`text`: kotlin.String): ParsedRecoveryKit {
+            return FfiConverterTypeParsedRecoveryKit.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_gim_core_fn_func_parse_recovery_kit(
+    
+        
+        FfiConverterString.lower(`text`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * The last four symbols of the recovery code.
+         */ fun `recoveryKeyEnding`(`recoveryCode`: kotlin.String): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_gim_core_fn_func_recovery_key_ending(
+    
+        
+        FfiConverterString.lower(`recoveryCode`),_status)
+}
+    )
+    }
+    
 
 
