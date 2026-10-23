@@ -25,6 +25,12 @@ android {
         buildConfig = true
     }
 
+    // The manifest localeConfig (per-app language list on API 33+) comes from the values-<locale> folders;
+    // res/resources.properties names the locale of the unqualified values/.
+    androidResources {
+        generateLocaleConfig = true
+    }
+
     // Prefilled onboarding server URL: -P/gradle.properties `gim.defaultHubUrl`, else env GIM_DEFAULT_HUB_URL,
     // else https://hub.g.im for release and empty for debug (see resolveDefaultHubUrl).
     fun defaultHubUrlLiteral(release: Boolean): String {
@@ -69,6 +75,7 @@ dependencies {
     implementation(project(":feature:settings"))
 
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.process)

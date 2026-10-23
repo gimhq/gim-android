@@ -92,7 +92,7 @@ fun LicencesScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BackScaffold(
+internal fun BackScaffold(
     title: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,

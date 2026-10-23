@@ -3,6 +3,7 @@ agp = "8.7.3"
 kotlin = "2.1.0"
 coreKtx = "1.15.0"
 activityCompose = "1.9.3"
+appcompat = "1.7.0"
 composeBom = "2024.12.01"
 kotlinxCoroutines = "1.9.0"
 kotlinxCollectionsImmutable = "0.3.8"
@@ -25,6 +26,7 @@ credentials = "1.6.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }

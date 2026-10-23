@@ -67,6 +67,8 @@ class SettingsScreenTest {
                 onDevices = { calls += "devices" },
                 onLinkDevice = { calls += "link" },
                 onServers = { calls += "servers" },
+                onAppearance = { calls += "appearance" },
+                onLanguage = { calls += "language" },
                 onHelp = { calls += "help" },
             ),
         )
@@ -75,10 +77,29 @@ class SettingsScreenTest {
         rule.onNodeWithText("Linked devices").performScrollTo().performClick()
         rule.onNodeWithText("Link a new device").performScrollTo().performClick()
         rule.onNodeWithText("Servers").performScrollTo().performClick()
+        rule.onNodeWithTag(SettingsTestTags.APPEARANCE).performScrollTo().performClick()
+        rule.onNodeWithTag(SettingsTestTags.LANGUAGE).performScrollTo().performClick()
         rule.onNodeWithTag(SettingsTestTags.HELP).performScrollTo().performClick()
         rule.onNodeWithContentDescription("Go back").performClick()
 
-        assertEquals(listOf("devices", "link", "servers", "help", "back"), calls)
+        assertEquals(listOf("devices", "link", "servers", "appearance", "language", "help", "back"), calls)
+    }
+
+    @Test
+    fun look_and_language_rows_show_the_current_values() {
+        rule.setContent { GimTheme { SettingsScreen(state, SettingsActions(), themeMode = ThemeMode.DARK, languageTag = "en") } }
+
+        rule.onNodeWithText("Look and language").performScrollTo().assertExists()
+        rule.onNodeWithText("Dark").performScrollTo().assertExists()
+        rule.onNodeWithText("English").performScrollTo().assertExists()
+    }
+
+    @Test
+    fun look_and_language_rows_default_to_the_phone_settings() {
+        show()
+
+        rule.onNodeWithText("Use phone setting").performScrollTo().assertExists()
+        rule.onNodeWithText("Use phone language").performScrollTo().assertExists()
     }
 
     @Test

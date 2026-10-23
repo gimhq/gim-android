@@ -44,6 +44,8 @@ import im.g.apps.core.designsystem.theme.GimTheme
 /** Test tags; the device E2E tests repeat these literals. */
 internal object SettingsTestTags {
     const val HEADER = "settings_header"
+    const val APPEARANCE = "settings_appearance"
+    const val LANGUAGE = "settings_language"
     const val HELP = "settings_help"
     const val SIGN_OUT = "settings_sign_out"
     const val SIGN_OUT_CONFIRM = "settings_sign_out_confirm"
@@ -54,6 +56,8 @@ fun SettingsRoute(
     viewModel: SettingsViewModel,
     actions: SettingsActions,
     modifier: Modifier = Modifier,
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    languageTag: String? = null,
 ) {
     // Picks up a name changed in a sub-screen when returning here.
     LifecycleStartEffect(viewModel) {
@@ -61,7 +65,7 @@ fun SettingsRoute(
         onStopOrDispose {}
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    SettingsScreen(state = state, actions = actions, modifier = modifier)
+    SettingsScreen(state = state, actions = actions, modifier = modifier, themeMode = themeMode, languageTag = languageTag)
 }
 
 /** Callbacks of [SettingsScreen]; the header is clickable only when [onOpenProfile] is set. */
@@ -71,14 +75,25 @@ class SettingsActions(
     val onDevices: () -> Unit = {},
     val onLinkDevice: () -> Unit = {},
     val onServers: () -> Unit = {},
+    val onAppearance: () -> Unit = {},
+    val onLanguage: () -> Unit = {},
     val onHelp: () -> Unit = {},
     val onSignOut: () -> Unit = {},
 )
 
-/** Settings home: the own profile header, one composable per section, and sign out at the bottom. */
+/**
+ * Settings home: the own profile header, one composable per section, and sign out at the bottom. [themeMode] and
+ * [languageTag] (null: phone language) are shown as the values of the "Look and language" rows.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(state: SettingsUiState, actions: SettingsActions, modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    state: SettingsUiState,
+    actions: SettingsActions,
+    modifier: Modifier = Modifier,
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    languageTag: String? = null,
+) {
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -101,6 +116,7 @@ fun SettingsScreen(state: SettingsUiState, actions: SettingsActions, modifier: M
             ProfileHeader(state, actions.onOpenProfile)
             HorizontalDivider()
             AccountSection(actions)
+            LookAndLanguageSection(actions, themeMode, languageTag)
             AdvancedSection(actions)
             HelpSection(actions)
             HorizontalDivider(modifier = Modifier.padding(top = 12.dp))
@@ -140,6 +156,23 @@ private fun AccountSection(actions: SettingsActions) {
     SettingsSectionHeader(stringResource(R.string.settings_section_account))
     SettingsRow(title = stringResource(R.string.settings_linked_devices), onClick = actions.onDevices)
     SettingsRow(title = stringResource(R.string.settings_link_device), onClick = actions.onLinkDevice)
+}
+
+@Composable
+private fun LookAndLanguageSection(actions: SettingsActions, themeMode: ThemeMode, languageTag: String?) {
+    SettingsSectionHeader(stringResource(R.string.settings_section_look))
+    SettingsRow(
+        title = stringResource(R.string.settings_appearance),
+        onClick = actions.onAppearance,
+        modifier = Modifier.testTag(SettingsTestTags.APPEARANCE),
+        value = stringResource(themeMode.label()),
+    )
+    SettingsRow(
+        title = stringResource(R.string.settings_language),
+        onClick = actions.onLanguage,
+        modifier = Modifier.testTag(SettingsTestTags.LANGUAGE),
+        value = languageTag?.let(::languageDisplayName) ?: stringResource(R.string.language_phone),
+    )
 }
 
 @Composable
