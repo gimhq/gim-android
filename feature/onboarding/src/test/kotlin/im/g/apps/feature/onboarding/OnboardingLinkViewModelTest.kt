@@ -96,7 +96,7 @@ class OnboardingLinkViewModelTest {
         discarded++
         // Like AppContainer.signOut: the client may hold no session (cancelled) or be wiped already (rejected).
         runCatching { manager.signOut() }
-    }
+    }.apply { finishIntro() }
 
     @Test
     fun link_device_shows_the_qr_code_while_waiting() = runTest(dispatcher) {
@@ -156,6 +156,7 @@ class OnboardingLinkViewModelTest {
         val state = vm.state.value
         assertEquals(OnboardingStep.WELCOME, state.step)
         assertEquals(SERVER_URL, state.serverUrl)
+        assertFalse(state.showServerField)
         assertNull(state.linkSas)
         assertFalse(state.isLoading)
 
@@ -340,6 +341,7 @@ class OnboardingLinkViewModelTest {
     fun default_discard_signs_out_quietly_even_without_a_session() = runTest(dispatcher) {
         val manager = manager { it.waitGate = CompletableDeferred() }
         val vm = OnboardingViewModel(manager, SERVER_URL)
+        vm.finishIntro()
         vm.linkDevice()
         runCurrent()
         assertNotNull(manager.client.value)

@@ -22,17 +22,21 @@ import kotlinx.coroutines.withTimeout
 import kotlin.time.Duration.Companion.minutes
 
 /**
- * New account: Welcome (server address) -> display name -> `createIdentity` -> recovery code (shown once, saving
- * must be confirmed) -> optional `claimHandle` -> [OnboardingEvent.Finished]. The server field starts with
- * [defaultServerUrl] (trimmed), validated like typed input. Field errors are computed as the user types; server-side
- * rejections replace them until the field changes.
+ * Every flow starts with the intro, then Welcome.
+ *
+ * New account: Welcome -> display name -> `createIdentity` -> recovery kit (user ID and recovery code, shown once)
+ * -> kit check (the code's last four symbols typed back) -> optional `claimHandle` -> [OnboardingEvent.Finished].
+ * The server address starts as [defaultServerUrl] (trimmed), validated like typed input; a valid one hides the
+ * server field on Welcome until the user asks for another server. Field errors are computed as the user types;
+ * server-side rejections replace them until the field changes.
  *
  * Link to an existing device: Welcome -> `startLink` QR code while `waitLink` runs (at most [LINK_TIMEOUT]) -> SAS
  * -> `confirmLink(true)` -> [OnboardingEvent.Finished]. Rejecting the SAS or cancelling the wait drops the client
  * through [discardClient] (gim-core requires a new client) and returns to Welcome.
  *
- * Restore after losing every device: Welcome -> user id + recovery code -> `restoreFromRecovery` (optionally
- * revoking every other device) -> [OnboardingEvent.Finished]. The code is kept as normalized symbols while typing.
+ * Restore after losing every device: Welcome -> user id + recovery code, typed or found in a pasted recovery kit ->
+ * `restoreFromRecovery` (optionally revoking every other device) -> [OnboardingEvent.Finished]. The code is kept as
+ * normalized symbols while typing.
  *
  * A failed `createIdentity` or `restoreFromRecovery` keeps no partial state in gim-core, so the same client simply
  * retries (a `createIdentity` retry creates a new user and code).
@@ -42,7 +46,7 @@ class OnboardingViewModel(
     defaultServerUrl: String = "",
     private val discardClient: suspend () -> Unit = { manager.signOutQuietly() },
 ) : ViewModel() {
-    private val _state = MutableStateFlow(OnboardingUiState.withServerUrl(defaultServerUrl.trim()))
+    private val _state = MutableStateFlow(OnboardingUiState.initial(defaultServerUrl))
     val state: StateFlow<OnboardingUiState> = _state.asStateFlow()
 
     private val _events = Channel<OnboardingEvent>(Channel.BUFFERED)
@@ -75,25 +79,42 @@ class OnboardingViewModel(
         )
     }
 
-    fun onRestoreUserIdChange(value: String) = edit {
-        val userId = normalizeUserId(value)
-        it.copy(
-            restoreUserId = userId,
-            restoreUserIdError = FieldError.InvalidUserId.takeIf { userId.isNotEmpty() && !isValidUserId(userId) },
-            error = null,
+    fun onRestoreUserIdChange(value: String) = edit { it.withRestoreUserId(value).copy(restoreKitError = null) }
+
+    fun onRestoreCodeChange(value: String) = edit { it.withRestoreCode(value).copy(restoreKitError = null) }
+
+    /** Fills user ID and code from a pasted kit like the separate fields; flags text holding one or neither. */
+    fun onRestoreKitTextChange(value: String) = edit {
+        if (it.step != OnboardingStep.RESTORE) return@edit it
+        val kit = parseRecoveryKit(value)
+        var next = it.copy(restoreKitText = value, error = null)
+        kit.userId?.let { userId -> next = next.withRestoreUserId(userId) }
+        kit.recoveryCode?.let { code -> next = next.withRestoreCode(code) }
+        next.copy(
+            restoreKitError = when {
+                value.isBlank() -> null
+                kit.userId == null && kit.recoveryCode == null -> FieldError.KitNotRecognized
+                kit.userId == null || kit.recoveryCode == null -> FieldError.KitIncomplete
+                else -> null
+            },
         )
     }
 
-    fun onRestoreCodeChange(value: String) = edit {
-        val symbols = normalizeRecoveryCode(value)
-        it.copy(
-            restoreCode = symbols,
-            restoreCodeError = FieldError.InvalidRecoveryCode.takeIf { isBrokenRecoveryCode(symbols) },
-            error = null,
-        )
+    fun onKitCheckChange(value: String) = edit {
+        if (it.step != OnboardingStep.RECOVERY_CHECK) it else it.copy(kitCheck = value, kitCheckError = null)
     }
 
     fun onRevokeOtherDevicesChange(revoke: Boolean) = edit { it.copy(revokeOtherDevices = revoke) }
+
+    /** Intro -> Welcome, from Skip or the last page. */
+    fun finishIntro() = _state.update {
+        if (it.step != OnboardingStep.INTRO) it else it.copy(step = OnboardingStep.WELCOME)
+    }
+
+    /** Shows the server field on Welcome, keeping the default address for editing. */
+    fun useAnotherServer() = edit {
+        if (it.step != OnboardingStep.WELCOME) it else it.copy(showServerField = true)
+    }
 
     /** Welcome -> display name; ignored unless the server address is valid. */
     fun createAccount() = _state.update {
@@ -106,8 +127,9 @@ class OnboardingViewModel(
     }
 
     /**
-     * Display name or restore form -> Welcome; on the link QR code cancels the link like [cancelLink]. Ignored while
-     * loading, on the recovery code (it must be acknowledged) and on the SAS (it must be confirmed or rejected).
+     * Display name or restore form -> Welcome; kit check -> kit; on the link QR code cancels the link like
+     * [cancelLink]. Ignored while loading, on the intro, on the kit (it must be passed) and on the SAS (it must be
+     * confirmed or rejected).
      */
     fun back() {
         if (_state.value.step == OnboardingStep.LINK_QR) {
@@ -115,12 +137,18 @@ class OnboardingViewModel(
             return
         }
         _state.update {
-            val leaves = it.step == OnboardingStep.DISPLAY_NAME || it.step == OnboardingStep.RESTORE
-            if (!leaves || it.isLoading) it else it.copy(step = OnboardingStep.WELCOME, error = null)
+            when {
+                it.isLoading -> it
+                it.step == OnboardingStep.DISPLAY_NAME || it.step == OnboardingStep.RESTORE ->
+                    it.copy(step = OnboardingStep.WELCOME, error = null)
+                it.step == OnboardingStep.RECOVERY_CHECK ->
+                    it.copy(step = OnboardingStep.RECOVERY_KIT, kitCheck = "", kitCheckError = null)
+                else -> it
+            }
         }
     }
 
-    /** Connects to the server and creates the identity; on success shows the recovery code. */
+    /** Connects to the server and creates the identity; on success shows the recovery kit. */
     fun submitDisplayName() {
         val current = _state.value
         if (current.step != OnboardingStep.DISPLAY_NAME || !current.canSubmitDisplayName) return
@@ -130,19 +158,21 @@ class OnboardingViewModel(
                 manager.connect(current.serverUrl.trim())
             } catch (e: GimException) {
                 fail(e) { loaded ->
-                    if (e is GimException.InvalidInput) {
-                        loaded.copy(step = OnboardingStep.WELCOME, serverUrlError = FieldError.InvalidServerUrl)
-                    } else {
-                        null
-                    }
+                    if (e is GimException.InvalidInput) loaded.rejectServerUrl() else null
                 }
                 return@launch
             }
             client = connected
             try {
                 val code = connected.createIdentity(current.displayName.trim())
+                val accountId = connected.userId()?.let(::normalizeUserId)
                 _state.update {
-                    it.copy(isLoading = false, step = OnboardingStep.RECOVERY_CODE, recoveryCode = code)
+                    it.copy(
+                        isLoading = false,
+                        step = OnboardingStep.RECOVERY_KIT,
+                        recoveryCode = code,
+                        accountId = accountId,
+                    )
                 }
             } catch (e: GimException) {
                 fail(e) { loaded ->
@@ -165,11 +195,7 @@ class OnboardingViewModel(
                 manager.connect(current.serverUrl.trim())
             } catch (e: GimException) {
                 fail(e) { loaded ->
-                    if (e is GimException.InvalidInput) {
-                        loaded.copy(step = OnboardingStep.WELCOME, serverUrlError = FieldError.InvalidServerUrl)
-                    } else {
-                        null
-                    }
+                    if (e is GimException.InvalidInput) loaded.rejectServerUrl() else null
                 }
                 return@launch
             }
@@ -180,7 +206,7 @@ class OnboardingViewModel(
                     formatRecoveryCode(current.restoreCode),
                     current.revokeOtherDevices,
                 )
-                _state.update { it.copy(isLoading = false, restoreCode = "") }
+                _state.update { it.copy(isLoading = false, restoreCode = "", restoreKitText = "") }
                 _events.send(OnboardingEvent.Finished)
             } catch (e: GimException) {
                 fail(e) { loaded ->
@@ -195,16 +221,19 @@ class OnboardingViewModel(
         }
     }
 
-    fun onRecoveryCodeSavedChange(saved: Boolean) = _state.update {
-        if (it.step != OnboardingStep.RECOVERY_CODE) it else it.copy(recoveryCodeSaved = saved)
+    /** Recovery kit -> kit check. */
+    fun continueFromKit() = _state.update {
+        if (it.step != OnboardingStep.RECOVERY_KIT) it else it.copy(step = OnboardingStep.RECOVERY_CHECK)
     }
 
-    /** Recovery code -> handle, once saving is confirmed. The code is dropped from the state for good. */
-    fun acknowledgeRecoveryCode() = _state.update {
-        if (it.step != OnboardingStep.RECOVERY_CODE || !it.recoveryCodeSaved) {
-            it
-        } else {
-            it.copy(step = OnboardingStep.HANDLE, recoveryCode = null)
+    /** Kit check -> handle when the typed symbols end the code; the code is then dropped from the state for good. */
+    fun confirmKitCheck() = _state.update {
+        val code = it.recoveryCode
+        when {
+            it.step != OnboardingStep.RECOVERY_CHECK || !it.canConfirmKitCheck || code == null -> it
+            matchesRecoveryKeyEnding(code, it.kitCheck) ->
+                it.copy(step = OnboardingStep.HANDLE, recoveryCode = null, kitCheck = "", kitCheckError = null)
+            else -> it.copy(kitCheckError = FieldError.KitCheckMismatch)
         }
     }
 
@@ -248,7 +277,7 @@ class OnboardingViewModel(
                 manager.connect(current.serverUrl.trim())
             } catch (e: GimException) {
                 fail(e) { loaded ->
-                    if (e is GimException.InvalidInput) loaded.copy(serverUrlError = FieldError.InvalidServerUrl) else null
+                    if (e is GimException.InvalidInput) loaded.rejectServerUrl() else null
                 }
                 return@launch
             }
@@ -341,8 +370,38 @@ class OnboardingViewModel(
         client = null
         viewModelScope.launch {
             discardClient()
-            _state.update { OnboardingUiState.withServerUrl(it.serverUrl) }
+            _state.update {
+                OnboardingUiState(
+                    step = OnboardingStep.WELCOME,
+                    serverUrl = it.serverUrl,
+                    serverUrlError = serverUrlError(it.serverUrl),
+                    hasDefaultServer = it.hasDefaultServer,
+                    showServerField = it.showServerField,
+                )
+            }
         }
+    }
+
+    /** Back on Welcome with the field shown, since the server refused its address. */
+    private fun OnboardingUiState.rejectServerUrl() =
+        copy(step = OnboardingStep.WELCOME, serverUrlError = FieldError.InvalidServerUrl, showServerField = true)
+
+    private fun OnboardingUiState.withRestoreUserId(value: String): OnboardingUiState {
+        val userId = normalizeUserId(value)
+        return copy(
+            restoreUserId = userId,
+            restoreUserIdError = FieldError.InvalidUserId.takeIf { userId.isNotEmpty() && !isValidUserId(userId) },
+            error = null,
+        )
+    }
+
+    private fun OnboardingUiState.withRestoreCode(value: String): OnboardingUiState {
+        val symbols = normalizeRecoveryCode(value)
+        return copy(
+            restoreCode = symbols,
+            restoreCodeError = FieldError.InvalidRecoveryCode.takeIf { isBrokenRecoveryCode(symbols) },
+            error = null,
+        )
     }
 
     /** Applies [transform] unless a call is running. */
