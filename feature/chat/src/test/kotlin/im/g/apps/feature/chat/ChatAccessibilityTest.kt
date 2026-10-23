@@ -3,7 +3,7 @@ package im.g.apps.feature.chat
 import android.view.View
 import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.AccessibilityNodeInfo
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
@@ -99,7 +99,7 @@ class ChatAccessibilityTest {
     private fun show() {
         rule.setContent {
             view = LocalView.current
-            remember(view) { enableTalkBack(view) }
+            SideEffect { enableTalkBack(view) }
             GimTheme {
                 ChatScreen(
                     state = ChatUiState(
@@ -226,7 +226,7 @@ class ChatAccessibilityTest {
 
     /**
      * Compose computes the TalkBack order only while a screen reader is on; force that on [view]'s
-     * accessibility delegate before the first semantics pass, as Compose's own tests do. The platform manager
+     * accessibility delegate before TalkBack queries it, as Compose's own tests do. The platform manager
      * is switched on too, so the events Compose then sends are accepted.
      */
     private fun enableTalkBack(view: View) {
