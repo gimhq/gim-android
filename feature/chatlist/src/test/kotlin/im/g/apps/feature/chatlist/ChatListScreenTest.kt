@@ -71,7 +71,7 @@ class ChatListScreenTest {
         )
 
         rule.onNodeWithText("Leaving…").assertExists()
-        rule.onNodeWithText("You are no longer a member").assertExists()
+        rule.onNodeWithText("You're no longer in this chat").assertExists()
         rule.onNodeWithText("Nikos: Table booked").assertDoesNotExist()
     }
 
@@ -100,7 +100,7 @@ class ChatListScreenTest {
     fun connection_banner_is_shown_when_not_connected() {
         show(ChatListUiState(rows = rows, connection = ConnectionBannerUi.WAITING_FOR_NETWORK))
 
-        rule.onNodeWithText("Waiting for network…").assertExists()
+        rule.onNodeWithText("Waiting for internet…").assertExists()
     }
 
     @Test
