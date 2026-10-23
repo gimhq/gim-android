@@ -91,7 +91,7 @@ class ChatListScreenTest {
         show(ChatListUiState(isEmpty = true), onNewChat = { newChat++ })
 
         rule.onNodeWithText("No chats yet").assertExists()
-        rule.onNodeWithText("Start a chat").performClick()
+        rule.onNodeWithText("Start chat").performClick()
 
         assertEquals(1, newChat)
     }
