@@ -18,7 +18,6 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
@@ -41,9 +40,12 @@ import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
 import im.g.apps.testing.HubAdmin
 import im.g.apps.testing.awaitServerReachable
 import im.g.apps.testing.clickWhenSettled
+import im.g.apps.testing.completeRecoveryKit
 import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
+import im.g.apps.testing.onboardingShown
 import im.g.apps.testing.saveFailureScreenshot
+import im.g.apps.testing.skipIntro
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -204,7 +206,7 @@ abstract class RefusedUserE2eBase {
         waitForText("devices screen shows the refusal", string(refusal.message))
         compose.onNodeWithContentDescription(string(DevicesR.string.devices_back)).performClick()
         waitForText("chat list after the refusal", string(ChatListR.string.chatlist_title))
-        assertFalse("onboarding shown", exists(hasText(string(OnboardingR.string.onboarding_welcome_title))))
+        assertFalse("onboarding shown", exists(compose.onboardingShown()))
         click("reopen the group", row)
         waitForText("earlier messages readable", before)
         waitForText("peer welcome readable", welcome)
@@ -222,6 +224,7 @@ abstract class RefusedUserE2eBase {
     }
 
     private fun onboard() {
+        compose.skipIntro(logTag, timeoutMs, ::failStep)
         waitForText("onboarding shown", string(OnboardingR.string.onboarding_welcome_title))
         enterText("hub address", TAG_SERVER_URL, serverUrl)
         click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
@@ -231,10 +234,7 @@ abstract class RefusedUserE2eBase {
         val creating = hasContentDescription(string(OnboardingR.string.onboarding_submitting))
         val recoveryCode = hasTestTag(TAG_RECOVERY_CODE)
         waitFor("identity creation started (loading or recovery code)") { exists(creating) || exists(recoveryCode) }
-        waitFor("recovery code shown", recoveryCode)
-        compose.onNodeWithTag(TAG_CODE_SAVED).performScrollTo().performClick()
-        click("recovery code continue", TAG_CODE_CONTINUE, next = hasTestTag(TAG_HANDLE))
-        waitFor("handle step", hasTestTag(TAG_HANDLE))
+        compose.completeRecoveryKit(logTag, timeoutMs, ::failStep)
         enterText("handle", TAG_HANDLE, "app_$suffix")
         click("claim handle", TAG_CLAIM_HANDLE)
         waitForText("chat list after onboarding", string(ChatListR.string.chatlist_title))
@@ -355,8 +355,6 @@ abstract class RefusedUserE2eBase {
         const val TAG_DISPLAY_NAME = "onboarding_display_name"
         const val TAG_SUBMIT = "onboarding_submit"
         const val TAG_RECOVERY_CODE = "onboarding_recovery_code"
-        const val TAG_CODE_SAVED = "onboarding_code_saved"
-        const val TAG_CODE_CONTINUE = "onboarding_code_continue"
         const val TAG_HANDLE = "onboarding_handle"
         const val TAG_CLAIM_HANDLE = "onboarding_claim_handle"
         const val TAG_COMPOSER = "composer-input"

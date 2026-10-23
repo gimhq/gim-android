@@ -14,8 +14,6 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToString
 import androidx.core.app.NotificationManagerCompat
@@ -36,9 +34,11 @@ import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
 import im.g.apps.push.MockPushProvider
 import im.g.apps.testing.awaitServerReachable
 import im.g.apps.testing.clickWhenSettled
+import im.g.apps.testing.completeRecoveryKit
 import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
+import im.g.apps.testing.skipIntro
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -113,16 +113,15 @@ class PushE2eTest {
         Log.i(LOG_TAG, "hub $serverUrl, push mock $mockUrl")
         mock.setBaseUrl(mockUrl)
 
-        // Onboarding: create identity, acknowledge the recovery code, skip the handle -> chat list.
+        // Onboarding: skip the intro, create identity, pass the recovery kit check, skip the handle -> chat list.
+        compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
         waitFor("onboarding shown", hasText(string(OnboardingR.string.onboarding_welcome_title)))
         enterText("hub address", TAG_SERVER_URL, serverUrl)
         click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
         waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))
         enterText("display name", TAG_DISPLAY_NAME, "Push $suffix")
         click("create account", TAG_SUBMIT)
-        waitFor("recovery code shown", hasTestTag(TAG_RECOVERY_CODE))
-        compose.onNodeWithTag(TAG_CODE_SAVED).performScrollTo().performClick()
-        click("recovery code continue", TAG_CODE_CONTINUE, next = hasTestTag(TAG_SKIP_HANDLE))
+        compose.completeRecoveryKit(LOG_TAG, timeoutMs, ::failStep)
         waitFor("handle step", hasTestTag(TAG_SKIP_HANDLE))
         click("skip handle", TAG_SKIP_HANDLE)
         waitFor("chat list", hasText(string(ChatListR.string.chatlist_title)))
@@ -281,9 +280,6 @@ class PushE2eTest {
         const val TAG_CREATE_ACCOUNT = "onboarding_create_account"
         const val TAG_DISPLAY_NAME = "onboarding_display_name"
         const val TAG_SUBMIT = "onboarding_submit"
-        const val TAG_RECOVERY_CODE = "onboarding_recovery_code"
-        const val TAG_CODE_SAVED = "onboarding_code_saved"
-        const val TAG_CODE_CONTINUE = "onboarding_code_continue"
         const val TAG_SKIP_HANDLE = "onboarding_skip_handle"
         const val TAG_COMPOSER = "composer-input"
     }

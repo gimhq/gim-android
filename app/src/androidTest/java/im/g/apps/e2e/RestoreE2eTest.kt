@@ -11,7 +11,10 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToString
@@ -24,11 +27,14 @@ import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.PlatformHooks
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
+import im.g.apps.testing.RecoveryKit
 import im.g.apps.testing.awaitServerReachable
 import im.g.apps.testing.clickWhenSettled
+import im.g.apps.testing.completeRecoveryKit
 import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
+import im.g.apps.testing.skipIntro
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -47,10 +53,11 @@ import im.g.apps.feature.chatlist.R as ChatListR
 import im.g.apps.feature.onboarding.R as OnboardingR
 
 /**
- * Restore from the recovery code against a live gim-hub (instrumentation argument `gimServerUrl`): a second gim-core
- * client in this process creates an identity and stands in for the lost device; the app restores that user through
- * the real onboarding UI with "Sign out all other devices" on, after which the hub rejects the lost device
- * (`NotRegistered`, gim-core docs/API.md).
+ * Restore from the recovery kit against a live gim-hub (instrumentation argument `gimServerUrl`): the app creates an
+ * account through onboarding and keeps the Account ID and recovery key its kit shows; a second gim-core client in
+ * this process restores that user too and stands in for the lost device. The app signs out (its device stays listed
+ * on the hub) and restores by pasting the kit, with "Remove all other devices" on, after which the hub rejects the
+ * lost device (`NotRegistered`, gim-core docs/API.md).
  */
 @RunWith(AndroidJUnit4::class)
 class RestoreE2eTest {
@@ -84,40 +91,74 @@ class RestoreE2eTest {
     }
 
     @Test
-    fun restoresFromRecoveryCodeAndRevokesTheLostDevice() {
+    fun restoresFromRecoveryKitAndRevokesTheLostDevice() {
         keepScreenOn(instrumentation, compose.activity)
         awaitServerReachable(instrumentation.targetContext, serverUrl)
         if (!dismissSystemDialogs(instrumentation, timeoutMs) { appHasFocus() }) {
             Log.w(LOG_TAG, "app window still has no focus; continuing")
         }
 
-        // The device that gets lost: a new identity on a second client; its recovery code is kept.
+        // App: intro -> Welcome -> create account; the Account ID and recovery key of its kit are kept.
+        compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
+        waitFor("onboarding shown", hasText(string(OnboardingR.string.onboarding_welcome_title)))
+        enterText("hub address", TAG_SERVER_URL, serverUrl)
+        click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
+        waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))
+        enterText("display name", TAG_DISPLAY_NAME, "Lost $suffix")
+        click("create account", TAG_CREATE_SUBMIT)
+        val kit = compose.completeRecoveryKit(LOG_TAG, timeoutMs, ::failStep)
+        click("skip handle", TAG_SKIP_HANDLE)
+        waitFor("chat list after creating", hasText(string(ChatListR.string.chatlist_title)))
+        val userId = kit.accountId
+        assertEquals(userId, appClient().userId())
+        val firstDeviceId = peerWait("app lists its first device") { appClient().devices() }.single { it.isCurrent }.deviceId
+
+        // The device that gets lost: a second device of the same user, added on a second client with the kit.
         val peer = runBlocking {
             UniffiGimClientFactory().create(ClientConfig(serverUrl), InMemoryHooks(peerDir)).also { peerClient = it }
         }
-        val code = runBlocking { peer.createIdentity("Lost $suffix") }
-        val userId = checkNotNull(peer.userId())
+        peerWait("lost device restored") {
+            while (true) {
+                try {
+                    peer.restoreFromRecovery(userId, kit.recoveryKey, revokeOthers = false)
+                    break
+                } catch (e: GimException.RetryLater) {
+                    Log.i(LOG_TAG, "lost device restore throttled ($e); retrying")
+                }
+                delay(POLL_MS)
+            }
+        }
         val lostDeviceId = runBlocking { peer.devices() }.single { it.isCurrent }.deviceId
 
-        // App: Welcome -> Restore with recovery code -> form.
-        waitFor("onboarding shown", hasText(string(OnboardingR.string.onboarding_welcome_title)))
+        // App: sign out (the device stays listed on the hub), then intro -> Welcome -> Restore -> paste the kit.
+        compose.onNodeWithContentDescription(string(ChatListR.string.chatlist_more_options)).performClick()
+        waitFor("overflow menu", hasText(string(ChatListR.string.chatlist_sign_out)))
+        compose.onNodeWithText(string(ChatListR.string.chatlist_sign_out)).performClick()
+        waitFor("sign-out dialog", hasText(string(ChatListR.string.chatlist_sign_out_title)))
+        // The dialog's confirm button, once the overflow menu item has gone.
+        val signOut = hasText(string(ChatListR.string.chatlist_sign_out))
+        waitFor("overflow menu closed") { compose.onAllNodes(signOut).fetchSemanticsNodes().size == 1 }
+        compose.onNode(signOut).performClick()
+        compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
+        waitFor("onboarding after sign-out", hasText(string(OnboardingR.string.onboarding_welcome_title)))
         enterText("hub address", TAG_SERVER_URL, serverUrl)
-        click("restore with recovery code", TAG_RESTORE, next = hasTestTag(TAG_USER_ID))
-        waitFor("restore form shown", hasTestTag(TAG_USER_ID))
-        enterText("user id", TAG_USER_ID, userId)
-        // Typed the way people copy it from paper: lowercase, spaces instead of dashes.
-        compose.onNodeWithTag(TAG_CODE).performTextReplacement(code.lowercase().replace('-', ' '))
+        click("restore with recovery kit", TAG_RESTORE, next = hasTestTag(TAG_KIT))
+        waitFor("restore form shown", hasTestTag(TAG_KIT))
+        compose.onNodeWithTag(TAG_KIT).performTextReplacement(kitText(kit))
+        waitFor("Account ID read from the kit") { fieldText(TAG_USER_ID) == userId }
         compose.onNodeWithTag(TAG_REVOKE_OTHERS).performScrollTo().assertIsOn()
         waitFor("restore enabled", hasTestTag(TAG_SUBMIT) and isEnabled())
         click("restore account", TAG_SUBMIT)
         waitFor("chat list after restoring", hasText(string(ChatListR.string.chatlist_title)))
 
-        val appClient = checkNotNull((compose.activity.application as GimApplication).container.manager.client.value)
+        val appClient = appClient()
         assertEquals(userId, appClient.userId())
         val devices = peerWait("app lists its devices") { appClient.devices() }
         val current = devices.single { it.isCurrent }
         assertNotEquals(lostDeviceId, current.deviceId)
+        assertNotEquals(firstDeviceId, current.deviceId)
         assertTrue("devices: $devices", devices.single { it.deviceId == lostDeviceId }.revoked)
+        assertTrue("devices: $devices", devices.single { it.deviceId == firstDeviceId }.revoked)
         assertEquals("devices: $devices", listOf(current.deviceId), devices.filterNot { it.revoked }.map { it.deviceId })
 
         // The lost device can no longer sign in: its calls fail with NotRegistered.
@@ -135,6 +176,19 @@ class RestoreE2eTest {
         }
     }
 
+    /** The kit as the shared file holds it: title, labelled Account ID and recovery key, then the note. */
+    private fun kitText(kit: RecoveryKit): String = listOf(
+        string(OnboardingR.string.onboarding_kit_file_title),
+        "${string(OnboardingR.string.onboarding_kit_account_id_label)}: ${kit.accountId}",
+        "${string(OnboardingR.string.onboarding_kit_recovery_key_label)}: ${kit.recoveryKey}",
+        "",
+        string(OnboardingR.string.onboarding_kit_file_note),
+    ).joinToString("\n")
+
+    /** The app's own gim-core client (the test runs in the app process). */
+    private fun appClient(): GimClient =
+        checkNotNull((compose.activity.application as GimApplication).container.manager.client.value)
+
     /** Runs a peer-side call bounded by [timeoutMs]; a timeout fails the test with [step]. */
     private fun <T> peerWait(step: String, block: suspend () -> T): T = try {
         runBlocking { withTimeout(timeoutMs) { block() } }
@@ -144,18 +198,24 @@ class RestoreE2eTest {
 
     private fun string(id: Int): String = compose.activity.getString(id)
 
-    private fun waitFor(step: String, matcher: SemanticsMatcher) {
+    private fun waitFor(step: String, condition: () -> Boolean) {
         try {
-            compose.waitUntil(timeoutMs) { compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(timeoutMs, condition)
         } catch (e: ComposeTimeoutException) {
             failStep(step, e)
         }
     }
 
+    private fun waitFor(step: String, matcher: SemanticsMatcher) =
+        waitFor(step) { compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty() }
+
+    private fun fieldText(tag: String): String? =
+        compose.onNodeWithTag(tag).fetchSemanticsNode().config.getOrNull(SemanticsProperties.EditableText)?.text
+
     private fun enterText(field: String, tag: String, value: String) {
         val node = compose.onNodeWithTag(tag)
         node.performTextReplacement(value)
-        fun actual() = node.fetchSemanticsNode().config.getOrNull(SemanticsProperties.EditableText)?.text
+        fun actual() = fieldText(tag)
         try {
             compose.waitUntil(timeoutMs) { actual() == value }
         } catch (e: ComposeTimeoutException) {
@@ -209,9 +269,13 @@ class RestoreE2eTest {
 
         // Tags of internal constants in OnboardingTestTags.
         const val TAG_SERVER_URL = "onboarding_server_url"
+        const val TAG_CREATE_ACCOUNT = "onboarding_create_account"
+        const val TAG_DISPLAY_NAME = "onboarding_display_name"
+        const val TAG_CREATE_SUBMIT = "onboarding_submit"
+        const val TAG_SKIP_HANDLE = "onboarding_skip_handle"
         const val TAG_RESTORE = "onboarding_restore"
+        const val TAG_KIT = "onboarding_restore_kit"
         const val TAG_USER_ID = "onboarding_restore_user_id"
-        const val TAG_CODE = "onboarding_restore_code"
         const val TAG_REVOKE_OTHERS = "onboarding_restore_revoke_others"
         const val TAG_SUBMIT = "onboarding_restore_submit"
     }
