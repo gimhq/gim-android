@@ -16,7 +16,6 @@ import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToString
@@ -36,6 +35,7 @@ import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
 import im.g.apps.testing.skipIntro
+import im.g.apps.testing.openSettingsRow
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -49,6 +49,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import im.g.apps.feature.chatlist.R as ChatListR
+import im.g.apps.feature.settings.R as SettingsR
 import im.g.apps.feature.devices.R as DevicesR
 import im.g.apps.feature.onboarding.R as OnboardingR
 
@@ -126,9 +127,7 @@ class DevicesE2eTest {
         Log.i(LOG_TAG, "peer linked")
 
         // Devices screen lists both devices.
-        compose.onNodeWithContentDescription(string(ChatListR.string.chatlist_more_options)).performClick()
-        waitFor("overflow menu", hasText(string(ChatListR.string.chatlist_devices)))
-        compose.onNodeWithText(string(ChatListR.string.chatlist_devices)).performClick()
+        compose.openSettingsRow(LOG_TAG, string(SettingsR.string.settings_linked_devices), timeoutMs, ::failStep)
         val peerRow = hasTestTag(TAG_ROW_PREFIX + peerDeviceId)
         waitFor("peer device listed", peerRow)
         waitFor("this device listed", hasText(string(DevicesR.string.devices_this_device)))

@@ -1,7 +1,10 @@
 package im.g.apps.feature.contacts
 
+import android.Manifest
+import android.app.Application
 import android.content.Context
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -10,12 +13,14 @@ import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.designsystem.R as DesignR
 import im.g.apps.core.designsystem.theme.GimTheme
@@ -29,6 +34,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 
 @RunWith(AndroidJUnit4::class)
 class ContactsScreensTest {
@@ -94,6 +100,53 @@ class ContactsScreensTest {
             }
         }
         rule.onNodeWithText("Start chat").assertIsNotEnabled()
+    }
+
+    @Test
+    fun newChat_scanQrCode_showsScannerAndScannedIdOpensChat() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        shadowOf(app).grantPermissions(Manifest.permission.CAMERA)
+        val friend = UserProfile("u" + "c".repeat(54) + "i", "cleo", "Cleo Marsh")
+        val fake = demoClient(scope).apply { addDirectoryUser(friend) }
+        val vm = NewChatViewModel(TestClient(fake))
+        var opened: String? = null
+        rule.setContent {
+            GimTheme {
+                NewChatRoute(
+                    viewModel = vm,
+                    onOpenChat = { opened = it },
+                    onBack = {},
+                    scanner = { onQrCode, _, modifier ->
+                        Button(onClick = { onQrCode("hello ${friend.userId}") }, modifier = modifier) {
+                            Text("Fake scanner")
+                        }
+                    },
+                )
+            }
+        }
+        rule.onNodeWithTag(NewChatTestTags.SCANNER).assertDoesNotExist()
+        rule.onNodeWithTag(NewChatTestTags.SCAN_QR).assertExists().performClick()
+        rule.onNodeWithText("Scan a QR code").assertExists()
+        rule.onNodeWithTag(NewChatTestTags.SCANNER).performClick()
+        rule.waitUntil(5_000) { opened != null }
+        rule.onNodeWithTag(NewChatTestTags.SCANNER).assertDoesNotExist()
+    }
+
+    @Test
+    fun newChat_scanNotice_isShownInTheScanner() {
+        rule.setContent {
+            GimTheme {
+                NewChatScreen(
+                    state = NewChatUiState(scannerOpen = true, scanNotice = ScanNotice.NOT_ACCOUNT_ID),
+                    onQueryChange = {},
+                    onStartChat = {},
+                    onBack = {},
+                )
+            }
+        }
+        rule.onNodeWithText(
+            "This QR code isn't a gim Account ID. Ask your friend to show the QR code from their Profile.",
+        ).assertExists()
     }
 
     @Test

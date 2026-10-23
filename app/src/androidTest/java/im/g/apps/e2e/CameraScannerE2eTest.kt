@@ -21,7 +21,6 @@ import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToString
@@ -37,6 +36,7 @@ import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
 import im.g.apps.testing.skipIntro
+import im.g.apps.testing.openSettingsRow
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.runBlocking
@@ -49,6 +49,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import im.g.apps.feature.chatlist.R as ChatListR
+import im.g.apps.feature.settings.R as SettingsR
 import im.g.apps.feature.linking.R as LinkingR
 import im.g.apps.feature.onboarding.R as OnboardingR
 
@@ -137,10 +138,8 @@ class CameraScannerE2eTest {
         registered = true
         waitFor("back cameras idle before the scanner opens") { openBackCameras.isEmpty() }
 
-        // Chat list overflow -> Link a new device: the scanner is shown and opens a back camera.
-        compose.onNodeWithContentDescription(string(ChatListR.string.chatlist_more_options)).performClick()
-        waitFor("overflow menu", hasText(string(ChatListR.string.chatlist_link_device)))
-        compose.onNodeWithText(string(ChatListR.string.chatlist_link_device)).performClick()
+        // Settings -> Link a new device: the scanner is shown and opens a back camera.
+        compose.openSettingsRow(LOG_TAG, string(SettingsR.string.settings_link_device), timeoutMs, ::failStep)
         waitFor("scanner shown", hasTestTag(TAG_SCANNER))
         waitFor("back camera opened by the scanner") { openBackCameras.isNotEmpty() }
         Log.i(LOG_TAG, "back camera(s) open: $openBackCameras")
@@ -162,7 +161,7 @@ class CameraScannerE2eTest {
 
         // Leaving the screen unbinds the use cases and releases the camera.
         compose.onNodeWithContentDescription(string(LinkingR.string.linking_back)).performClick()
-        waitFor("chat list after leaving the scanner", hasText(string(ChatListR.string.chatlist_title)))
+        waitFor("settings after leaving the scanner", hasText(string(SettingsR.string.settings_title)))
         waitFor("back camera released") { openBackCameras.isEmpty() }
     }
 

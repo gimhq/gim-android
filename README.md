@@ -15,6 +15,7 @@ the native libraries and bindings are vendored into `:core:bridge`.
 | `:feature:chatlist`   | Conversation list                                                |
 | `:feature:chat`       | Conversation screen                                              |
 | `:feature:contacts`   | Contacts and groups                                              |
+| `:feature:settings`   | Settings: profile, account and devices, appearance, language, help, sign out |
 
 Shared Gradle configuration (SDK levels, Kotlin/JVM 17, test runner) lives in the `build-logic`
 included build. compileSdk/targetSdk 35, minSdk 26. The APK ships `arm64-v8a` and `x86_64` only.

@@ -14,6 +14,9 @@ android {
         // Select the gim-core UniFFI client instead of the fake (debug builds can opt into demo mode at
         // runtime, see AppContainer.PREF_DEMO_MODE).
         buildConfigField("boolean", "USE_REAL_GIM_CORE", "true")
+        // Shown on Help and about: the first line of the root GIM_CORE_VERSION file (e.g. 0.1.0+c1b7503).
+        val gimCoreVersion = rootProject.file("GIM_CORE_VERSION").readLines().first().trim()
+        buildConfigField("String", "GIM_CORE_VERSION", "\"$gimCoreVersion\"")
         // libgim_core.so ships for these ABIs only; drops JNA's other ABIs from the APK.
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
@@ -63,6 +66,7 @@ dependencies {
     implementation(project(":feature:devices"))
     implementation(project(":feature:hubs"))
     implementation(project(":feature:linking"))
+    implementation(project(":feature:settings"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
