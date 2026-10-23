@@ -57,7 +57,15 @@ fun Avatar(
             ),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = initials, color = Color.White, fontSize = fontSize, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        // Line height follows the avatar size, not the font scale, so large text does not clip the initials.
+        Text(
+            text = initials,
+            color = Color.White,
+            fontSize = fontSize,
+            lineHeight = fontSize,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+        )
         if (imagePath != null) {
             AsyncImage(
                 model = File(imagePath),
