@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.suspendedHubName
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -24,10 +25,20 @@ data class NewChatUiState(
     val search: UserSearchState = UserSearchState.Idle,
     val selfUserId: String? = null,
     val starting: Boolean = false,
+    val scannerOpen: Boolean = false,
+    val scanNotice: ScanNotice? = null,
 ) {
     /** A user other than the signed-in one was found and no chat is being created. */
     val canStartChat: Boolean
         get() = search is UserSearchState.Found && search.user.userId != selfUserId && !starting
+}
+
+/** Why a QR scan did not start a chat; shown in the scanner while it is open, else under the scan button. */
+enum class ScanNotice {
+    NOT_ACCOUNT_ID,
+    OWN_CODE,
+    CAMERA_DENIED,
+    CAMERA_UNAVAILABLE,
 }
 
 sealed interface NewChatEvent {
@@ -37,8 +48,8 @@ sealed interface NewChatEvent {
 }
 
 /**
- * Finds a user by handle (or takes a typed user id) and opens (or creates) the direct chat with them; an unknown
- * user id fails with [ContactsError.UserNotFound].
+ * Finds a user by handle (or takes a typed or scanned user id) and opens (or creates) the direct chat with them;
+ * an unknown user id fails with [ContactsError.UserNotFound].
  */
 class NewChatViewModel(private val client: GimClient) : ViewModel() {
     private val _state = MutableStateFlow(NewChatUiState())
@@ -64,7 +75,46 @@ class NewChatViewModel(private val client: GimClient) : ViewModel() {
     fun startChat() {
         val current = _state.value
         if (!current.canStartChat) return
-        val user = (current.search as UserSearchState.Found).user
+        openChatWith((current.search as UserSearchState.Found).user)
+    }
+
+    fun openScanner() {
+        _state.update { it.copy(scannerOpen = true, scanNotice = null) }
+    }
+
+    fun closeScanner() {
+        _state.update { it.copy(scannerOpen = false, scanNotice = null) }
+    }
+
+    fun onCameraDenied() {
+        _state.update { it.copy(scannerOpen = false, scanNotice = ScanNotice.CAMERA_DENIED) }
+    }
+
+    fun onCameraUnavailable() {
+        _state.update { it.copy(scannerOpen = false, scanNotice = ScanNotice.CAMERA_UNAVAILABLE) }
+    }
+
+    /**
+     * Handles a QR code [text] from the open scanner: an Account ID of someone else closes the scanner and opens
+     * the chat with them; anything else keeps scanning with a [ScanNotice]. Scans while a chat is being created
+     * are ignored.
+     */
+    fun onQrScanned(text: String) {
+        val current = _state.value
+        if (!current.scannerOpen || current.starting) return
+        val notice = when (val id = findAccountId(text)) {
+            null -> ScanNotice.NOT_ACCOUNT_ID
+            client.userId() -> ScanNotice.OWN_CODE
+            else -> {
+                _state.update { it.copy(scannerOpen = false, scanNotice = null) }
+                openChatWith(UserProfile(id, "", ""))
+                return
+            }
+        }
+        _state.update { it.copy(scanNotice = notice) }
+    }
+
+    private fun openChatWith(user: UserProfile) {
         _state.update { it.copy(starting = true) }
         viewModelScope.launch {
             try {
