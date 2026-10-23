@@ -14,6 +14,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import im.g.apps.core.designsystem.theme.GimTheme
 
+/** Centered day chip between messages; TalkBack reads it as a heading. */
 @Composable
 fun DateSeparator(
     label: String,
@@ -26,10 +27,10 @@ fun DateSeparator(
         contentAlignment = Alignment.Center,
     ) {
         Surface(
-            modifier = Modifier.semantics { heading() },
+            modifier = Modifier.semantics(mergeDescendants = true) { heading() },
             shape = MaterialTheme.shapes.extraLarge,
-            color = GimTheme.colors.dateChip,
-            contentColor = GimTheme.colors.onDateChip,
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         ) {
             Text(
                 text = label,

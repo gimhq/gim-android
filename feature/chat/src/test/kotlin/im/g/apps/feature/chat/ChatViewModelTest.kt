@@ -55,11 +55,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.util.Collections
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -109,10 +106,9 @@ class ChatViewModelTest {
 
         val separators = vm.rows.withIndex().filter { it.value is DateSeparatorRow }
         val labels = separators.map { (it.value as DateSeparatorRow).label }
-        val olderDay = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.UK)
-            .format(LocalDate.of(2026, 10, 12))
+        // Two days before "today" (2026-10-14): the weekday.
         assertEquals(
-            listOf(UiText.Res(R.string.chat_today), UiText.Res(R.string.chat_yesterday), UiText.Raw(olderDay)),
+            listOf(UiText.Res(R.string.chat_today), UiText.Res(R.string.chat_yesterday), UiText.Raw("Monday")),
             labels,
         )
         // Newest first: every row before the "Today" separator is a message from today.

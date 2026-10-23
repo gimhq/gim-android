@@ -52,8 +52,16 @@ class TimelineMapperTest {
 
     private fun ms(at: String) = Instant.parse(at).toEpochMilli()
 
-    private fun map(now: String, vararg items: TimelineItem, isGroup: Boolean = false, unavailable: Set<String> = emptySet()) =
-        TimelineMapper(athens, Locale.UK).map(items.toList(), isGroup, emptyMap(), ms(now), unavailable)
+    private fun map(
+        now: String,
+        vararg items: TimelineItem,
+        isGroup: Boolean = false,
+        unavailable: Set<String> = emptySet(),
+        locale: Locale = Locale.UK,
+    ) = TimelineMapper(athens, locale).map(items.toList(), isGroup, emptyMap(), ms(now), unavailable)
+
+    private fun membership(userId: String, at: String) =
+        TimelineItem.MembershipChange(userId, MembershipChangeKind.ADDED, ms(at), userId, null)
 
     private fun membershipText(
         change: MembershipChangeKind,
@@ -120,9 +128,7 @@ class TimelineMapperTest {
         assertEquals(listOf("m2", items[2].key(), "m1", items[0].key()), rows.map { it.key })
         assertEquals("01:54", (rows[0] as MessageRow).time)
         assertEquals(UiText.Res(R.string.chat_today), (rows[1] as DateSeparatorRow).label)
-        val olderDay = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.UK)
-            .format(LocalDate.of(2026, 10, 12))
-        assertEquals(UiText.Raw(olderDay), (rows[3] as DateSeparatorRow).label)
+        assertEquals(UiText.Raw("Monday"), (rows[3] as DateSeparatorRow).label)
     }
 
     @Test
@@ -199,6 +205,112 @@ class TimelineMapperTest {
         assertFalse((rows.single { it.key == "doc" } as MessageRow).mediaUnavailable)
         assertNull((rows.single { it.key == "img" } as MessageRow).image?.path)
     }
+
+    @Test
+    fun grouping_breaksAtDateSeparatorSystemRowSenderAndWindow() {
+        val bob = UserProfile("u-bob", "bob", "Bob")
+        val rows = map(
+            "2026-10-16T09:00:00Z",
+            separator("2026-10-14"),
+            // 23:58 and 00:01 local, two minutes apart but on two days.
+            message("lateNight", "2026-10-14T20:58:00Z"),
+            separator("2026-10-15"),
+            message("afterMidnight", "2026-10-14T21:01:00Z"),
+            membership("u-bob", "2026-10-15T07:00:00Z"),
+            message("afterSystem", "2026-10-15T07:01:00Z"),
+            message("sameRun", "2026-10-15T07:05:00Z"),
+            message("otherSender", "2026-10-15T07:06:00Z", sender = bob),
+            message("bobAgain", "2026-10-15T07:12:00Z", sender = bob),
+            isGroup = true,
+        )
+        fun row(id: String) = rows.single { it.key == id } as MessageRow
+
+        assertFalse(row("lateNight").groupedWithNext)
+        assertFalse(row("afterMidnight").groupedWithPrevious)
+        assertFalse(row("afterMidnight").groupedWithNext)
+        assertFalse(row("afterSystem").groupedWithPrevious)
+        assertTrue(row("afterSystem").groupedWithNext)
+        assertTrue(row("sameRun").groupedWithPrevious)
+        assertFalse(row("sameRun").groupedWithNext)
+        assertFalse(row("otherSender").groupedWithPrevious)
+        // Six minutes is outside the grouping window.
+        assertFalse(row("otherSender").groupedWithNext)
+        assertFalse(row("bobAgain").groupedWithPrevious)
+    }
+
+    @Test
+    fun groupInboundMessages_carryTheSenderForAvatarAndTalkBack() {
+        val rows = map(
+            "2026-10-15T09:00:00Z",
+            separator("2026-10-15"),
+            message("m1", "2026-10-15T07:00:00Z"),
+            message("m2", "2026-10-15T07:01:00Z"),
+            isGroup = true,
+        )
+        val first = rows.single { it.key == "m1" } as MessageRow
+        val second = rows.single { it.key == "m2" } as MessageRow
+
+        assertEquals(SenderUi("u-ana", "Ana Kovač"), first.sender)
+        assertEquals(SenderUi("u-ana", "Ana Kovač"), second.sender)
+        assertEquals("Ana Kovač", first.senderName)
+        assertNull(second.senderName)
+        assertFalse(first.showAvatar)
+        assertTrue(second.showAvatar)
+
+        val direct = map("2026-10-15T09:00:00Z", message("m1", "2026-10-15T07:00:00Z"))
+        assertNull((direct.single() as MessageRow).sender)
+    }
+
+    @Test
+    fun dateLabels_areLocalized_enUs() {
+        assertEquals(
+            listOf(
+                UiText.Res(R.string.chat_today),
+                UiText.Res(R.string.chat_yesterday),
+                UiText.Raw("Tuesday"),
+                UiText.Raw("October 8"),
+                UiText.Raw(mediumDate(Locale.US, LocalDate.of(2025, 12, 24))),
+            ),
+            dayLabels(Locale.US),
+        )
+    }
+
+    @Test
+    fun dateLabels_areLocalized_deDe() {
+        assertEquals(
+            listOf(
+                UiText.Res(R.string.chat_today),
+                UiText.Res(R.string.chat_yesterday),
+                UiText.Raw("Dienstag"),
+                UiText.Raw("8. Oktober"),
+                UiText.Raw(mediumDate(Locale.GERMANY, LocalDate.of(2025, 12, 24))),
+            ),
+            dayLabels(Locale.GERMANY),
+        )
+    }
+
+    @Test
+    fun dayMonthPattern_dropsTheYearAndItsSeparators() {
+        assertEquals("MMMM d", dayMonthPattern("MMMM d, y"))
+        assertEquals("d. MMMM", dayMonthPattern("d. MMMM y"))
+        assertEquals("M月d日", dayMonthPattern("y年M月d日"))
+        assertEquals("d 'de' MMMM", dayMonthPattern("d 'de' MMMM 'de' y"))
+        assertEquals("d MMMM", dayMonthPattern("d MMMM y 'г'."))
+    }
+
+    /** Today (Thursday), yesterday, two days ago, a week ago and last year, newest first. */
+    private fun dayLabels(locale: Locale): List<UiText> = map(
+        "2026-10-15T09:00:00Z",
+        separator("2025-12-24"),
+        separator("2026-10-08"),
+        separator("2026-10-13"),
+        separator("2026-10-14"),
+        separator("2026-10-15"),
+        locale = locale,
+    ).map { (it as DateSeparatorRow).label }
+
+    private fun mediumDate(locale: Locale, day: LocalDate) =
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).format(day)
 
     private fun TimelineItem.key() = "date-${(this as TimelineItem.DateSeparator).dayStartMs}"
 }

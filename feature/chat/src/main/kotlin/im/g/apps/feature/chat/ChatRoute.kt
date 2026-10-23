@@ -16,6 +16,8 @@ import kotlinx.coroutines.launch
 /**
  * Chat screen entry point. [composer] fills the composer slot; [onOpenFile] receives a downloaded
  * attachment's local path and MIME type; [onMessageLongPress] receives a message id for the action menu.
+ * Pass the composer ViewModel's `reply` as [onReply] and `toggleReaction` as [onToggleReaction] so TalkBack
+ * can reply and reaction chips toggle; without them TalkBack offers no Reply and chips do nothing.
  * Errors show in [snackbarHostState]; share it with [im.g.apps.feature.chat.composer.ComposerRoute].
  */
 @Composable
@@ -28,6 +30,8 @@ fun ChatRoute(
     onMessageLongPress: (messageId: String) -> Unit,
     modifier: Modifier = Modifier,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+    onReply: ((messageId: String) -> Unit)? = null,
+    onToggleReaction: ((messageId: String, emoji: String) -> Unit)? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val currentOnOpenFile by rememberUpdatedState(onOpenFile)
@@ -54,5 +58,7 @@ fun ChatRoute(
         modifier = modifier,
         onRetryMedia = viewModel::retryMedia,
         snackbarHostState = snackbarHostState,
+        onReply = onReply,
+        onToggleReaction = onToggleReaction,
     )
 }

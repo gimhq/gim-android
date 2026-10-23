@@ -8,15 +8,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +26,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import im.g.apps.core.designsystem.component.GimConfirmDialog
 import im.g.apps.feature.chat.R
 import kotlinx.collections.immutable.ImmutableList
 
@@ -41,7 +41,7 @@ class MessageActionCallbacks(
     val onCancelSend: (String) -> Unit,
 )
 
-/** Bottom sheet listing the actions available for one message. */
+/** Bottom sheet listing the actions available for one message: quick reactions first, then Reply. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MessageActionSheet(
@@ -91,18 +91,14 @@ internal fun MessageActionsContent(
 /** Confirmation before deleting a message for everyone. */
 @Composable
 fun DeleteMessageDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.composer_delete_title)) },
-        text = { Text(stringResource(R.string.composer_delete_body)) },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(stringResource(R.string.composer_action_delete), color = MaterialTheme.colorScheme.error)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.composer_delete_keep)) }
-        },
+    GimConfirmDialog(
+        title = stringResource(R.string.composer_delete_title),
+        body = stringResource(R.string.composer_delete_body),
+        confirmLabel = stringResource(R.string.composer_action_delete),
+        dismissLabel = stringResource(R.string.composer_delete_keep),
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+        destructive = true,
     )
 }
 
@@ -114,6 +110,7 @@ private fun ActionRow(@StringRes label: Int, color: Color = Color.Unspecified, o
         style = MaterialTheme.typography.bodyLarge,
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 24.dp, vertical = 14.dp),
     )
@@ -125,7 +122,7 @@ private fun ReactionButton(emoji: String, own: Boolean, onClick: () -> Unit) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .size(44.dp)
+            .size(48.dp)
             .background(if (own) MaterialTheme.colorScheme.primaryContainer else Color.Transparent, CircleShape)
             .clickable(role = Role.Button, onClick = onClick)
             .semantics {
