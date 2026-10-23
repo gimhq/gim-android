@@ -51,7 +51,7 @@ class LinkDeviceScreenTest {
     @Test
     fun camera_not_requested_explains_and_asks() {
         show(LinkDeviceUiState(), CameraAccess.NOT_REQUESTED)
-        rule.onNodeWithText("gim needs the camera to scan the code.", substring = true).assertExists()
+        rule.onNodeWithText("gim needs your camera to scan the code.", substring = true).assertExists()
         rule.onNodeWithTag(LinkDeviceTestTags.SCANNER).assertDoesNotExist()
         rule.onNodeWithTag(LinkDeviceTestTags.ALLOW_CAMERA).performClick()
         assertEquals(listOf("camera"), calls)
