@@ -17,7 +17,9 @@ import kotlinx.collections.immutable.toImmutableList
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.chrono.IsoChronology
 import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeFormatterBuilder
 import java.time.format.FormatStyle
 import java.util.Locale
 import kotlin.math.abs
@@ -30,12 +32,20 @@ import kotlin.math.roundToLong
  */
 internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm", locale)
+    private val weekdayFormatter = DateTimeFormatter.ofPattern("EEEE", locale)
+    private val dayMonthFormatter = DateTimeFormatter.ofPattern(
+        dayMonthPattern(
+            DateTimeFormatterBuilder.getLocalizedDateTimePattern(FormatStyle.LONG, null, IsoChronology.INSTANCE, locale),
+        ),
+        locale,
+    )
     private val dateFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
 
     private class Cached(val input: Any, val row: TimelineRowUi)
 
     private data class MessageInput(
         val item: MessageItem,
+        val inGroup: Boolean,
         val showSender: Boolean,
         val groupedWithPrevious: Boolean,
         val groupedWithNext: Boolean,
@@ -78,6 +88,7 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
                     val previous = grouped(items.getOrNull(index - 1), message)
                     MessageInput(
                         item = message,
+                        inGroup = isGroup,
                         showSender = isGroup && !message.isOwn && !previous,
                         groupedWithPrevious = previous,
                         groupedWithNext = grouped(items.getOrNull(index + 1), message),
@@ -142,6 +153,7 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
             groupedWithNext = input.groupedWithNext,
             mediaUnavailable = input.mediaUnavailable,
             sendFailure = (message.sendState as? SendState.Failed)?.cause,
+            sender = if (input.inGroup && !message.isOwn) SenderUi(message.sender.userId, message.sender.displayLabel) else null,
         )
     }
 
@@ -150,7 +162,13 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
         return when (day) {
             today -> UiText.Res(R.string.chat_today)
             today.minusDays(1) -> UiText.Res(R.string.chat_yesterday)
-            else -> UiText.Raw(dateFormatter.format(day))
+            else -> UiText.Raw(
+                when {
+                    day.isBefore(today) && day.isAfter(today.minusDays(7)) -> weekdayFormatter.format(day)
+                    day.year == today.year -> dayMonthFormatter.format(day)
+                    else -> dateFormatter.format(day)
+                },
+            )
         }
     }
 
@@ -241,4 +259,22 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
         const val MIN_ASPECT_RATIO = 0.5f
         const val MAX_ASPECT_RATIO = 2f
     }
+}
+
+/**
+ * [longDatePattern] without its year field and the separators that belong to it, e.g. "MMMM d, y" (en-US)
+ * becomes "MMMM d" and "d. MMMM y" (de-DE) becomes "d. MMMM".
+ */
+internal fun dayMonthPattern(longDatePattern: String): String {
+    // Fields are runs of one pattern letter; everything else (quoted text included) is a literal.
+    val tokens = Regex("([a-zA-Z])\\1*|'[^']*'|[^a-zA-Z']+").findAll(longDatePattern).map { it.value }.toList()
+    fun isField(token: String) = token[0] in 'a'..'z' || token[0] in 'A'..'Z'
+    val year = tokens.indexOfFirst { it[0] == 'y' || it[0] == 'u' }
+    if (year < 0) return longDatePattern
+    var start = year
+    var end = year + 1
+    while (end < tokens.size && !isField(tokens[end])) end++
+    // A trailing year also takes the separator before it ("MMMM d, y").
+    if (end == tokens.size) while (start > 0 && !isField(tokens[start - 1])) start--
+    return (tokens.subList(0, start) + tokens.subList(end, tokens.size)).joinToString("").trim()
 }

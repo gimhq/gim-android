@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,7 +36,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -129,7 +134,9 @@ fun ChatListScreen(
                         title = stringResource(R.string.chatlist_empty_title),
                         body = stringResource(R.string.chatlist_empty_body),
                         action = {
-                            TextButton(onClick = onNewChat) { Text(stringResource(R.string.chatlist_start_chat)) }
+                            Button(onClick = onNewChat, modifier = Modifier.heightIn(min = 48.dp)) {
+                                Text(stringResource(R.string.chatlist_start_chat))
+                            }
                         },
                     )
                 }
@@ -227,14 +234,24 @@ private fun NewChatFab(onNewChat: () -> Unit, onNewGroup: () -> Unit) {
 
 @Composable
 private fun ChatRow(row: ChatRowUi, onClick: () -> Unit) {
+    val preview = previewText(row)
+    val time = timeText(row.time)
+    val unread = if (row.unreadCount > 0) {
+        pluralStringResource(R.plurals.chatlist_unread_messages, row.unreadCount, row.unreadCount)
+    } else {
+        null
+    }
+    val description = listOfNotNull(row.title, unread, preview, time).joinToString(", ")
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .heightIn(min = 72.dp)
+            .clickable(onClickLabel = stringResource(R.string.chatlist_open_chat), onClick = onClick)
+            .semantics { contentDescription = description }
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Avatar(name = row.title, imagePath = row.avatarPath, size = 52.dp)
+        Avatar(name = row.title, imagePath = row.avatarPath, size = 56.dp, colorKey = row.id)
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -247,15 +264,21 @@ private fun ChatRow(row: ChatRowUi, onClick: () -> Unit) {
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(8.dp))
+                // Not weighted, so it is measured first and keeps its full width; the title ellipsizes instead.
                 Text(
-                    text = row.time,
+                    text = time,
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (row.unreadCount > 0) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    maxLines = 1,
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = previewText(row),
+                    text = preview,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -264,11 +287,22 @@ private fun ChatRow(row: ChatRowUi, onClick: () -> Unit) {
                 )
                 if (row.unreadCount > 0) {
                     Spacer(Modifier.width(8.dp))
-                    UnreadBadge(count = row.unreadCount)
+                    // The row description already says the count.
+                    UnreadBadge(count = row.unreadCount, describe = false)
                 }
             }
         }
     }
+}
+
+@Composable
+private fun timeText(label: ChatTimeLabel): String = when (label) {
+    ChatTimeLabel.JustNow -> stringResource(R.string.chatlist_time_now)
+    is ChatTimeLabel.Minutes -> pluralStringResource(R.plurals.chatlist_time_minutes, label.minutes, label.minutes)
+    is ChatTimeLabel.Clock -> label.text
+    ChatTimeLabel.Yesterday -> stringResource(R.string.chatlist_time_yesterday)
+    is ChatTimeLabel.Weekday -> label.text
+    is ChatTimeLabel.Date -> label.text
 }
 
 @Composable
@@ -295,8 +329,8 @@ private fun ChatListScreenPreview() {
         ChatListScreen(
             state = ChatListUiState(
                 rows = persistentListOf(
-                    ChatRowUi("g", "Aegean Crew", null, PreviewSender.Member("Nikos"), "Table booked", "10:02", 3),
-                    ChatRowUi("d", "Lukas Berger", null, PreviewSender.You, "See you then!", "Fri", 0),
+                    ChatRowUi("g", "Aegean Crew", null, PreviewSender.Member("Nikos"), "Table booked", ChatTimeLabel.Minutes(2), 3),
+                    ChatRowUi("d", "Lukas Berger", null, PreviewSender.You, "See you then!", ChatTimeLabel.Weekday("Fri"), 0),
                 ),
                 connection = ConnectionBannerUi.CONNECTING,
             ),

@@ -27,7 +27,8 @@ data class ChatRowUi(
     val sender: PreviewSender?,
     /** Last message as rendered by gim-core ("Photo", "File: name", "Message deleted", ...). */
     val preview: String,
-    val time: String,
+    /** When the chat last changed, relative to now. */
+    val time: ChatTimeLabel,
     val unreadCount: Int,
     /** Leaving or left chats show their state instead of the last message. */
     val state: ChatState = ChatState.ACTIVE,
@@ -40,6 +41,27 @@ sealed interface PreviewSender {
 
     /** Another member of a group chat. */
     data class Member(val firstName: String) : PreviewSender
+}
+
+/** Row time, formatted for the clock and locale by the view model and turned into text by the row. */
+@Immutable
+sealed interface ChatTimeLabel {
+    /** Under a minute ago. */
+    data object JustNow : ChatTimeLabel
+
+    /** Under an hour ago, today. */
+    data class Minutes(val minutes: Int) : ChatTimeLabel
+
+    /** Localized clock time: earlier today, or a future time from clock skew. */
+    data class Clock(val text: String) : ChatTimeLabel
+
+    data object Yesterday : ChatTimeLabel
+
+    /** Localized short weekday for the previous six days. */
+    data class Weekday(val text: String) : ChatTimeLabel
+
+    /** Localized day and month this year, or a short date for older years. */
+    data class Date(val text: String) : ChatTimeLabel
 }
 
 enum class ConnectionBannerUi { WAITING_FOR_NETWORK, CONNECTING, UPDATING }

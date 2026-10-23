@@ -15,6 +15,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -25,7 +27,9 @@ import java.io.File
 
 /**
  * Circular avatar. Draws the image at [imagePath] (a local file) when present; the initials on a
- * name-derived color stay underneath, so they remain visible while loading or if decoding fails.
+ * [colorKey]-derived color stay underneath, so they remain visible while loading or if decoding fails.
+ * Pass the chat id as [colorKey] to keep the color stable when the name changes. With a
+ * [contentDescription] the avatar is one semantics node; without it, it is decorative.
  */
 @Composable
 fun Avatar(
@@ -33,15 +37,24 @@ fun Avatar(
     imagePath: String?,
     size: Dp,
     modifier: Modifier = Modifier,
+    colorKey: String = name,
+    contentDescription: String? = null,
 ) {
     val initials = remember(name) { avatarInitials(name) }
-    val background = remember(name) { avatarColor(name) }
+    val background = remember(colorKey) { avatarColor(colorKey) }
     val fontSize = with(LocalDensity.current) { (size * 0.4f).toSp() }
     Box(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .background(background),
+            .background(background)
+            .then(
+                if (contentDescription != null) {
+                    Modifier.clearAndSetSemantics { this.contentDescription = contentDescription }
+                } else {
+                    Modifier
+                },
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Text(text = initials, color = Color.White, fontSize = fontSize, fontWeight = FontWeight.SemiBold, maxLines = 1)
@@ -68,9 +81,9 @@ internal fun avatarInitials(name: String): String {
 }
 
 /** Stable across processes and devices: String.hashCode is fixed by the JVM spec. */
-internal fun avatarColor(name: String): Color {
+internal fun avatarColor(key: String): Color {
     val palette = GimPalette.AvatarColors
-    return palette[Math.floorMod(name.trim().lowercase().hashCode(), palette.size)]
+    return palette[Math.floorMod(key.trim().lowercase().hashCode(), palette.size)]
 }
 
 @GimPreviews

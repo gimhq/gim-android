@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -42,7 +43,9 @@ fun ReactionChips(
                 selected = reaction.mine,
                 onClick = { onClick(reaction) },
                 label = { Text("${reaction.emoji} ${reaction.count}") },
-                modifier = Modifier.semantics { contentDescription = description },
+                modifier = Modifier
+                    .semantics { contentDescription = description }
+                    .minimumInteractiveComponentSize(),
             )
         }
     }

@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.Duration
 import java.time.ZonedDateTime
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
@@ -41,7 +42,7 @@ typealias ThumbnailPathProvider = (chatId: String, messageId: String) -> String
 /**
  * Chat list screen state from gim-core's chat list and connection state. Rows are shown as delivered by
  * the client (offline included); avatar thumbnails are fetched once per avatar and patched in when ready.
- * Row times are re-formatted on every [ticker] emission so day-relative labels follow the clock.
+ * Row times are re-formatted on every [ticker] emission so relative labels follow the clock.
  */
 class ChatListViewModel(
     private val client: GimClient,
@@ -49,7 +50,7 @@ class ChatListViewModel(
     private val thumbnailPath: ThumbnailPathProvider,
     private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
     locale: Locale = Locale.getDefault(),
-    ticker: Flow<Unit> = midnightTicker(clock),
+    ticker: Flow<Unit> = minuteTicker(clock),
 ) : ViewModel() {
     private data class MediaKey(val chatId: String, val messageId: String)
 
@@ -124,18 +125,18 @@ class ChatListViewModel(
     }
 }
 
-/** Emits on collection and then at every local midnight in [clock]'s zone. */
-internal fun midnightTicker(clock: Clock): Flow<Unit> = flow {
+/** Emits on collection and then at the start of every minute in [clock]'s zone, local midnight included. */
+internal fun minuteTicker(clock: Clock): Flow<Unit> = flow {
     while (true) {
         emit(Unit)
-        delay(millisUntilNextMidnight(clock))
+        delay(millisUntilNextMinute(clock))
     }
 }
 
-internal fun millisUntilNextMidnight(clock: Clock): Long {
+internal fun millisUntilNextMinute(clock: Clock): Long {
     val now = ZonedDateTime.now(clock)
-    val midnight = now.toLocalDate().plusDays(1).atStartOfDay(clock.zone)
-    return Duration.between(now, midnight).toMillis().coerceAtLeast(1)
+    val next = now.truncatedTo(ChronoUnit.MINUTES).plusMinutes(1)
+    return Duration.between(now, next).toMillis().coerceAtLeast(1)
 }
 
 fun chatListViewModelFactory(
