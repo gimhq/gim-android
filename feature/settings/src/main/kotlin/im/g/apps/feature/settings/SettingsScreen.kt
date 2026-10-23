@@ -44,6 +44,8 @@ import im.g.apps.core.designsystem.theme.GimTheme
 /** Test tags; the device E2E tests repeat these literals. */
 internal object SettingsTestTags {
     const val HEADER = "settings_header"
+    const val RECOVERY_KEY = "settings_recovery_key"
+    const val NOTIFICATIONS = "settings_notifications"
     const val APPEARANCE = "settings_appearance"
     const val LANGUAGE = "settings_language"
     const val HELP = "settings_help"
@@ -68,12 +70,22 @@ fun SettingsRoute(
     SettingsScreen(state = state, actions = actions, modifier = modifier, themeMode = themeMode, languageTag = languageTag)
 }
 
-/** Callbacks of [SettingsScreen]; the header is clickable only when [onOpenProfile] is set. */
+/**
+ * Callbacks of [SettingsScreen]; the header is clickable only when [onOpenProfile] is set. The privacy callbacks,
+ * [onNewRecoveryKey] and [onDeleteAccount] belong to rows hidden behind [AccountSafety.AVAILABLE] and are not wired yet.
+ */
 class SettingsActions(
     val onBack: () -> Unit = {},
     val onOpenProfile: (() -> Unit)? = null,
+    val onRecoveryKey: () -> Unit = {},
     val onDevices: () -> Unit = {},
     val onLinkDevice: () -> Unit = {},
+    val onNewRecoveryKey: () -> Unit = {},
+    val onDeleteAccount: () -> Unit = {},
+    val onNotifications: () -> Unit = {},
+    val onReadReceiptsChange: (Boolean) -> Unit = {},
+    val onTypingIndicatorChange: (Boolean) -> Unit = {},
+    val onBlockedPeople: () -> Unit = {},
     val onServers: () -> Unit = {},
     val onAppearance: () -> Unit = {},
     val onLanguage: () -> Unit = {},
@@ -83,7 +95,8 @@ class SettingsActions(
 
 /**
  * Settings home: the own profile header, one composable per section, and sign out at the bottom. [themeMode] and
- * [languageTag] (null: phone language) are shown as the values of the "Look and language" rows.
+ * [languageTag] (null: phone language) are shown as the values of the "Look and language" rows; [privacy] feeds the
+ * hidden "Privacy" switches.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,6 +106,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     languageTag: String? = null,
+    privacy: PrivacySettings = PrivacySettings(),
 ) {
     Scaffold(
         modifier = modifier,
@@ -116,6 +130,8 @@ fun SettingsScreen(
             ProfileHeader(state, actions.onOpenProfile)
             HorizontalDivider()
             AccountSection(actions)
+            NotificationsSection(actions)
+            if (AccountSafety.AVAILABLE) PrivacySection(actions, privacy)
             LookAndLanguageSection(actions, themeMode, languageTag)
             AdvancedSection(actions)
             HelpSection(actions)
@@ -154,8 +170,53 @@ private fun ProfileHeader(state: SettingsUiState, onOpenProfile: (() -> Unit)?) 
 @Composable
 private fun AccountSection(actions: SettingsActions) {
     SettingsSectionHeader(stringResource(R.string.settings_section_account))
+    SettingsRow(
+        title = stringResource(R.string.settings_recovery_key),
+        onClick = actions.onRecoveryKey,
+        modifier = Modifier.testTag(SettingsTestTags.RECOVERY_KEY),
+    )
     SettingsRow(title = stringResource(R.string.settings_linked_devices), onClick = actions.onDevices)
     SettingsRow(title = stringResource(R.string.settings_link_device), onClick = actions.onLinkDevice)
+    if (AccountSafety.AVAILABLE) {
+        SettingsRow(title = stringResource(R.string.settings_new_recovery_key), onClick = actions.onNewRecoveryKey)
+        SettingsRow(
+            title = stringResource(R.string.settings_delete_account),
+            onClick = actions.onDeleteAccount,
+            titleColor = MaterialTheme.colorScheme.error,
+        )
+    }
+}
+
+@Composable
+private fun NotificationsSection(actions: SettingsActions) {
+    SettingsSectionHeader(stringResource(R.string.settings_section_notifications))
+    SettingsRow(
+        title = stringResource(R.string.settings_notifications),
+        onClick = actions.onNotifications,
+        modifier = Modifier.testTag(SettingsTestTags.NOTIFICATIONS),
+        value = stringResource(R.string.settings_notifications_value),
+    )
+}
+
+/** The values of the hidden "Privacy" switches. */
+data class PrivacySettings(val readReceipts: Boolean = true, val typingIndicator: Boolean = true)
+
+@Composable
+private fun PrivacySection(actions: SettingsActions, privacy: PrivacySettings) {
+    SettingsSectionHeader(stringResource(R.string.settings_section_privacy))
+    SettingsSwitchRow(
+        title = stringResource(R.string.settings_read_receipts),
+        checked = privacy.readReceipts,
+        onCheckedChange = actions.onReadReceiptsChange,
+        value = stringResource(R.string.settings_read_receipts_value),
+    )
+    SettingsSwitchRow(
+        title = stringResource(R.string.settings_typing_indicator),
+        checked = privacy.typingIndicator,
+        onCheckedChange = actions.onTypingIndicatorChange,
+        value = stringResource(R.string.settings_typing_indicator_value),
+    )
+    SettingsRow(title = stringResource(R.string.settings_blocked_people), onClick = actions.onBlockedPeople)
 }
 
 @Composable

@@ -195,4 +195,16 @@ class ContactsScreensTest {
         rule.onNodeWithText("Ana Kovač").assertDoesNotExist()
         assertFalse(vm.state.value.members.any { it.user.userId == DemoData.ana.userId })
     }
+
+    @Test
+    fun groupInfo_hidesTheChatActionsGroup() {
+        val vm = GroupInfoViewModel(demoClient(scope), DemoData.GROUP_CHAT_ID)
+        rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}) } }
+
+        rule.onNodeWithText("Sofia Costa (You)").assertExists()
+        rule.onNodeWithTag(ChatActionsTestTags.GROUP).assertDoesNotExist()
+        rule.onNodeWithText("Chat actions").assertDoesNotExist()
+        rule.onNodeWithText("Mute").assertDoesNotExist()
+        rule.onNodeWithText("Report").assertDoesNotExist()
+    }
 }

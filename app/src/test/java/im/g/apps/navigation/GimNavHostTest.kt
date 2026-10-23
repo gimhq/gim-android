@@ -16,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.core.app.NotificationManagerCompat
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
@@ -33,11 +34,13 @@ import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakeGimClientFactory
 import im.g.apps.core.designsystem.theme.GimTheme
 import im.g.apps.feature.settings.ThemeMode
+import im.g.apps.push.PushChannel
 import im.g.apps.testContainer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
@@ -216,6 +219,31 @@ class GimNavHostTest {
         rule.onNodeWithTag("help_licences").performScrollTo().performClick()
         rule.waitUntilAtLeastOneExists(hasText("AndroidX and Jetpack Compose"), TIMEOUT)
         rule.runOnIdle { assertEquals(Routes.SETTINGS_LICENCES, nav.currentDestination?.route) }
+    }
+
+    @Test
+    fun settings_opens_your_recovery_key() {
+        launch(testContainer(scope = scope))
+
+        openSettingsRow("Your recovery key")
+
+        rule.waitUntilAtLeastOneExists(hasText("Your recovery key is a spare key"), TIMEOUT)
+        rule.runOnIdle { assertEquals(Routes.SETTINGS_RECOVERY_KEY, nav.currentDestination?.route) }
+    }
+
+    @Test
+    fun settings_opens_notifications_with_a_row_per_push_channel_that_exists() {
+        launch(testContainer(scope = scope))
+
+        openSettingsRow("Notifications")
+
+        rule.waitUntilAtLeastOneExists(hasText("All notifications"), TIMEOUT)
+        rule.runOnIdle { assertEquals(Routes.SETTINGS_NOTIFICATIONS, nav.currentDestination?.route) }
+        rule.onNodeWithText("Messages").assertExists()
+        rule.onNodeWithText("Chat invitations").assertExists()
+        // A channel deep link only works for a channel the app created.
+        val manager = NotificationManagerCompat.from(ApplicationProvider.getApplicationContext())
+        PushChannel.entries.forEach { assertNotNull(manager.getNotificationChannel(it.id)) }
     }
 
     @Test
