@@ -62,6 +62,7 @@ import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.onboardingShown
 import im.g.apps.testing.saveFailureScreenshot
 import im.g.apps.testing.skipIntro
+import im.g.apps.testing.signOutFromSettings
 import java.io.File
 import java.security.KeyStore
 import java.util.UUID
@@ -295,18 +296,11 @@ class MessagingE2eTest {
         waitFor("composer shows left", hasTestTag(TAG_BANNER) and hasText(string(ChatR.string.chat_composer_left)))
         compose.onNodeWithTag(TAG_COMPOSER).assertIsNotEnabled()
 
-        // Sign out through the chat list overflow menu.
+        // Sign out through Settings.
         assertTrue(keystoreHasAlias())
         compose.onNodeWithContentDescription(string(ChatR.string.chat_back)).performClick()
         waitForText("chat list before sign-out", string(ChatListR.string.chatlist_title))
-        compose.onNodeWithContentDescription(string(ChatListR.string.chatlist_more_options)).performClick()
-        waitForText("overflow menu", string(ChatListR.string.chatlist_sign_out))
-        compose.onNodeWithText(string(ChatListR.string.chatlist_sign_out)).performClick()
-        waitForText("sign-out dialog", string(ChatListR.string.chatlist_sign_out_title))
-        // The dialog's confirm button, once the overflow menu item has gone.
-        val signOut = hasText(string(ChatListR.string.chatlist_sign_out))
-        waitFor("overflow menu closed") { compose.onAllNodes(signOut).fetchSemanticsNodes().size == 1 }
-        compose.onNode(signOut).performClick()
+        compose.signOutFromSettings(LOG_TAG, timeoutMs, ::failStep)
         waitFor("onboarding after sign-out", compose.onboardingShown())
         assertFalse(keystoreHasAlias())
     }
