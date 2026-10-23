@@ -1,5 +1,6 @@
 package im.g.apps.feature.contacts
 
+import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Text
 import androidx.compose.ui.test.assertIsEnabled
@@ -13,8 +14,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import im.g.apps.core.bridge.fake.DemoData
+import im.g.apps.core.designsystem.R as DesignR
 import im.g.apps.core.designsystem.theme.GimTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -69,8 +72,8 @@ class ContactsScreensTest {
             }
         }
         rule.onNodeWithText("Ana Kovač, @nikos does not accept contacts from you.").assertExists()
-        rule.onNodeWithText("This chat's hub does not accept messages from you.").assertExists()
-        rule.onNodeWithText("Your account is not admitted on this hub.").assertExists()
+        rule.onNodeWithText(ApplicationProvider.getApplicationContext<Context>().getString(DesignR.string.gim_error_not_admitted_by_peer)).assertExists()
+        rule.onNodeWithText(ApplicationProvider.getApplicationContext<Context>().getString(DesignR.string.gim_error_user_not_admitted)).assertExists()
     }
 
     @Test

@@ -1,4 +1,4 @@
 <resources>
-    <string name="push_mock_channel">Push mock</string>
-    <string name="push_mock_polling">Polling the push mock</string>
+    <string name="push_mock_channel">Test notifications</string>
+    <string name="push_mock_polling">Checking for test notifications</string>
 </resources>
