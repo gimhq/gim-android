@@ -80,4 +80,16 @@ class PushNotifierTest {
         notifier.show(notificationContent())
         assertEquals(0, manager.activeNotifications.size)
     }
+
+    @Test
+    fun ensure_channels_creates_every_channel_with_its_label_without_a_notification() {
+        shadowOf(context).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+
+        ensurePushChannels(context)
+
+        PushChannel.entries.forEach {
+            assertEquals(context.getString(it.label), manager.getNotificationChannel(it.id)?.name)
+        }
+        assertEquals(0, manager.activeNotifications.size)
+    }
 }

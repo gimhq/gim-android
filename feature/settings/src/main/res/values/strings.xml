@@ -5,7 +5,19 @@
     <string name="settings_username">\@%1$s</string>
     <string name="settings_section_account">Account and devices</string>
     <string name="settings_linked_devices">Linked devices</string>
+    <string name="settings_recovery_key">Your recovery key</string>
     <string name="settings_link_device">Link a new device</string>
+    <string name="settings_new_recovery_key">Create a new recovery key</string>
+    <string name="settings_delete_account">Delete account</string>
+    <string name="settings_section_notifications">Notifications</string>
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_notifications_value">Sounds and alerts</string>
+    <string name="settings_section_privacy">Privacy</string>
+    <string name="settings_read_receipts">Read receipts</string>
+    <string name="settings_read_receipts_value">Let people see when you\'ve read their messages.</string>
+    <string name="settings_typing_indicator">Typing indicator</string>
+    <string name="settings_typing_indicator_value">Let people see when you\'re typing.</string>
+    <string name="settings_blocked_people">Blocked people</string>
     <string name="settings_section_look">Look and language</string>
     <string name="settings_appearance">Appearance</string>
     <string name="settings_language">Language</string>
@@ -57,6 +69,15 @@
 
     <string name="language_title">Language</string>
     <string name="language_phone">Use phone language</string>
+
+    <string name="recovery_key_title">Your recovery key</string>
+    <string name="recovery_key_together">Your recovery key and your Account ID bring your account back on a new phone.</string>
+    <string name="recovery_key_once">Nobody can show you your key again. Not even gim.</string>
+    <string name="recovery_key_keep_safe">Keep your recovery kit somewhere safe.</string>
+
+    <string name="notifications_title">Notifications</string>
+    <string name="notifications_body">Choose sounds and alerts for each kind of notification. Your phone\'s settings open.</string>
+    <string name="notifications_all">All notifications</string>
 
     <string name="help_title">Help and about</string>
     <string name="help_how_gim_works">How gim works</string>

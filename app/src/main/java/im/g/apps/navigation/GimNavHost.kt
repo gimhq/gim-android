@@ -50,7 +50,10 @@ import im.g.apps.feature.settings.AppearanceRoute
 import im.g.apps.feature.settings.HelpScreen
 import im.g.apps.feature.settings.LanguageRoute
 import im.g.apps.feature.settings.LicencesScreen
+import im.g.apps.feature.settings.NotificationChannelItem
+import im.g.apps.feature.settings.NotificationsRoute
 import im.g.apps.feature.settings.ProfileRoute
+import im.g.apps.feature.settings.RecoveryKeyScreen
 import im.g.apps.feature.settings.SettingsActions
 import im.g.apps.feature.settings.SettingsRoute
 import im.g.apps.feature.settings.appearanceViewModelFactory
@@ -60,6 +63,8 @@ import im.g.apps.feature.settings.settingsViewModelFactory
 import im.g.apps.feature.settings.supportedLanguageTags
 import im.g.apps.deleteRecoveryKitFiles
 import im.g.apps.openFile
+import im.g.apps.push.PushChannel
+import im.g.apps.push.ensurePushChannels
 import im.g.apps.shareRecoveryKit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -128,8 +133,10 @@ fun GimNavHost(
                 actions = SettingsActions(
                     onBack = { navController.popBackStack() },
                     onOpenProfile = { navController.navigate(Routes.SETTINGS_PROFILE) },
+                    onRecoveryKey = { navController.navigate(Routes.SETTINGS_RECOVERY_KEY) },
                     onDevices = { navController.navigate(Routes.DEVICES) },
                     onLinkDevice = { navController.navigate(Routes.LINK_DEVICE) },
+                    onNotifications = { navController.navigate(Routes.SETTINGS_NOTIFICATIONS) },
                     onServers = { navController.navigate(Routes.HUBS) },
                     onAppearance = { navController.navigate(Routes.SETTINGS_APPEARANCE) },
                     onLanguage = { navController.navigate(Routes.SETTINGS_LANGUAGE) },
@@ -146,6 +153,18 @@ fun GimNavHost(
                 // Re-read on every visit: a new language recreates the activity anyway.
                 languageTag = container.appLocales.current(),
             )
+        }
+        composable(Routes.SETTINGS_RECOVERY_KEY) {
+            RecoveryKeyScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.SETTINGS_NOTIFICATIONS) {
+            val context = LocalContext.current
+            // Channels are otherwise created by the first push; a channel's system settings need it to exist.
+            val channels = remember {
+                ensurePushChannels(context)
+                PushChannel.entries.map { NotificationChannelItem(it.id, context.getString(it.label)) }
+            }
+            NotificationsRoute(channels = channels, onBack = { navController.popBackStack() })
         }
         composable(Routes.SETTINGS_APPEARANCE) {
             AppearanceRoute(

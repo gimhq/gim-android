@@ -1,6 +1,7 @@
 package im.g.apps.feature.settings
 
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -83,6 +84,29 @@ class SettingsScreenTest {
         rule.onNodeWithContentDescription("Go back").performClick()
 
         assertEquals(listOf("devices", "link", "servers", "appearance", "language", "help", "back"), calls)
+    }
+
+    @Test
+    fun recovery_key_and_notifications_rows_call_their_callbacks() {
+        val calls = mutableListOf<String>()
+        show(actions = SettingsActions(onRecoveryKey = { calls += "recovery" }, onNotifications = { calls += "notifications" }))
+
+        rule.onNodeWithTag(SettingsTestTags.RECOVERY_KEY).performScrollTo().assertTextContains("Your recovery key").performClick()
+        rule.onNodeWithTag(SettingsTestTags.NOTIFICATIONS).performScrollTo().assertTextContains("Notifications").performClick()
+
+        assertEquals(listOf("recovery", "notifications"), calls)
+    }
+
+    @Test
+    fun hidden_account_safety_rows_are_not_shown() {
+        show()
+
+        rule.onNodeWithText("Privacy").assertDoesNotExist()
+        rule.onNodeWithText("Read receipts").assertDoesNotExist()
+        rule.onNodeWithText("Typing indicator").assertDoesNotExist()
+        rule.onNodeWithText("Blocked people").assertDoesNotExist()
+        rule.onNodeWithText("Create a new recovery key").assertDoesNotExist()
+        rule.onNodeWithText("Delete account").assertDoesNotExist()
     }
 
     @Test
