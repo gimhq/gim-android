@@ -4,12 +4,15 @@ import android.app.Application
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -56,23 +59,32 @@ class GimNavHostTest {
         }
     }
 
-    /** Runs the new-account onboarding; claims "sofia" or skips the handle step. */
+    /** Skips the onboarding intro and waits for Welcome. */
+    private fun skipIntro() {
+        rule.waitUntilAtLeastOneExists(hasTestTag("onboarding_intro_skip"), TIMEOUT)
+        rule.onNodeWithTag("onboarding_intro_skip").performClick()
+        rule.waitUntilAtLeastOneExists(hasTestTag("onboarding_create_account"), TIMEOUT)
+    }
+
+    /** Runs the new-account onboarding from Welcome; claims "sofia" or skips the handle step. */
     private fun register(claimHandle: Boolean) {
-        rule.onNodeWithText("Welcome to gim").assertExists()
+        rule.onNodeWithTag("onboarding_create_account").assertExists()
         rule.onNode(hasSetTextAction()).performTextInput(DemoData.SERVER_URL)
-        rule.onNodeWithText("Create new account").performClick()
-        rule.onNode(hasSetTextAction()).performTextInput("Sofia Costa")
-        rule.onNodeWithText("Create account").performClick()
-        rule.waitUntilAtLeastOneExists(hasText("Save your recovery code"), TIMEOUT)
-        rule.onNodeWithText(FakeGimClient.fakeRecoveryCode(1)).assertExists()
-        rule.onNodeWithText("I have saved my recovery code").performClick()
-        rule.onNodeWithText("Continue").performClick()
-        rule.waitUntilAtLeastOneExists(hasText("Choose a handle"), TIMEOUT)
+        rule.onNodeWithTag("onboarding_create_account").performClick()
+        rule.onNodeWithTag("onboarding_display_name").performTextInput("Sofia Costa")
+        rule.onNodeWithTag("onboarding_submit").performClick()
+        rule.waitUntilAtLeastOneExists(hasTestTag("onboarding_recovery_code"), TIMEOUT)
+        val code = FakeGimClient.fakeRecoveryCode(1)
+        rule.onNodeWithText(code).assertExists()
+        rule.onNodeWithTag("onboarding_code_continue").performScrollTo().performClick()
+        rule.onNodeWithTag("onboarding_kit_check").performTextInput(code.replace("-", "").takeLast(4))
+        rule.onNodeWithTag("onboarding_kit_check_confirm").performClick()
+        rule.waitUntilAtLeastOneExists(hasTestTag("onboarding_handle"), TIMEOUT)
         if (claimHandle) {
-            rule.onNode(hasSetTextAction()).performTextInput("sofia")
-            rule.onNodeWithText("Claim handle").performClick()
+            rule.onNodeWithTag("onboarding_handle").performTextInput("sofia")
+            rule.onNodeWithTag("onboarding_claim_handle").performClick()
         } else {
-            rule.onNodeWithText("Skip for now").performClick()
+            rule.onNodeWithTag("onboarding_skip_handle").performClick()
         }
     }
 
@@ -98,10 +110,11 @@ class GimNavHostTest {
             ),
         )
 
+        skipIntro()
         register(claimHandle = true)
 
         rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
-        rule.onNodeWithText("Choose a handle").assertDoesNotExist()
+        rule.onNodeWithTag("onboarding_handle").assertDoesNotExist()
     }
 
     @Test
@@ -123,7 +136,7 @@ class GimNavHostTest {
         rule.onNodeWithText("Sign out").performClick()
         rule.onNode(hasText("Sign out") and hasClickAction()).performClick()
 
-        rule.waitUntilAtLeastOneExists(hasText("Welcome to gim"), TIMEOUT)
+        skipIntro()
         rule.runOnIdle {
             assertEquals(Routes.ONBOARDING, nav.currentDestination?.route)
             assertNull(nav.previousBackStackEntry)
@@ -174,7 +187,7 @@ class GimNavHostTest {
         rule.waitUntilAtLeastOneExists(hasText("This device was removed"), TIMEOUT)
         rule.onNodeWithText("OK").performClick()
 
-        rule.waitUntilAtLeastOneExists(hasText("Welcome to gim"), TIMEOUT)
+        skipIntro()
         rule.runOnIdle { assertNull(nav.previousBackStackEntry) }
         assertNull(store.get())
         assertNull(container.manager.client.value)
@@ -190,10 +203,11 @@ class GimNavHostTest {
             ),
         )
 
+        skipIntro()
         rule.onNode(hasSetTextAction()).performTextInput(DemoData.SERVER_URL)
-        rule.onNodeWithText("Link to existing device").performClick()
-        rule.waitUntilAtLeastOneExists(hasText("Compare the codes"), TIMEOUT)
-        rule.onNodeWithText("The codes match").performClick()
+        rule.onNodeWithTag("onboarding_link_device").performClick()
+        rule.waitUntilAtLeastOneExists(hasTestTag("onboarding_link_sas"), TIMEOUT)
+        rule.onNodeWithTag("onboarding_link_confirm").performClick()
 
         rule.waitUntilAtLeastOneExists(hasText("No chats yet"), TIMEOUT)
         rule.runOnIdle {

@@ -22,6 +22,7 @@ import im.g.apps.testing.awaitServerReachable
 import im.g.apps.testing.clickWhenSettled
 import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
+import im.g.apps.testing.skipIntro
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -68,6 +69,7 @@ class CreateRetryE2eTest {
         }
         val cannotReach = hasText(string(OnboardingR.string.onboarding_error_cannot_reach_server))
 
+        compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
         waitFor("onboarding shown", hasText(string(OnboardingR.string.onboarding_welcome_title)))
         enterText("hub address", TAG_SERVER_URL, unreachableUrl)
         click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))

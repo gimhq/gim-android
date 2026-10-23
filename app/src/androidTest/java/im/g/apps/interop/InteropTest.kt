@@ -38,7 +38,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import im.g.apps.GimApplication
 import im.g.apps.MainActivity
 import im.g.apps.testing.awaitServerReachable
+import im.g.apps.testing.completeRecoveryKit
 import im.g.apps.testing.keepScreenOn
+import im.g.apps.testing.skipIntro
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.hamcrest.CoreMatchers.not
@@ -99,19 +101,17 @@ class InteropTest {
     @Test
     fun interopWithCliPeers() {
         keepScreenOn(instrumentation, compose.activity)
-        // a. Create the identity through onboarding, acknowledge the recovery code and claim the handle. Buttons
-        // are scrolled into view with the soft keyboard hidden, which can cover them.
+        // a. Skip the intro, create the identity through onboarding, pass the recovery kit check and claim the
+        // handle. Buttons are scrolled into view with the soft keyboard hidden, which can cover them.
         awaitServerReachable(instrumentation.targetContext, serverUrl)
+        compose.skipIntro(Rendezvous.TAG, TIMEOUT_MS, ::fail)
         compose.waitForText(string(OnboardingR.string.onboarding_welcome_title))
         compose.onNodeWithTag(TAG_SERVER_URL).performTextReplacement(serverUrl)
         click(TAG_CREATE_ACCOUNT)
         compose.waitFor(hasTestTag(TAG_DISPLAY_NAME))
         compose.onNodeWithTag(TAG_DISPLAY_NAME).performTextReplacement(androidName)
         click(TAG_SUBMIT)
-        compose.waitFor(hasTestTag(TAG_CODE_SAVED))
-        click(TAG_CODE_SAVED)
-        click(TAG_CODE_CONTINUE)
-        compose.waitFor(hasTestTag(TAG_HANDLE))
+        compose.completeRecoveryKit(Rendezvous.TAG, TIMEOUT_MS, ::fail)
         compose.onNodeWithTag(TAG_HANDLE).performTextReplacement(androidHandle)
         click(TAG_CLAIM_HANDLE)
         compose.waitForText(string(ChatListR.string.chatlist_title))
@@ -278,13 +278,17 @@ class InteropTest {
         try {
             waitUntil(TIMEOUT_MS, condition)
         } catch (e: ComposeTimeoutException) {
-            val screen = runCatching {
-                onAllNodes(isRoot(), useUnmergedTree = true).fetchSemanticsNodes().flatMap { it.texts() }.distinct()
-            }.getOrElse { listOf("unavailable: $it") }
-            val message = "timed out after $TIMEOUT_MS ms waiting for $what; on screen: $screen"
-            Log.e(Rendezvous.TAG, "FAIL $message")
-            throw AssertionError(message, e)
+            fail(what, e)
         }
+    }
+
+    private fun fail(what: String, cause: Throwable): Nothing {
+        val screen = runCatching {
+            compose.onAllNodes(isRoot(), useUnmergedTree = true).fetchSemanticsNodes().flatMap { it.texts() }.distinct()
+        }.getOrElse { listOf("unavailable: $it") }
+        val message = "timed out after $TIMEOUT_MS ms waiting for $what; on screen: $screen"
+        Log.e(Rendezvous.TAG, "FAIL $message")
+        throw AssertionError(message, cause)
     }
 
     private fun SemanticsNode.texts(): List<String> =
@@ -307,8 +311,6 @@ class InteropTest {
         const val TAG_CREATE_ACCOUNT = "onboarding_create_account"
         const val TAG_DISPLAY_NAME = "onboarding_display_name"
         const val TAG_SUBMIT = "onboarding_submit"
-        const val TAG_CODE_SAVED = "onboarding_code_saved"
-        const val TAG_CODE_CONTINUE = "onboarding_code_continue"
         const val TAG_HANDLE = "onboarding_handle"
         const val TAG_CLAIM_HANDLE = "onboarding_claim_handle"
         const val TAG_COMPOSER = "composer-input"

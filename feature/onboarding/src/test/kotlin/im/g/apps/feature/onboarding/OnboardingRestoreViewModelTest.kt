@@ -107,6 +107,7 @@ class OnboardingRestoreViewModelTest {
     @Test
     fun restore_is_reachable_from_welcome_only_with_a_valid_server_url() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager())
+        vm.finishIntro()
         vm.startRestore()
         assertEquals(OnboardingStep.WELCOME, vm.state.value.step)
 
@@ -125,6 +126,7 @@ class OnboardingRestoreViewModelTest {
     @Test
     fun restore_with_pasted_values_revokes_others_and_finishes() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager(), SERVER_URL)
+        vm.finishIntro()
         // Pasted with whitespace, lowercase and spaces instead of dashes.
         form(vm, userId = "  ${USER_ID.uppercase()}\n", code = RECOVERY_CODE.lowercase().replace('-', ' '))
         assertEquals(USER_ID, vm.state.value.restoreUserId)
@@ -150,6 +152,7 @@ class OnboardingRestoreViewModelTest {
     @Test
     fun restore_can_keep_other_devices() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager(), SERVER_URL)
+        vm.finishIntro()
         form(vm)
         vm.onRevokeOtherDevicesChange(false)
         vm.restore()
@@ -163,6 +166,7 @@ class OnboardingRestoreViewModelTest {
     @Test
     fun user_id_validation_matrix() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager(), SERVER_URL)
+        vm.finishIntro()
         vm.startRestore()
         val cases = mapOf(
             "" to null,
@@ -182,6 +186,7 @@ class OnboardingRestoreViewModelTest {
     @Test
     fun recovery_code_validation_matrix() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager(), SERVER_URL)
+        vm.finishIntro()
         form(vm)
         val symbols = RECOVERY_CODE.replace("-", "")
         val cases = mapOf(
@@ -207,6 +212,7 @@ class OnboardingRestoreViewModelTest {
     @Test
     fun unknown_user_maps_to_user_id_error_until_it_changes() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager { it.restoreError = GimException.NotFound("device list") }, SERVER_URL)
+        vm.finishIntro()
         form(vm)
         vm.restore()
         advanceUntilIdle()
@@ -225,6 +231,7 @@ class OnboardingRestoreViewModelTest {
     @Test
     fun unknown_user_from_the_fake_maps_to_user_id_error() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager(), SERVER_URL)
+        vm.finishIntro()
         form(vm, userId = OTHER_USER_ID)
         vm.restore()
         advanceUntilIdle()
@@ -234,6 +241,7 @@ class OnboardingRestoreViewModelTest {
     @Test
     fun wrong_code_maps_to_code_error_and_a_retry_succeeds() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager(), SERVER_URL)
+        vm.finishIntro()
         form(vm, code = OTHER_CODE)
         vm.restore()
         advanceUntilIdle()
@@ -254,6 +262,7 @@ class OnboardingRestoreViewModelTest {
     @Test
     fun malformed_code_from_core_maps_to_invalid_code_error() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager { it.restoreError = GimException.InvalidInput("recovery code") }, SERVER_URL)
+        vm.finishIntro()
         form(vm)
         vm.restore()
         advanceUntilIdle()
@@ -267,6 +276,7 @@ class OnboardingRestoreViewModelTest {
             manager { it.restoreError = GimException.RetryLater(429, 42, "rate_limited") },
             SERVER_URL,
         )
+        vm.finishIntro()
         form(vm)
         vm.restore()
         advanceUntilIdle()
@@ -286,6 +296,7 @@ class OnboardingRestoreViewModelTest {
     @Test
     fun network_error_maps_to_cannot_reach_server_and_editing_clears_it() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager { it.restoreError = GimException.Network("refused") }, SERVER_URL)
+        vm.finishIntro()
         form(vm)
         vm.restore()
         advanceUntilIdle()
@@ -300,6 +311,7 @@ class OnboardingRestoreViewModelTest {
     fun retry_after_network_error_on_restore_finishes() = runTest(dispatcher) {
         val local = CoreLocalState(mutableSetOf(SERVER_URL))
         val vm = OnboardingViewModel(coreManager(local), SERVER_URL)
+        vm.finishIntro()
         form(vm)
         vm.restore()
         advanceUntilIdle()
@@ -321,6 +333,7 @@ class OnboardingRestoreViewModelTest {
     fun retry_with_another_server_url_after_network_error_on_restore_finishes() = runTest(dispatcher) {
         val local = CoreLocalState(mutableSetOf(UNREACHABLE_URL))
         val vm = OnboardingViewModel(coreManager(local), UNREACHABLE_URL)
+        vm.finishIntro()
         form(vm)
         vm.restore()
         advanceUntilIdle()
@@ -344,6 +357,7 @@ class OnboardingRestoreViewModelTest {
     @Test
     fun network_error_while_connecting_maps_to_cannot_reach_server() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager(connectError = GimException.Network("dns")), SERVER_URL)
+        vm.finishIntro()
         form(vm)
         vm.restore()
         advanceUntilIdle()
@@ -354,6 +368,7 @@ class OnboardingRestoreViewModelTest {
     @Test
     fun suspended_user_maps_to_account_suspended_and_keeps_the_form() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager { it.restoreError = GimException.UserSuspended("hub-a") }, SERVER_URL)
+        vm.finishIntro()
         form(vm)
         vm.restore()
         advanceUntilIdle()
@@ -369,6 +384,7 @@ class OnboardingRestoreViewModelTest {
     @Test
     fun not_admitted_user_names_the_hub_and_keeps_the_form() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager { it.restoreError = GimException.UserNotAdmitted("") }, SERVER_URL)
+        vm.finishIntro()
         form(vm)
         vm.restore()
         advanceUntilIdle()
@@ -384,6 +400,7 @@ class OnboardingRestoreViewModelTest {
     @Test
     fun other_errors_map_to_generic() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager { it.restoreError = GimException.Server(500, "boom") }, SERVER_URL)
+        vm.finishIntro()
         form(vm)
         vm.restore()
         advanceUntilIdle()
@@ -393,6 +410,7 @@ class OnboardingRestoreViewModelTest {
     @Test
     fun double_submit_and_edits_while_loading_are_ignored() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager(), SERVER_URL)
+        vm.finishIntro()
         form(vm)
         vm.restore()
         vm.restore()
@@ -405,8 +423,101 @@ class OnboardingRestoreViewModelTest {
     }
 
     @Test
+    fun pasted_kit_fills_both_fields_and_restores_with_them() = runTest(dispatcher) {
+        val vm = OnboardingViewModel(manager(), SERVER_URL)
+        vm.finishIntro()
+        vm.startRestore()
+        val kit = formatRecoveryKit(USER_ID, RECOVERY_CODE, LABELS)
+        vm.onRestoreKitTextChange(kit)
+
+        with(vm.state.value) {
+            assertEquals(kit, restoreKitText)
+            assertNull(restoreKitError)
+            assertEquals(USER_ID, restoreUserId)
+            assertEquals(RECOVERY_CODE.replace("-", ""), restoreCode)
+            assertTrue(canRestore)
+        }
+        vm.events.test {
+            vm.restore()
+            advanceUntilIdle()
+            assertEquals(OnboardingEvent.Finished, awaitItem())
+        }
+        assertEquals(listOf(Triple(USER_ID, RECOVERY_CODE, true)), clients.single().calls)
+        assertEquals("", vm.state.value.restoreKitText)
+        assertEquals("", vm.state.value.restoreCode)
+    }
+
+    @Test
+    fun kit_with_only_the_key_fills_the_code_and_asks_for_the_rest() = runTest(dispatcher) {
+        val vm = OnboardingViewModel(manager(), SERVER_URL)
+        vm.finishIntro()
+        vm.startRestore()
+        vm.onRestoreKitTextChange("Recovery key: ${RECOVERY_CODE.lowercase()}")
+
+        with(vm.state.value) {
+            assertEquals(FieldError.KitIncomplete, restoreKitError)
+            assertEquals(RECOVERY_CODE.replace("-", ""), restoreCode)
+            assertNull(restoreCodeError)
+            assertEquals("", restoreUserId)
+            assertFalse(canRestore)
+        }
+
+        // The fallback field completes the form and clears the kit error.
+        vm.onRestoreUserIdChange(USER_ID)
+        assertNull(vm.state.value.restoreKitError)
+        assertTrue(vm.state.value.canRestore)
+    }
+
+    @Test
+    fun kit_with_only_the_user_id_is_incomplete() = runTest(dispatcher) {
+        val vm = OnboardingViewModel(manager(), SERVER_URL)
+        vm.finishIntro()
+        vm.startRestore()
+        vm.onRestoreKitTextChange("Account ID: ${USER_ID.uppercase()}")
+        assertEquals(FieldError.KitIncomplete, vm.state.value.restoreKitError)
+        assertEquals(USER_ID, vm.state.value.restoreUserId)
+        assertEquals("", vm.state.value.restoreCode)
+
+        vm.onRestoreCodeChange(RECOVERY_CODE)
+        assertNull(vm.state.value.restoreKitError)
+        assertTrue(vm.state.value.canRestore)
+    }
+
+    @Test
+    fun unrecognized_kit_text_is_flagged_until_cleared() = runTest(dispatcher) {
+        val vm = OnboardingViewModel(manager(), SERVER_URL)
+        vm.finishIntro()
+        vm.startRestore()
+        vm.onRestoreUserIdChange(USER_ID)
+        vm.onRestoreKitTextChange("hello, this is not a kit")
+        assertEquals(FieldError.KitNotRecognized, vm.state.value.restoreKitError)
+        // Typed values stay.
+        assertEquals(USER_ID, vm.state.value.restoreUserId)
+
+        vm.onRestoreKitTextChange("  ")
+        assertNull(vm.state.value.restoreKitError)
+
+        vm.onRestoreKitTextChange("garbage")
+        vm.onRestoreCodeChange("7BQ2")
+        assertNull(vm.state.value.restoreKitError)
+    }
+
+    @Test
+    fun broken_code_in_a_kit_gets_the_code_field_rules() = runTest(dispatcher) {
+        val vm = OnboardingViewModel(manager(), SERVER_URL)
+        vm.finishIntro()
+        vm.startRestore()
+        vm.onRestoreCodeChange("7BQ2!")
+        assertEquals(FieldError.InvalidRecoveryCode, vm.state.value.restoreCodeError)
+        vm.onRestoreKitTextChange(formatRecoveryKit(USER_ID, RECOVERY_CODE, LABELS))
+        assertNull(vm.state.value.restoreCodeError)
+        assertTrue(vm.state.value.canRestore)
+    }
+
+    @Test
     fun restore_is_ignored_outside_its_step_or_with_an_incomplete_form() = runTest(dispatcher) {
         val vm = OnboardingViewModel(manager(), SERVER_URL)
+        vm.finishIntro()
         vm.onRestoreUserIdChange(USER_ID)
         vm.onRestoreCodeChange(RECOVERY_CODE)
         vm.restore()
@@ -426,5 +537,6 @@ class OnboardingRestoreViewModelTest {
         const val RECOVERY_CODE = "7BQ2-K9MX-4TVA-0HZR-PC63-W8NE-1SJD-5GFY-QK2M-V7R"
         const val OTHER_CODE = "0000-0000-0000-0000-0000-0000-0000-0000-0000-000"
         val OLD_DEVICE = DeviceInfo("d-old", 1_000, false, false)
+        val LABELS = RecoveryKitLabels("gim recovery kit", "Account ID", "Recovery key", "Keep this safe.")
     }
 }
