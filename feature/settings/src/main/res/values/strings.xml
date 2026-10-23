@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">Settings</string>
+    <string name="settings_back">Go back</string>
+    <string name="settings_username">\@%1$s</string>
+    <string name="settings_section_account">Account and devices</string>
+    <string name="settings_linked_devices">Linked devices</string>
+    <string name="settings_link_device">Link a new device</string>
+    <string name="settings_section_advanced">Advanced</string>
+    <string name="settings_servers">Servers</string>
+    <string name="settings_section_help">Help and about</string>
+    <string name="settings_help">Help and about</string>
+    <string name="settings_sign_out">Sign out</string>
+    <string name="settings_sign_out_title">Sign out?</string>
+    <string name="settings_sign_out_body">This removes your account and messages from this phone. To come back, you need your recovery kit: your Account ID and recovery key.</string>
+    <string name="settings_cancel">Cancel</string>
+
+    <string name="profile_title">Profile</string>
+    <string name="profile_change_photo">Change photo</string>
+    <string name="profile_section_name">Name</string>
+    <string name="profile_name_edit">Tap to change your name</string>
+    <string name="profile_name_title">Your name</string>
+    <string name="profile_name_label">Name</string>
+    <string name="profile_name_saved">Name saved.</string>
+    <string name="profile_section_username">Username</string>
+    <string name="profile_username_add">Add a username</string>
+    <string name="profile_username_why">Friends can find you with it.</string>
+    <string name="profile_username_change">Change</string>
+    <string name="profile_username_change_title">Change username</string>
+    <string name="profile_username_remove">Remove</string>
+    <string name="profile_username_prefix" translatable="false">\@</string>
+    <string name="profile_username_rule">3 to 32 letters, numbers or _</string>
+    <string name="profile_username_saved">Username saved.</string>
+    <string name="profile_username_remove_title">Remove username?</string>
+    <string name="profile_username_remove_body">Friends can\'t find you by username anymore. Your chats stay.</string>
+    <string name="profile_username_removed">Username removed.</string>
+    <string name="profile_section_account_id">Account ID</string>
+    <string name="profile_copy">Copy</string>
+    <string name="profile_account_id_copied">Account ID copied</string>
+    <string name="profile_section_qr">My QR code</string>
+    <string name="profile_qr_description">Your QR code</string>
+    <string name="profile_qr_caption">Friends can scan this to start a chat with you.</string>
+    <string name="profile_save">Save</string>
+    <string name="profile_error_name">Enter a name of 1 to 64 characters.</string>
+    <string name="profile_error_username">Use 3 to 32 letters, numbers or _.</string>
+    <string name="profile_error_username_taken">That username is taken. Try another one.</string>
+    <string name="profile_error_network">Couldn\'t save. Check your internet and try again.</string>
+    <string name="profile_error_unknown">Couldn\'t save. Try again.</string>
+
+    <string name="help_title">Help and about</string>
+    <string name="help_how_gim_works">How gim works</string>
+    <string name="help_section_about">About</string>
+    <string name="help_app_version">App version</string>
+    <string name="help_sdk_version">SDK version</string>
+    <string name="help_licences">Open-source licences</string>
+
+    <string name="licences_title">Open-source licences</string>
+    <string name="licence_apache_2">Apache 2.0</string>
+    <string name="licence_apache_2_lgpl_2_1">Apache 2.0 / LGPL 2.1</string>
+    <string name="licence_gim_core">gim client SDK</string>
+    <string name="library_androidx" translatable="false">AndroidX and Jetpack Compose</string>
+    <string name="library_kotlin" translatable="false">Kotlin and kotlinx</string>
+    <string name="library_coil" translatable="false">Coil</string>
+    <string name="library_jna" translatable="false">JNA</string>
+    <string name="library_zxing" translatable="false">ZXing</string>
+    <string name="library_gim_core" translatable="false">gim-core</string>
+</resources>

@@ -41,6 +41,7 @@ import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
 import im.g.apps.testing.skipIntro
+import im.g.apps.testing.openSettingsRow
 import java.io.File
 import java.net.URI
 import java.util.UUID
@@ -66,6 +67,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import im.g.apps.feature.chat.R as ChatR
 import im.g.apps.feature.chatlist.R as ChatListR
+import im.g.apps.feature.settings.R as SettingsR
 import im.g.apps.feature.hubs.R as HubsR
 import im.g.apps.feature.onboarding.R as OnboardingR
 
@@ -293,7 +295,7 @@ class HubsE2eTest {
     /** From any screen of this test back to the chat list. */
     private fun backToChatList() {
         while (!exists(chatList())) {
-            val back = listOf(string(HubsR.string.hubs_back), string(ChatR.string.chat_back))
+            val back = listOf(string(HubsR.string.hubs_back), string(SettingsR.string.settings_back), string(ChatR.string.chat_back))
                 .map { hasContentDescription(it) and hasClickAction() }
                 .firstOrNull { exists(it) } ?: break
             compose.onNode(back).performClick()
@@ -304,9 +306,7 @@ class HubsE2eTest {
 
     private fun openHubs() {
         backToChatList()
-        compose.onNodeWithContentDescription(string(ChatListR.string.chatlist_more_options)).performClick()
-        waitFor("overflow menu", hasText(string(ChatListR.string.chatlist_hubs)))
-        compose.onNodeWithText(string(ChatListR.string.chatlist_hubs)).performClick()
+        compose.openSettingsRow(LOG_TAG, string(SettingsR.string.settings_servers), timeoutMs, ::failStep)
         waitFor("hubs screen", hasText(string(HubsR.string.hubs_title)))
     }
 

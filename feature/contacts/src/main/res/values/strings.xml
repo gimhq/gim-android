@@ -23,6 +23,14 @@
 
     <string name="contacts_new_chat_title">New chat</string>
     <string name="contacts_start_chat">Start chat</string>
+    <string name="contacts_scan_qr">Scan QR code</string>
+    <string name="contacts_scan_title">Scan a QR code</string>
+    <string name="contacts_scan_hint">Point your camera at your friend\'s QR code. They can find it in Settings &gt; Profile.</string>
+    <string name="contacts_scan_close">Close</string>
+    <string name="contacts_scan_not_account_id">This QR code isn\'t a gim Account ID. Ask your friend to show the QR code from their Profile.</string>
+    <string name="contacts_scan_own_code">This is your own QR code.</string>
+    <string name="contacts_scan_camera_denied">You need to allow the camera to scan a QR code. You can search by username instead.</string>
+    <string name="contacts_scan_camera_unavailable">Can\'t use the camera right now. You can search by username instead.</string>
 
     <string name="contacts_new_group_title">New group</string>
     <string name="contacts_new_group_members_title">Add members</string>
