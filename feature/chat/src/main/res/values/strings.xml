@@ -45,6 +45,8 @@
     <string name="chat_error_retry_later">Couldn\'t do that right now. Try again in %1$s seconds.</string>
     <string name="chat_error_media_unavailable">Couldn\'t download this. The sender\'s server can\'t be reached right now. Try again later.</string>
     <string name="chat_media_retry">Download again</string>
+    <string name="chat_message_options">Show options</string>
+    <string name="chat_message_react">React</string>
     <string name="composer_send">Send message</string>
     <string name="composer_save">Save changes</string>
     <string name="composer_attach">Attach a photo or file</string>

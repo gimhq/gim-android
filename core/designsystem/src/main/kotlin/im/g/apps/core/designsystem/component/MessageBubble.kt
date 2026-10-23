@@ -4,10 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -20,21 +18,26 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import im.g.apps.core.designsystem.theme.GimTheme
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 private val BubbleRadius = 18.dp
-private val BubbleGroupedRadius = 5.dp
+private val BubbleGroupedRadius = 4.dp
 private val BubbleTailWidth = 7.dp
 private val BubbleTailHeight = 12.dp
+private const val BubbleMaxWidthFraction = 0.8f
 
 /**
  * Chat bubble. Consecutive bubbles from the same sender form a run: the corners facing a
  * neighbour in the run are tightened, and only the last bubble of the run carries a tail.
- * Every bubble reserves the tail gutter so bubbles in a run stay aligned.
+ * Every bubble reserves the tail gutter so bubbles in a run stay aligned. A bubble takes at most 80 % of
+ * the available width.
  */
 @Composable
 fun MessageBubble(
@@ -57,9 +60,8 @@ fun MessageBubble(
             .padding(top = if (groupedWithPrevious) 2.dp else 8.dp),
         horizontalArrangement = if (outgoing) Arrangement.End else Arrangement.Start,
     ) {
-        if (outgoing) Spacer(Modifier.width(56.dp))
         Surface(
-            modifier = Modifier.weight(1f, fill = false),
+            modifier = Modifier.maxWidthFraction(BubbleMaxWidthFraction),
             shape = shape,
             color = if (outgoing) colors.bubbleOutgoing else colors.bubbleIncoming,
             contentColor = if (outgoing) colors.onBubbleOutgoing else colors.onBubbleIncoming,
@@ -81,8 +83,18 @@ fun MessageBubble(
                 }
             }
         }
-        if (!outgoing) Spacer(Modifier.width(56.dp))
     }
+}
+
+private fun Modifier.maxWidthFraction(fraction: Float) = layout { measurable, constraints ->
+    val bounded = if (constraints.hasBoundedWidth) {
+        val max = (constraints.maxWidth * fraction).roundToInt()
+        constraints.copy(minWidth = min(constraints.minWidth, max), maxWidth = max)
+    } else {
+        constraints
+    }
+    val placeable = measurable.measure(bounded)
+    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
 }
 
 /** Rounded bubble outline drawn in a box that includes the tail gutter on the sender side. */

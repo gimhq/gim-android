@@ -41,8 +41,13 @@ data class MessageRow(
     val mediaUnavailable: Boolean = false,
     /** Why the send failed; set for a failed own message. */
     val sendFailure: SendFailure? = null,
+    /** Sender of an inbound group message, on every bubble of the run; null otherwise. */
+    val sender: SenderUi? = null,
 ) : TimelineRowUi {
     val failed: Boolean get() = tick == TickState.FAILED
+
+    /** The sender's avatar sits beside the last bubble of a run. */
+    val showAvatar: Boolean get() = sender != null && !groupedWithNext
 
     /** A failed send may be retried unless its [sendFailure] says the user is refused (gim-core's guidance). */
     val retryable: Boolean get() = sendFailure?.retryable ?: true
@@ -64,6 +69,12 @@ data class SystemRow(
 ) : TimelineRowUi {
     override val contentType: String get() = CONTENT_TYPE_SYSTEM
 }
+
+@Immutable
+data class SenderUi(
+    val userId: String,
+    val name: String,
+)
 
 @Immutable
 data class ImageUi(
