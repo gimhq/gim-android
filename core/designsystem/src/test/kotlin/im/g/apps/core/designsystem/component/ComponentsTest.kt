@@ -68,7 +68,7 @@ class ComponentsTest {
             TickState.SENT to "Sent",
             TickState.DELIVERED to "Delivered",
             TickState.READ to "Read",
-            TickState.FAILED to "Failed to send",
+            TickState.FAILED to "Not sent",
         )
         var state by mutableStateOf(TickState.PENDING)
         rule.setContent { GimTheme { StatusTicks(state = state) } }

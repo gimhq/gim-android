@@ -1,5 +1,6 @@
 package im.g.apps.feature.devices
 
+import android.content.Context
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollAction
@@ -11,8 +12,10 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import im.g.apps.core.bridge.DeviceInfo
+import im.g.apps.core.designsystem.R as DesignR
 import im.g.apps.core.designsystem.theme.GimTheme
 import java.util.Locale
 import java.util.TimeZone
@@ -122,7 +125,9 @@ class DevicesScreenTest {
             ),
         )
 
-        rule.onNodeWithText("Your account is suspended on https://hub-b.example.eu.").assertExists()
+        rule.onNodeWithText(
+            ApplicationProvider.getApplicationContext<Context>().getString(DesignR.string.gim_error_user_suspended_on_hub, "https://hub-b.example.eu"),
+        ).assertExists()
         rule.onNodeWithText("No devices to show").assertExists()
         rule.onNodeWithText("Try again").assertDoesNotExist()
     }
