@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
@@ -94,7 +95,9 @@ fun GimTopBarIconButton(
 ) {
     IconButton(
         onClick = onClick,
-        modifier = modifier.semantics { this.contentDescription = contentDescription },
+        modifier = modifier
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+            .semantics { this.contentDescription = contentDescription },
         enabled = enabled,
         content = content,
     )

@@ -33,6 +33,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(AndroidJUnit4::class)
 class SharedComponentsTest {
@@ -140,6 +141,8 @@ class SharedComponentsTest {
 
     @Test
     @Config(fontScale = 2.0f)
+    // Real text measurement; the legacy Robolectric graphics mode reports fake text widths.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
     fun topBar_atDoubleFontScale_growsInsteadOfClipping() {
         rule.setContent { GimTheme { GimTopBar(title = "Ada", subtitle = "Online", modifier = Modifier.testTag("bar")) } }
         rule.onNodeWithText("Ada").assertIsDisplayed()
@@ -147,8 +150,12 @@ class SharedComponentsTest {
         val node = rule.onNodeWithText("Ada", useUnmergedTree = true).fetchSemanticsNode()
         val layouts = mutableListOf<TextLayoutResult>()
         node.config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action?.invoke(layouts)
-        assertFalse(layouts.single().hasVisualOverflow)
         val bar = rule.onNodeWithTag("bar").getBoundsInRoot()
+        val layout = layouts.single()
+        // hasVisualOverflow is always true for ellipsized text in Compose 1.7: the paragraph takes the full
+        // max width while the node wraps the text. Check the parts that mean clipping instead.
+        assertFalse("title clipped vertically: ${layout.size} in bar $bar", layout.didOverflowHeight)
+        assertFalse("title ellipsized: ${layout.size} in bar $bar", layout.isLineEllipsized(0))
         val title = rule.onNodeWithText("Ada", useUnmergedTree = true).getBoundsInRoot()
         val subtitle = rule.onNodeWithText("Online", useUnmergedTree = true).getBoundsInRoot()
         assertTrue("title clipped: $title outside $bar", title.top >= bar.top)

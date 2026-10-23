@@ -1,22 +1,27 @@
 package im.g.apps.core.designsystem.component
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.view.View
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.width
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import im.g.apps.core.designsystem.theme.GimTheme
 import org.junit.Assert.assertEquals
@@ -60,7 +65,9 @@ class ComponentsTest {
     fun avatar_colorFollowsColorKey() {
         val name = "Ada Lovelace"
         val key = listOf("chat-1", "chat-2", "chat-3", "chat-4").first { avatarColor(it) != avatarColor(name) }
+        lateinit var view: View
         rule.setContent {
+            view = LocalView.current
             GimTheme {
                 Column {
                     Avatar(name = name, imagePath = null, size = 48.dp, colorKey = key, modifier = Modifier.testTag("a"))
@@ -68,16 +75,23 @@ class ComponentsTest {
                 }
             }
         }
+        rule.waitForIdle()
+        val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+        view.draw(Canvas(bitmap))
+        val density = view.resources.displayMetrics.density
+
+        /** A pixel inside the circle but above the initials. */
+        fun backgroundOf(tag: String): Color {
+            val bounds = rule.onNodeWithTag(tag).getBoundsInRoot()
+            val x = (bounds.left + bounds.width / 2).value * density
+            val y = (bounds.top + bounds.height / 8).value * density
+            return Color(bitmap.getPixel(x.toInt(), y.toInt()))
+        }
+
         val first = backgroundOf("a")
         assertEquals(avatarColor(key), first)
         assertNotEquals(avatarColor(name), first)
         assertEquals(first, backgroundOf("b"))
-    }
-
-    /** A pixel inside the circle but above the initials. */
-    private fun backgroundOf(tag: String): Color {
-        val pixels = rule.onNodeWithTag(tag).captureToImage().toPixelMap()
-        return pixels[pixels.width / 2, pixels.height / 8]
     }
 
     @Test
