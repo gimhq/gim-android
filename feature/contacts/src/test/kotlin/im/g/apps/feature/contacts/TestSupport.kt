@@ -34,6 +34,12 @@ class TestClient(private val delegate: GimClient) : GimClient by delegate {
     var chatMembersError: GimException? = null
     var removeMemberError: GimException? = null
     var setGroupInfoError: GimException? = null
+    var createDirectChatCalls = 0
+
+    /** When set, replaces the signed-in user's id reported by [userId]. */
+    var selfUserId: String? = null
+
+    override fun userId(): String? = selfUserId ?: delegate.userId()
 
     override suspend fun findUser(handle: String): UserProfile? {
         lookups += handle
@@ -42,6 +48,7 @@ class TestClient(private val delegate: GimClient) : GimClient by delegate {
     }
 
     override suspend fun createDirectChat(userId: String): String {
+        createDirectChatCalls++
         createDirectChatError?.let { throw it }
         return delegate.createDirectChat(userId)
     }

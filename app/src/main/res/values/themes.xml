@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose draws everything; the window background matches the Compose surface so there is no flash. -->
+    <style name="Theme.Gim" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/gim_window_background</item>
+    </style>
+
+    <!-- GimPalette.Neutral98, the light surface. -->
+    <color name="gim_window_background">#FFFCF8FF</color>
+</resources>
