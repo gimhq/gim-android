@@ -25,7 +25,9 @@ class NewChatViewModelTest {
     val main = MainDispatcherRule()
 
     private fun TestScope.newViewModel(): Pair<NewChatViewModel, TestClient> {
-        val client = TestClient(demoClient(backgroundScope))
+        val fake = demoClient(backgroundScope)
+        fake.addDirectoryUser(SCANNED_USER)
+        val client = TestClient(fake)
         return NewChatViewModel(client) to client
     }
 
@@ -203,8 +205,90 @@ class NewChatViewModelTest {
         assertEquals(NewChatEvent.ShowError(ContactsError.RetryLater(12)), vm.events.first())
     }
 
+    @Test
+    fun scanner_opensAndCloses() = runTest {
+        val (vm, _) = newViewModel()
+        vm.openScanner()
+        assertTrue(vm.state.value.scannerOpen)
+        vm.closeScanner()
+        assertFalse(vm.state.value.scannerOpen)
+    }
+
+    @Test
+    fun scannedAccountId_createsDirectChatAndOpensIt() = runTest {
+        val (vm, client) = newViewModel()
+        vm.openScanner()
+        vm.onQrScanned("https://example.com/add?id=${SCANNED_USER.userId.uppercase()}")
+        assertFalse(vm.state.value.scannerOpen)
+        advanceUntilIdle()
+        val event = vm.events.first() as NewChatEvent.OpenChat
+        assertEquals(listOf(DemoData.me, SCANNED_USER), client.chatMembers(event.chatId))
+        assertFalse(vm.state.value.starting)
+    }
+
+    @Test
+    fun scannedTextWithoutAccountId_showsNoticeAndKeepsScanning() = runTest {
+        val (vm, client) = newViewModel()
+        vm.openScanner()
+        vm.onQrScanned("https://example.com")
+        vm.onQrScanned("https://example.com")
+        advanceUntilIdle()
+        assertEquals(ScanNotice.NOT_ACCOUNT_ID, vm.state.value.scanNotice)
+        assertTrue(vm.state.value.scannerOpen)
+        assertEquals(0, client.createDirectChatCalls)
+    }
+
+    @Test
+    fun scannedOwnId_showsOwnCodeNotice() = runTest {
+        val (vm, client) = newViewModel()
+        client.selfUserId = SCANNED_USER.userId
+        vm.openScanner()
+        vm.onQrScanned(SCANNED_USER.userId)
+        advanceUntilIdle()
+        assertEquals(ScanNotice.OWN_CODE, vm.state.value.scanNotice)
+        assertTrue(vm.state.value.scannerOpen)
+        assertEquals(0, client.createDirectChatCalls)
+    }
+
+    @Test
+    fun scannedAccountId_failure_emitsError() = runTest {
+        val (vm, client) = newViewModel()
+        client.createDirectChatError = GimException.Network("timeout")
+        vm.openScanner()
+        vm.onQrScanned(SCANNED_USER.userId)
+        advanceUntilIdle()
+        assertEquals(NewChatEvent.ShowError(ContactsError.Network), vm.events.first())
+        assertFalse(vm.state.value.starting)
+    }
+
+    @Test
+    fun duplicateScans_whileCreating_createOneChat() = runTest {
+        val (vm, client) = newViewModel()
+        vm.openScanner()
+        vm.onQrScanned(SCANNED_USER.userId)
+        vm.openScanner()
+        vm.onQrScanned(SCANNED_USER.userId)
+        advanceUntilIdle()
+        assertEquals(1, client.createDirectChatCalls)
+    }
+
+    @Test
+    fun cameraProblems_closeTheScannerWithANotice() = runTest {
+        val (vm, _) = newViewModel()
+        vm.onCameraDenied()
+        assertEquals(ScanNotice.CAMERA_DENIED, vm.state.value.scanNotice)
+        vm.openScanner()
+        assertEquals(null, vm.state.value.scanNotice)
+        vm.onCameraUnavailable()
+        assertFalse(vm.state.value.scannerOpen)
+        assertEquals(ScanNotice.CAMERA_UNAVAILABLE, vm.state.value.scanNotice)
+    }
+
     private companion object {
         /** Well-formed, but no such user on the hub. */
         const val UNKNOWN_USER_ID = "u" + "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" + "a"
+
+        /** A well-formed Account ID that exists in the directory. */
+        val SCANNED_USER = UserProfile("u" + "b".repeat(54) + "q", "bea", "Bea Lind")
     }
 }

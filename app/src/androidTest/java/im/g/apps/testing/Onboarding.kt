@@ -76,7 +76,7 @@ private fun AndroidComposeTestRule<*, out ComponentActivity>.textOf(tag: String)
     onNodeWithTag(tag).fetchSemanticsNode().config.getOrNull(SemanticsProperties.Text)
         ?.joinToString("") { it.text }.orEmpty()
 
-private fun AndroidComposeTestRule<*, out ComponentActivity>.awaitNode(
+internal fun AndroidComposeTestRule<*, out ComponentActivity>.awaitNode(
     step: String,
     matcher: SemanticsMatcher,
     timeoutMs: Long,
