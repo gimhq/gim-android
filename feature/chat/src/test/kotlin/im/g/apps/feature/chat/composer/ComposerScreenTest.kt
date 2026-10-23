@@ -81,7 +81,7 @@ class ComposerScreenTest {
     fun sendButtonEnabledOnlyForNonBlankDraft() {
         var sends = 0
         show(onSend = { sends++ })
-        val send = rule.onNodeWithContentDescription("Send")
+        val send = rule.onNodeWithContentDescription("Send message")
 
         send.assertIsNotEnabled()
         rule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).performTextInput("   ")
@@ -123,7 +123,7 @@ class ComposerScreenTest {
         }
         rule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assertIsNotEnabled()
         rule.onNodeWithText("Leaving…", useUnmergedTree = true).assertExists()
-        rule.onNodeWithContentDescription("Attach").assertIsNotEnabled()
+        rule.onNodeWithContentDescription("Attach a photo or file").assertIsNotEnabled()
 
         membership = ChatMembership.LEFT
         rule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assertIsNotEnabled()

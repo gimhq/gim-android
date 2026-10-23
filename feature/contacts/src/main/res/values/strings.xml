@@ -1,24 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="contacts_back">Back</string>
+    <string name="contacts_back">Go back</string>
     <string name="contacts_you">You</string>
     <string name="contacts_handle">\@%1$s</string>
 
-    <string name="contacts_search_label">Handle or user ID</string>
-    <string name="contacts_search_placeholder">\@handle</string>
-    <string name="contacts_search_hint">Enter at least 3 characters of a handle, or a user ID</string>
+    <string name="contacts_search_label">Username or account ID</string>
+    <string name="contacts_search_placeholder">\@username</string>
+    <string name="contacts_search_hint">Type at least 3 letters of a username, or paste an account ID.</string>
     <string name="contacts_search_searching">Searching…</string>
-    <string name="contacts_search_not_found">No user with handle \@%1$s</string>
+    <string name="contacts_search_not_found">No one has the username \@%1$s. Check the spelling and try again.</string>
 
-    <string name="contacts_error_network">Can\'t reach the server. Check your connection and try again.</string>
-    <string name="contacts_error_not_registered">You are signed out. Sign in again to continue.</string>
-    <string name="contacts_error_invalid_input">That request isn\'t allowed.</string>
-    <string name="contacts_error_not_found">It no longer exists.</string>
-    <string name="contacts_error_user_not_found">User not found</string>
-    <string name="contacts_error_contact_not_admitted">%1$s does not accept contacts from you.</string>
-    <string name="contacts_error_retry_later">Try again in %1$d s</string>
-    <string name="contacts_error_server">The server rejected the request. Try again later.</string>
-    <string name="contacts_error_not_supported">This isn\'t supported yet.</string>
+    <string name="contacts_error_network">Can\'t connect to the server. Check your internet and try again.</string>
+    <string name="contacts_error_not_registered">You\'re signed out. Sign in again to continue.</string>
+    <string name="contacts_error_invalid_input">Couldn\'t do that. Check what you entered and try again.</string>
+    <string name="contacts_error_not_found">This is no longer there. Go back and try again.</string>
+    <string name="contacts_error_user_not_found">Couldn\'t find this person. Check the username and try again.</string>
+    <string name="contacts_error_contact_not_admitted">Couldn\'t add %1$s. Their server doesn\'t accept you. Try someone else.</string>
+    <string name="contacts_error_retry_later">Too many tries. Try again in %1$d s.</string>
+    <string name="contacts_error_server">Something went wrong on the server. Try again later.</string>
+    <string name="contacts_error_not_supported">This doesn\'t work yet. Update the app and try again.</string>
     <string name="contacts_error_unknown">Something went wrong. Try again.</string>
 
     <string name="contacts_new_chat_title">New chat</string>
@@ -42,9 +42,9 @@
 
     <string name="contacts_group_info_title">Group info</string>
     <string name="contacts_contact_info_title">Contact info</string>
-    <string name="contacts_chat_missing">This chat is no longer available.</string>
+    <string name="contacts_chat_missing">This chat is gone. Go back to your chats.</string>
     <string name="contacts_members">Members</string>
-    <string name="contacts_members_unavailable">The member list is unavailable for now.</string>
+    <string name="contacts_members_unavailable">Can\'t show the members right now. Try again later.</string>
     <string name="contacts_add_member">Add member</string>
     <string name="contacts_rename_group">Rename group</string>
     <string name="contacts_save">Save</string>
@@ -55,6 +55,6 @@
     <string name="contacts_leave_group">Leave group</string>
     <string name="contacts_leave">Leave</string>
     <string name="contacts_leaving">Leaving…</string>
-    <string name="contacts_leave_group_confirm">Leave this group? You will stop receiving its messages.</string>
-    <string name="contacts_error_chat_not_active">You are no longer a member of this group</string>
+    <string name="contacts_leave_group_confirm">Leave this group? You\'ll stop getting its messages.</string>
+    <string name="contacts_error_chat_not_active">You\'re no longer in this group, so you can\'t change it.</string>
 </resources>

@@ -51,7 +51,7 @@ class LinkDeviceScreenTest {
     @Test
     fun camera_not_requested_explains_and_asks() {
         show(LinkDeviceUiState(), CameraAccess.NOT_REQUESTED)
-        rule.onNodeWithText("gim needs the camera to scan the code.", substring = true).assertExists()
+        rule.onNodeWithText("gim needs your camera to scan the code.", substring = true).assertExists()
         rule.onNodeWithTag(LinkDeviceTestTags.SCANNER).assertDoesNotExist()
         rule.onNodeWithTag(LinkDeviceTestTags.ALLOW_CAMERA).performClick()
         assertEquals(listOf("camera"), calls)
@@ -79,7 +79,7 @@ class LinkDeviceScreenTest {
     @Test
     fun no_camera_offers_only_the_paste_fallback() {
         show(LinkDeviceUiState(pastedCode = "gimlink:abc"), camera = null)
-        rule.onNodeWithText("No camera is available. Paste the code below instead.").assertExists()
+        rule.onNodeWithText("No camera found. Paste the code below instead.").assertExists()
         rule.onNodeWithTag(LinkDeviceTestTags.SUBMIT_CODE).performScrollTo().assertIsEnabled().performClick()
         assertEquals(listOf("submit"), calls)
     }
@@ -87,13 +87,13 @@ class LinkDeviceScreenTest {
     @Test
     fun errors_are_shown_on_the_scan_step() {
         show(LinkDeviceUiState(error = LinkDeviceError.TryAgainLater(30)), CameraAccess.GRANTED)
-        rule.onNodeWithTag(LinkDeviceTestTags.ERROR).assertTextEquals("The hub is busy. Try again in 30 seconds.")
+        rule.onNodeWithTag(LinkDeviceTestTags.ERROR).assertTextEquals("The server is busy. Try again in 30 seconds.")
     }
 
     @Test
     fun invalid_code_error_is_shown() {
         show(LinkDeviceUiState(error = LinkDeviceError.InvalidCode), CameraAccess.GRANTED)
-        rule.onNodeWithTag(LinkDeviceTestTags.ERROR).assertTextEquals("This is not a valid link code.")
+        rule.onNodeWithTag(LinkDeviceTestTags.ERROR).assertTextEquals("This code doesn’t work. Make a new code on your other device and scan it again.")
     }
 
     @Test
@@ -104,7 +104,7 @@ class LinkDeviceScreenTest {
         rule.onNodeWithTag(LinkDeviceTestTags.SCANNER).assertDoesNotExist()
         rule.onNodeWithTag(LinkDeviceTestTags.CONFIRM).performClick()
         rule.onNodeWithTag(LinkDeviceTestTags.REJECT).performClick()
-        rule.onNodeWithContentDescription("Back").performClick()
+        rule.onNodeWithContentDescription("Go back").performClick()
         assertEquals(listOf("confirm", "reject", "back"), calls)
     }
 
@@ -120,7 +120,7 @@ class LinkDeviceScreenTest {
     fun done_reports_the_outcome() {
         show(LinkDeviceUiState(step = LinkDeviceStep.DONE, linked = true), CameraAccess.GRANTED)
         rule.onNodeWithTag(LinkDeviceTestTags.DONE).assertTextEquals(
-            "The new device is linked. It joins your chats on its next sync.",
+            "Your new device is linked. Your chats will show up on it soon.",
         )
         rule.onNodeWithText("Done").performClick()
         assertEquals(listOf("done"), calls)

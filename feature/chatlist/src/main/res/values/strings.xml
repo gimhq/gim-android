@@ -1,25 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="chatlist_title">Chats</string>
-    <string name="chatlist_banner_waiting_for_network">Waiting for network…</string>
+    <string name="chatlist_banner_waiting_for_network">Waiting for internet…</string>
     <string name="chatlist_banner_connecting">Connecting…</string>
     <string name="chatlist_banner_updating">Updating…</string>
     <string name="chatlist_preview_you">You: %1$s</string>
     <string name="chatlist_preview_member">%1$s: %2$s</string>
     <string name="chatlist_state_leaving">Leaving…</string>
-    <string name="chatlist_state_left">You are no longer a member</string>
+    <string name="chatlist_state_left">You\'re no longer in this chat</string>
     <string name="chatlist_empty_title">No chats yet</string>
-    <string name="chatlist_empty_body">Your conversations will appear here.</string>
-    <string name="chatlist_start_chat">Start a chat</string>
+    <string name="chatlist_empty_body">Start a chat and it will show up here.</string>
+    <string name="chatlist_start_chat">Start chat</string>
     <string name="chatlist_new_message">New message</string>
     <string name="chatlist_new_chat">New chat</string>
     <string name="chatlist_new_group">New group</string>
     <string name="chatlist_more_options">More options</string>
     <string name="chatlist_devices">Devices</string>
-    <string name="chatlist_hubs">Hubs</string>
+    <string name="chatlist_hubs">Servers</string>
     <string name="chatlist_link_device">Link a new device</string>
     <string name="chatlist_sign_out">Sign out</string>
     <string name="chatlist_sign_out_title">Sign out?</string>
-    <string name="chatlist_sign_out_body">Your messages and encryption keys on this device will be deleted. You will need to create an account again to use this device.</string>
+    <string name="chatlist_sign_out_body">This deletes your messages and keys from this device. To use the app here again, you\'ll need to set up an account again.</string>
     <string name="chatlist_cancel">Cancel</string>
 </resources>

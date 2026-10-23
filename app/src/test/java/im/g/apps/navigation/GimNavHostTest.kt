@@ -159,9 +159,9 @@ class GimNavHostTest {
         rule.onNodeWithText("Devices").performClick()
 
         rule.waitUntilAtLeastOneExists(hasText("This device"), TIMEOUT)
-        rule.onNodeWithText("Your user ID").assertExists()
+        rule.onNodeWithText("Your account ID").assertExists()
         rule.runOnIdle { assertEquals(Routes.DEVICES, nav.currentDestination?.route) }
-        rule.onNodeWithContentDescription("Back").performClick()
+        rule.onNodeWithContentDescription("Go back").performClick()
         rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
     }
 
@@ -229,8 +229,8 @@ class GimNavHostTest {
         rule.runOnIdle { assertEquals(Routes.LINK_DEVICE, nav.currentDestination?.route) }
         rule.onNode(hasSetTextAction()).performTextInput(code)
         rule.onNodeWithText("Continue").performClick()
-        rule.waitUntilAtLeastOneExists(hasText("Compare the codes"), TIMEOUT)
-        rule.onNodeWithText("The codes match").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("Compare the numbers"), TIMEOUT)
+        rule.onNodeWithText("The numbers match").performClick()
         rule.waitUntilAtLeastOneExists(hasText("Done"), TIMEOUT)
         rule.onNodeWithText("Done").performClick()
 
