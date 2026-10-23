@@ -21,6 +21,7 @@ import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToString
@@ -49,6 +50,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import im.g.apps.feature.chatlist.R as ChatListR
+import im.g.apps.feature.contacts.R as ContactsR
 import im.g.apps.feature.settings.R as SettingsR
 import im.g.apps.feature.linking.R as LinkingR
 import im.g.apps.feature.onboarding.R as OnboardingR
@@ -108,31 +110,8 @@ class CameraScannerE2eTest {
 
     @Test
     fun scannerBindsBackCameraAndReleasesIt() {
-        keepScreenOn(instrumentation, compose.activity)
+        signUpWithCamera()
         val context = instrumentation.targetContext
-        assertEquals(
-            "CAMERA must be granted before the test (pm grant ${context.packageName} android.permission.CAMERA)",
-            PackageManager.PERMISSION_GRANTED,
-            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA),
-        )
-        assertTrue("device reports no back camera", backCameras.isNotEmpty())
-        awaitServerReachable(context, serverUrl)
-        if (!dismissSystemDialogs(instrumentation, timeoutMs) { appHasFocus() }) {
-            Log.w(LOG_TAG, "app window still has no focus; continuing")
-        }
-
-        // Onboarding: skip the intro, create identity, pass the recovery kit check, skip the handle -> chat list.
-        compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
-        waitFor("onboarding shown", hasText(string(OnboardingR.string.onboarding_welcome_title)))
-        enterText("hub address", TAG_SERVER_URL, serverUrl)
-        click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
-        waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))
-        enterText("display name", TAG_DISPLAY_NAME, "Camera $suffix")
-        click("create account", TAG_SUBMIT)
-        compose.completeRecoveryKit(LOG_TAG, timeoutMs, ::failStep)
-        waitFor("handle step", hasTestTag(TAG_SKIP_HANDLE))
-        click("skip handle", TAG_SKIP_HANDLE)
-        waitFor("chat list", hasText(string(ChatListR.string.chatlist_title)))
 
         cameraManager.registerAvailabilityCallback(availability, Handler(Looper.getMainLooper()))
         registered = true
@@ -163,6 +142,67 @@ class CameraScannerE2eTest {
         compose.onNodeWithContentDescription(string(LinkingR.string.linking_back)).performClick()
         waitFor("settings after leaving the scanner", hasText(string(SettingsR.string.settings_title)))
         waitFor("back camera released") { openBackCameras.isEmpty() }
+    }
+
+    /**
+     * New chat -> Scan QR code: with the camera granted the scanner shows and opens a back camera; Close releases
+     * it. SettingsE2eTest answers the permission dialog on the emulator; NewChatViewModelTest covers a scanned code.
+     */
+    @Test
+    fun newChatScannerOpensBackCamera() {
+        signUpWithCamera()
+        cameraManager.registerAvailabilityCallback(availability, Handler(Looper.getMainLooper()))
+        registered = true
+        waitFor("back cameras idle before the scanner opens") { openBackCameras.isEmpty() }
+
+        compose.onNodeWithContentDescription(string(ChatListR.string.chatlist_new_message)).performClick()
+        waitFor("new message menu", hasText(string(ChatListR.string.chatlist_new_chat)))
+        compose.onNodeWithText(string(ChatListR.string.chatlist_new_chat)).performClick()
+        waitFor("new chat", hasTestTag(TAG_SCAN_QR))
+        click("scan qr code", TAG_SCAN_QR)
+        waitFor("new chat scanner shown", hasTestTag(TAG_NEW_CHAT_SCANNER))
+        waitFor("back camera opened by the new chat scanner") { openBackCameras.isNotEmpty() }
+        Log.i(LOG_TAG, "back camera(s) open: $openBackCameras")
+        assertTrue(
+            "new chat scanner fell back to 'no camera'",
+            compose.onAllNodes(hasText(string(ContactsR.string.contacts_scan_camera_unavailable))).fetchSemanticsNodes()
+                .isEmpty(),
+        )
+
+        click("close scanner", TAG_CLOSE_SCANNER)
+        waitFor("new chat after closing the scanner") {
+            compose.onAllNodes(hasTestTag(TAG_NEW_CHAT_SCANNER)).fetchSemanticsNodes().isEmpty()
+        }
+        waitFor("back camera released by the new chat scanner") { openBackCameras.isEmpty() }
+    }
+
+    /** Checks the CAMERA grant and a back camera, then onboards a fresh account to the chat list. */
+    private fun signUpWithCamera() {
+        keepScreenOn(instrumentation, compose.activity)
+        val context = instrumentation.targetContext
+        assertEquals(
+            "CAMERA must be granted before the test (pm grant ${context.packageName} android.permission.CAMERA)",
+            PackageManager.PERMISSION_GRANTED,
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA),
+        )
+        assertTrue("device reports no back camera", backCameras.isNotEmpty())
+        awaitServerReachable(context, serverUrl)
+        if (!dismissSystemDialogs(instrumentation, timeoutMs) { appHasFocus() }) {
+            Log.w(LOG_TAG, "app window still has no focus; continuing")
+        }
+
+        // Onboarding: skip the intro, create identity, pass the recovery kit check, skip the handle -> chat list.
+        compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
+        waitFor("onboarding shown", hasText(string(OnboardingR.string.onboarding_welcome_title)))
+        enterText("hub address", TAG_SERVER_URL, serverUrl)
+        click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
+        waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))
+        enterText("display name", TAG_DISPLAY_NAME, "Camera $suffix")
+        click("create account", TAG_SUBMIT)
+        compose.completeRecoveryKit(LOG_TAG, timeoutMs, ::failStep)
+        waitFor("handle step", hasTestTag(TAG_SKIP_HANDLE))
+        click("skip handle", TAG_SKIP_HANDLE)
+        waitFor("chat list", hasText(string(ChatListR.string.chatlist_title)))
     }
 
     /**
@@ -246,12 +286,15 @@ class CameraScannerE2eTest {
         const val LOG_TAG = "CameraScannerE2eTest"
         val STREAM = Regex("Stream\\[\\d+]: Output")
 
-        // Tags of internal constants in the feature modules (OnboardingTestTags, LinkDeviceTestTags).
+        // Tags of internal constants in the feature modules (OnboardingTestTags, LinkDeviceTestTags, NewChatTestTags).
         const val TAG_SERVER_URL = "onboarding_server_url"
         const val TAG_CREATE_ACCOUNT = "onboarding_create_account"
         const val TAG_DISPLAY_NAME = "onboarding_display_name"
         const val TAG_SUBMIT = "onboarding_submit"
         const val TAG_SKIP_HANDLE = "onboarding_skip_handle"
         const val TAG_SCANNER = "linking_scanner"
+        const val TAG_SCAN_QR = "contacts_scan_qr"
+        const val TAG_NEW_CHAT_SCANNER = "contacts_scanner"
+        const val TAG_CLOSE_SCANNER = "contacts_close_scanner"
     }
 }
