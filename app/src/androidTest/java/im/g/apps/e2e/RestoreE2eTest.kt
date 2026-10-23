@@ -11,10 +11,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToString
@@ -35,6 +32,7 @@ import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
 import im.g.apps.testing.skipIntro
+import im.g.apps.testing.signOutFromSettings
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -131,14 +129,7 @@ class RestoreE2eTest {
         val lostDeviceId = runBlocking { peer.devices() }.single { it.isCurrent }.deviceId
 
         // App: sign out (the device stays listed on the hub), then intro -> Welcome -> Restore -> paste the kit.
-        compose.onNodeWithContentDescription(string(ChatListR.string.chatlist_more_options)).performClick()
-        waitFor("overflow menu", hasText(string(ChatListR.string.chatlist_sign_out)))
-        compose.onNodeWithText(string(ChatListR.string.chatlist_sign_out)).performClick()
-        waitFor("sign-out dialog", hasText(string(ChatListR.string.chatlist_sign_out_title)))
-        // The dialog's confirm button, once the overflow menu item has gone.
-        val signOut = hasText(string(ChatListR.string.chatlist_sign_out))
-        waitFor("overflow menu closed") { compose.onAllNodes(signOut).fetchSemanticsNodes().size == 1 }
-        compose.onNode(signOut).performClick()
+        compose.signOutFromSettings(LOG_TAG, timeoutMs, ::failStep)
         compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
         waitFor("onboarding after sign-out", hasText(string(OnboardingR.string.onboarding_welcome_title)))
         enterText("hub address", TAG_SERVER_URL, serverUrl)

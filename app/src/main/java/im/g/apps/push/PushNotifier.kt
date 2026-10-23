@@ -74,6 +74,15 @@ fun pushNotificationSpec(content: NotificationContent): PushNotificationSpec? {
 
 private const val NO_CHAT_TAG = "gim"
 
+/** Creates every [PushChannel] (no-op for existing ones); a channel's system settings only open once it exists. */
+fun ensurePushChannels(context: Context) {
+    NotificationManagerCompat.from(context).createNotificationChannelsCompat(
+        PushChannel.entries.map {
+            NotificationChannelCompat.Builder(it.id, it.importance).setName(context.getString(it.label)).build()
+        },
+    )
+}
+
 /** Posts push notifications; tapping one opens its chat in [MainActivity] ([MainActivity.EXTRA_CHAT_ID]). */
 class AndroidPushNotifier(context: Context) : PushNotifier {
     private val context = context.applicationContext
@@ -88,11 +97,7 @@ class AndroidPushNotifier(context: Context) : PushNotifier {
             Log.w(TAG, "Notification permission not granted; push not shown")
             return
         }
-        manager.createNotificationChannelsCompat(
-            PushChannel.entries.map {
-                NotificationChannelCompat.Builder(it.id, it.importance).setName(context.getString(it.label)).build()
-            },
-        )
+        ensurePushChannels(context)
         val notification = NotificationCompat.Builder(context, spec.channel.id)
             .setSmallIcon(android.R.drawable.stat_notify_chat)
             .setContentTitle(spec.title ?: context.getString(R.string.app_name))
