@@ -15,7 +15,7 @@
         android:name=".GimApplication"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        android:theme="@style/Theme.Gim">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -25,6 +25,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Stores the in-app language below API 33 (AppCompatDelegate.setApplicationLocales). -->
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true" />
+        </service>
 
         <provider
             android:name="androidx.core.content.FileProvider"

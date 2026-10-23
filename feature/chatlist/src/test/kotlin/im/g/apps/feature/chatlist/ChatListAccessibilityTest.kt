@@ -63,11 +63,11 @@ class ChatListAccessibilityTest {
             GimTheme {
                 ChatListScreen(
                     state = state,
+                    ownName = "Sofia Costa",
                     onOpenChat = {},
                     onNewChat = {},
                     onNewGroup = {},
-                    onSignOut = {},
-                    onLinkDevice = {},
+                    onOpenSettings = {},
                 )
             }
         }

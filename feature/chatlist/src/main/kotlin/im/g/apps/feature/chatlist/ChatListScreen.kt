@@ -15,8 +15,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -27,7 +25,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,8 +33,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -53,70 +52,61 @@ import im.g.apps.core.designsystem.component.UnreadBadge
 import im.g.apps.core.designsystem.theme.GimTheme
 import kotlinx.collections.immutable.persistentListOf
 
+/** Test tags; the device E2E tests repeat these literals. */
+internal object ChatListTestTags {
+    const val SETTINGS = "chatlist_settings"
+}
+
 @Composable
 fun ChatListRoute(
     viewModel: ChatListViewModel,
+    ownName: String,
     onOpenChat: (chatId: String) -> Unit,
     onNewChat: () -> Unit,
     onNewGroup: () -> Unit,
-    onSignOut: () -> Unit,
-    onLinkDevice: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
-    onDevices: () -> Unit = {},
-    onHubs: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     ChatListScreen(
         state = state,
+        ownName = ownName,
         onOpenChat = onOpenChat,
         onNewChat = onNewChat,
         onNewGroup = onNewGroup,
-        onSignOut = onSignOut,
-        onLinkDevice = onLinkDevice,
+        onOpenSettings = onOpenSettings,
         modifier = modifier,
-        onDevices = onDevices,
-        onHubs = onHubs,
     )
 }
 
+/** [ownName] is the signed-in user's display name, drawn as the avatar that opens settings. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatListScreen(
     state: ChatListUiState,
+    ownName: String,
     onOpenChat: (chatId: String) -> Unit,
     onNewChat: () -> Unit,
     onNewGroup: () -> Unit,
-    onSignOut: () -> Unit,
-    onLinkDevice: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
-    onDevices: () -> Unit = {},
-    onHubs: () -> Unit = {},
 ) {
-    var confirmSignOut by remember { mutableStateOf(false) }
-    // Sign-out leaves this screen when done; until then the dialog stays up with its actions disabled.
-    var signingOut by remember { mutableStateOf(false) }
-    if (confirmSignOut) {
-        SignOutDialog(
-            enabled = !signingOut,
-            onConfirm = {
-                signingOut = true
-                onSignOut()
-            },
-            onDismiss = { if (!signingOut) confirmSignOut = false },
-        )
-    }
     Scaffold(
         modifier = modifier,
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.chatlist_title)) },
-                actions = {
-                    OverflowMenu(
-                        onDevices = onDevices,
-                        onHubs = onHubs,
-                        onLinkDevice = onLinkDevice,
-                        onSignOut = { confirmSignOut = true },
-                    )
+                navigationIcon = {
+                    val settingsLabel = stringResource(R.string.chatlist_open_settings)
+                    IconButton(
+                        onClick = onOpenSettings,
+                        modifier = Modifier
+                            .testTag(ChatListTestTags.SETTINGS)
+                            .semantics { contentDescription = settingsLabel },
+                    ) {
+                        // The button's label replaces the initials for screen readers.
+                        Avatar(name = ownName, imagePath = null, size = 34.dp, modifier = Modifier.clearAndSetSemantics {})
+                    }
                 },
             )
         },
@@ -149,61 +139,6 @@ fun ChatListScreen(
             }
         }
     }
-}
-
-@Composable
-private fun OverflowMenu(onDevices: () -> Unit, onHubs: () -> Unit, onLinkDevice: () -> Unit, onSignOut: () -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { expanded = true }) {
-            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.chatlist_more_options))
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.chatlist_devices)) },
-                onClick = {
-                    expanded = false
-                    onDevices()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.chatlist_hubs)) },
-                onClick = {
-                    expanded = false
-                    onHubs()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.chatlist_link_device)) },
-                onClick = {
-                    expanded = false
-                    onLinkDevice()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.chatlist_sign_out)) },
-                onClick = {
-                    expanded = false
-                    onSignOut()
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun SignOutDialog(enabled: Boolean, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.chatlist_sign_out_title)) },
-        text = { Text(stringResource(R.string.chatlist_sign_out_body)) },
-        confirmButton = {
-            TextButton(onClick = onConfirm, enabled = enabled) { Text(stringResource(R.string.chatlist_sign_out)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = enabled) { Text(stringResource(R.string.chatlist_cancel)) }
-        },
-    )
 }
 
 @Composable
@@ -334,11 +269,11 @@ private fun ChatListScreenPreview() {
                 ),
                 connection = ConnectionBannerUi.CONNECTING,
             ),
+            ownName = "Sofia Costa",
             onOpenChat = {},
             onNewChat = {},
             onNewGroup = {},
-            onSignOut = {},
-            onLinkDevice = {},
+            onOpenSettings = {},
         )
     }
 }

@@ -6,6 +6,8 @@ import im.g.apps.core.bridge.InMemoryServerUrlStore
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakeGimClientFactory
+import im.g.apps.feature.settings.InMemoryAppLocales
+import im.g.apps.feature.settings.InMemoryThemeModeStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 
@@ -19,4 +21,6 @@ fun testContainer(
     appScope = scope,
     serverUrlStore = InMemoryServerUrlStore(storedUrl),
     clientFactory = factory,
+    themeModeStore = InMemoryThemeModeStore(),
+    appLocales = InMemoryAppLocales(),
 )

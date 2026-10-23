@@ -13,6 +13,10 @@ import im.g.apps.core.bridge.platform.AndroidPlatformHooks
 import im.g.apps.core.bridge.platform.AndroidReachabilityMonitor
 import im.g.apps.core.bridge.platform.SharedPrefsServerUrlStore
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
+import im.g.apps.feature.settings.AppCompatAppLocales
+import im.g.apps.feature.settings.AppLocales
+import im.g.apps.feature.settings.SharedPrefsThemeModeStore
+import im.g.apps.feature.settings.ThemeModeStore
 import im.g.apps.push.AndroidPushNotifier
 import im.g.apps.push.PushController
 import im.g.apps.push.PushNotifier
@@ -37,6 +41,10 @@ class AppContainer(
     /** The push platform; release builds have none, debug builds the mock push server client. */
     val pushProvider: PushProvider? = createPushProvider(context),
     pushNotifier: PushNotifier = AndroidPushNotifier(context),
+    /** Light/dark choice; kept across restarts and sign-out. */
+    val themeModeStore: ThemeModeStore = SharedPrefsThemeModeStore(context),
+    /** The in-app language; kept across restarts and sign-out. */
+    val appLocales: AppLocales = AppCompatAppLocales(),
 ) {
     private val appContext = context.applicationContext
 

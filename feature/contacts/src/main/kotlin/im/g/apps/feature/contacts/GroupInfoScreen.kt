@@ -1,5 +1,6 @@
 package im.g.apps.feature.contacts
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -44,6 +46,28 @@ import im.g.apps.core.designsystem.component.Avatar
 import im.g.apps.core.designsystem.component.EmptyState
 import im.g.apps.core.designsystem.theme.GimTheme
 import kotlinx.collections.immutable.persistentListOf
+
+/**
+ * Hidden step-6 extension point: the "Chat actions" group (mute, pin, archive, block, report). Flip once the SDK has
+ * the APIs, then wire [GroupInfoActions.onChatAction]; direct chats and the chat list long-press will reuse
+ * [ChatAction]. See `feature/settings/README.md`, "Extension points (step 6)".
+ */
+internal object ChatActions {
+    const val AVAILABLE = false
+}
+
+/** One entry of the hidden "Chat actions" group, in display order. */
+enum class ChatAction(@StringRes val label: Int) {
+    MUTE(R.string.contacts_chat_action_mute),
+    PIN(R.string.contacts_chat_action_pin),
+    ARCHIVE(R.string.contacts_chat_action_archive),
+    BLOCK(R.string.contacts_chat_action_block),
+    REPORT(R.string.contacts_chat_action_report),
+}
+
+internal object ChatActionsTestTags {
+    const val GROUP = "chat_actions"
+}
 
 @Composable
 fun GroupInfoRoute(
@@ -98,6 +122,8 @@ internal class GroupInfoActions(
     val onLeave: () -> Unit = {},
     val onConfirmLeave: () -> Unit = {},
     val onDismissDialog: () -> Unit = {},
+    /** Not wired yet: the "Chat actions" group is hidden behind [ChatActions.AVAILABLE]. */
+    val onChatAction: (ChatAction) -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -189,6 +215,9 @@ private fun ChatDetails(
                 }
             }
         }
+        if (ChatActions.AVAILABLE) {
+            item(key = "chat-actions") { ChatActionsGroup(onAction = actions.onChatAction, enabled = !state.busy) }
+        }
         item(key = "members-title") {
             Text(
                 text = stringResource(R.string.contacts_members),
@@ -228,6 +257,20 @@ private fun ChatDetails(
                     Text(stringResource(R.string.contacts_leave_group), color = MaterialTheme.colorScheme.error)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ChatActionsGroup(onAction: (ChatAction) -> Unit, enabled: Boolean) {
+    Column(modifier = Modifier.testTag(ChatActionsTestTags.GROUP)) {
+        Text(
+            text = stringResource(R.string.contacts_chat_actions),
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+        )
+        ChatAction.entries.forEach { action ->
+            TextButton(onClick = { onAction(action) }, enabled = enabled) { Text(stringResource(action.label)) }
         }
     }
 }

@@ -43,7 +43,7 @@ class ChatRowsTest {
     )
 
     private fun show(state: ChatListUiState, onNewChat: () -> Unit = {}) = rule.setContent {
-        GimTheme { ChatListScreen(state, {}, onNewChat, {}, {}, {}) }
+        GimTheme { ChatListScreen(state, "Sofia Costa", {}, onNewChat, {}, {}) }
     }
 
     private fun row(title: String) = rule.onNode(hasClickAction() and hasText(title))

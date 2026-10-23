@@ -1,10 +1,9 @@
 package im.g.apps.feature.chatlist
 
-import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.hasClickAction
-import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -31,19 +30,10 @@ class ChatListScreenTest {
         onOpenChat: (String) -> Unit = {},
         onNewChat: () -> Unit = {},
         onNewGroup: () -> Unit = {},
-        onSignOut: () -> Unit = {},
-        onLinkDevice: () -> Unit = {},
+        onOpenSettings: () -> Unit = {},
     ) = rule.setContent {
-        GimTheme { ChatListScreen(state, onOpenChat, onNewChat, onNewGroup, onSignOut, onLinkDevice) }
+        GimTheme { ChatListScreen(state, "Sofia Costa", onOpenChat, onNewChat, onNewGroup, onOpenSettings) }
     }
-
-    private fun openSignOutDialog() {
-        rule.onNodeWithContentDescription("More options").performClick()
-        rule.onNodeWithText("Sign out").performClick()
-        rule.onNodeWithText("Sign out?").assertExists()
-    }
-
-    private val confirmButton = hasText("Sign out") and hasClickAction()
 
     @Test
     fun rows_render_title_preview_time_and_badge() {
@@ -115,41 +105,14 @@ class ChatListScreenTest {
     }
 
     @Test
-    fun overflow_link_device_runs_the_callback() {
-        var linkDevice = 0
-        show(ChatListUiState(rows = rows), onLinkDevice = { linkDevice++ })
+    fun own_avatar_opens_settings_and_there_is_no_overflow_menu() {
+        var settings = 0
+        show(ChatListUiState(rows = rows), onOpenSettings = { settings++ })
 
-        rule.onNodeWithContentDescription("More options").performClick()
-        rule.onNodeWithText("Link a new device").performClick()
+        rule.onNodeWithContentDescription("More options").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Settings").assertHasClickAction()
+        rule.onNodeWithTag(ChatListTestTags.SETTINGS).performClick()
 
-        assertEquals(1, linkDevice)
-        rule.onNodeWithText("Link a new device").assertDoesNotExist()
-    }
-
-    @Test
-    fun overflow_sign_out_confirms_before_signing_out() {
-        var signOut = 0
-        show(ChatListUiState(rows = rows), onSignOut = { signOut++ })
-
-        openSignOutDialog()
-        assertEquals(0, signOut)
-        rule.onNode(confirmButton).performClick()
-
-        assertEquals(1, signOut)
-        // The dialog stays up with its actions disabled until sign-out navigates away.
-        rule.onNode(confirmButton).assertIsNotEnabled()
-        rule.onNodeWithText("Cancel").assertIsNotEnabled()
-    }
-
-    @Test
-    fun cancelling_the_sign_out_dialog_does_not_sign_out() {
-        var signOut = 0
-        show(ChatListUiState(rows = rows), onSignOut = { signOut++ })
-
-        openSignOutDialog()
-        rule.onNodeWithText("Cancel").performClick()
-
-        rule.onNodeWithText("Sign out?").assertDoesNotExist()
-        assertEquals(0, signOut)
+        assertEquals(1, settings)
     }
 }

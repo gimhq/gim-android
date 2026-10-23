@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The languages offered in Settings > Language, as BCP 47 tags. Add a tag here when a values-<locale>
+         translation is added. -->
+    <string-array name="settings_language_tags" translatable="false">
+        <item>en</item>
+    </string-array>
+</resources>

@@ -16,7 +16,6 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
@@ -46,6 +45,7 @@ import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.onboardingShown
 import im.g.apps.testing.saveFailureScreenshot
 import im.g.apps.testing.skipIntro
+import im.g.apps.testing.openSettingsRow
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -70,6 +70,7 @@ import org.junit.Before
 import org.junit.Rule
 import im.g.apps.feature.chat.R as ChatR
 import im.g.apps.feature.chatlist.R as ChatListR
+import im.g.apps.feature.settings.R as SettingsR
 import im.g.apps.feature.devices.R as DevicesR
 import im.g.apps.feature.onboarding.R as OnboardingR
 
@@ -200,11 +201,11 @@ abstract class RefusedUserE2eBase {
         // A screen that needs the hub shows the refusal; the user stays signed in with the chats readable.
         UiDevice.getInstance(instrumentation).pressBack()
         waitForText("chat list", string(ChatListR.string.chatlist_title))
-        compose.onNodeWithContentDescription(string(ChatListR.string.chatlist_more_options)).performClick()
-        waitForText("overflow menu", string(ChatListR.string.chatlist_devices))
-        compose.onNodeWithText(string(ChatListR.string.chatlist_devices)).performClick()
+        compose.openSettingsRow(logTag, string(SettingsR.string.settings_linked_devices), timeoutMs, ::failStep)
         waitForText("devices screen shows the refusal", string(refusal.message))
         compose.onNodeWithContentDescription(string(DevicesR.string.devices_back)).performClick()
+        waitForText("settings after the refusal", string(SettingsR.string.settings_title))
+        compose.onNodeWithContentDescription(string(SettingsR.string.settings_back)).performClick()
         waitForText("chat list after the refusal", string(ChatListR.string.chatlist_title))
         assertFalse("onboarding shown", exists(compose.onboardingShown()))
         click("reopen the group", row)

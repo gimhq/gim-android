@@ -37,6 +37,7 @@ import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
 import im.g.apps.testing.skipIntro
+import im.g.apps.testing.openSettingsRow
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.runBlocking
@@ -49,6 +50,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import im.g.apps.feature.chatlist.R as ChatListR
+import im.g.apps.feature.contacts.R as ContactsR
+import im.g.apps.feature.settings.R as SettingsR
 import im.g.apps.feature.linking.R as LinkingR
 import im.g.apps.feature.onboarding.R as OnboardingR
 
@@ -107,6 +110,74 @@ class CameraScannerE2eTest {
 
     @Test
     fun scannerBindsBackCameraAndReleasesIt() {
+        signUpWithCamera()
+        val context = instrumentation.targetContext
+
+        cameraManager.registerAvailabilityCallback(availability, Handler(Looper.getMainLooper()))
+        registered = true
+        waitFor("back cameras idle before the scanner opens") { openBackCameras.isEmpty() }
+
+        // Settings -> Link a new device: the scanner is shown and opens a back camera.
+        compose.openSettingsRow(LOG_TAG, string(SettingsR.string.settings_link_device), timeoutMs, ::failStep)
+        waitFor("scanner shown", hasTestTag(TAG_SCANNER))
+        waitFor("back camera opened by the scanner") { openBackCameras.isNotEmpty() }
+        Log.i(LOG_TAG, "back camera(s) open: $openBackCameras")
+
+        // CameraX configured the session: the camera service lists this app as the client with an output stream
+        // per use case (preview + image analysis).
+        val streams = waitForValue("camera streams configured") { cameraStreams(context.packageName).takeIf { it >= 2 } }
+        Log.i(LOG_TAG, "camera client ${context.packageName} has $streams output streams")
+
+        // The pipeline keeps running: no "no camera" fallback, the scanner stays, the camera stays open.
+        SystemClock.sleep(RUN_MS)
+        compose.waitForIdle()
+        assertTrue(
+            "scanner fell back to 'no camera'",
+            compose.onAllNodes(hasText(string(LinkingR.string.linking_camera_unavailable))).fetchSemanticsNodes().isEmpty(),
+        )
+        compose.onNodeWithTag(TAG_SCANNER).assertIsDisplayed()
+        assertTrue("back camera closed while the scanner is shown", openBackCameras.isNotEmpty())
+
+        // Leaving the screen unbinds the use cases and releases the camera.
+        compose.onNodeWithContentDescription(string(LinkingR.string.linking_back)).performClick()
+        waitFor("settings after leaving the scanner", hasText(string(SettingsR.string.settings_title)))
+        waitFor("back camera released") { openBackCameras.isEmpty() }
+    }
+
+    /**
+     * New chat -> Scan QR code: with the camera granted the scanner shows and opens a back camera; Close releases
+     * it. SettingsE2eTest answers the permission dialog on the emulator; NewChatViewModelTest covers a scanned code.
+     */
+    @Test
+    fun newChatScannerOpensBackCamera() {
+        signUpWithCamera()
+        cameraManager.registerAvailabilityCallback(availability, Handler(Looper.getMainLooper()))
+        registered = true
+        waitFor("back cameras idle before the scanner opens") { openBackCameras.isEmpty() }
+
+        compose.onNodeWithContentDescription(string(ChatListR.string.chatlist_new_message)).performClick()
+        waitFor("new message menu", hasText(string(ChatListR.string.chatlist_new_chat)))
+        compose.onNodeWithText(string(ChatListR.string.chatlist_new_chat)).performClick()
+        waitFor("new chat", hasTestTag(TAG_SCAN_QR))
+        click("scan qr code", TAG_SCAN_QR)
+        waitFor("new chat scanner shown", hasTestTag(TAG_NEW_CHAT_SCANNER))
+        waitFor("back camera opened by the new chat scanner") { openBackCameras.isNotEmpty() }
+        Log.i(LOG_TAG, "back camera(s) open: $openBackCameras")
+        assertTrue(
+            "new chat scanner fell back to 'no camera'",
+            compose.onAllNodes(hasText(string(ContactsR.string.contacts_scan_camera_unavailable))).fetchSemanticsNodes()
+                .isEmpty(),
+        )
+
+        click("close scanner", TAG_CLOSE_SCANNER)
+        waitFor("new chat after closing the scanner") {
+            compose.onAllNodes(hasTestTag(TAG_NEW_CHAT_SCANNER)).fetchSemanticsNodes().isEmpty()
+        }
+        waitFor("back camera released by the new chat scanner") { openBackCameras.isEmpty() }
+    }
+
+    /** Checks the CAMERA grant and a back camera, then onboards a fresh account to the chat list. */
+    private fun signUpWithCamera() {
         keepScreenOn(instrumentation, compose.activity)
         val context = instrumentation.targetContext
         assertEquals(
@@ -132,38 +203,6 @@ class CameraScannerE2eTest {
         waitFor("handle step", hasTestTag(TAG_SKIP_HANDLE))
         click("skip handle", TAG_SKIP_HANDLE)
         waitFor("chat list", hasText(string(ChatListR.string.chatlist_title)))
-
-        cameraManager.registerAvailabilityCallback(availability, Handler(Looper.getMainLooper()))
-        registered = true
-        waitFor("back cameras idle before the scanner opens") { openBackCameras.isEmpty() }
-
-        // Chat list overflow -> Link a new device: the scanner is shown and opens a back camera.
-        compose.onNodeWithContentDescription(string(ChatListR.string.chatlist_more_options)).performClick()
-        waitFor("overflow menu", hasText(string(ChatListR.string.chatlist_link_device)))
-        compose.onNodeWithText(string(ChatListR.string.chatlist_link_device)).performClick()
-        waitFor("scanner shown", hasTestTag(TAG_SCANNER))
-        waitFor("back camera opened by the scanner") { openBackCameras.isNotEmpty() }
-        Log.i(LOG_TAG, "back camera(s) open: $openBackCameras")
-
-        // CameraX configured the session: the camera service lists this app as the client with an output stream
-        // per use case (preview + image analysis).
-        val streams = waitForValue("camera streams configured") { cameraStreams(context.packageName).takeIf { it >= 2 } }
-        Log.i(LOG_TAG, "camera client ${context.packageName} has $streams output streams")
-
-        // The pipeline keeps running: no "no camera" fallback, the scanner stays, the camera stays open.
-        SystemClock.sleep(RUN_MS)
-        compose.waitForIdle()
-        assertTrue(
-            "scanner fell back to 'no camera'",
-            compose.onAllNodes(hasText(string(LinkingR.string.linking_camera_unavailable))).fetchSemanticsNodes().isEmpty(),
-        )
-        compose.onNodeWithTag(TAG_SCANNER).assertIsDisplayed()
-        assertTrue("back camera closed while the scanner is shown", openBackCameras.isNotEmpty())
-
-        // Leaving the screen unbinds the use cases and releases the camera.
-        compose.onNodeWithContentDescription(string(LinkingR.string.linking_back)).performClick()
-        waitFor("chat list after leaving the scanner", hasText(string(ChatListR.string.chatlist_title)))
-        waitFor("back camera released") { openBackCameras.isEmpty() }
     }
 
     /**
@@ -247,12 +286,15 @@ class CameraScannerE2eTest {
         const val LOG_TAG = "CameraScannerE2eTest"
         val STREAM = Regex("Stream\\[\\d+]: Output")
 
-        // Tags of internal constants in the feature modules (OnboardingTestTags, LinkDeviceTestTags).
+        // Tags of internal constants in the feature modules (OnboardingTestTags, LinkDeviceTestTags, NewChatTestTags).
         const val TAG_SERVER_URL = "onboarding_server_url"
         const val TAG_CREATE_ACCOUNT = "onboarding_create_account"
         const val TAG_DISPLAY_NAME = "onboarding_display_name"
         const val TAG_SUBMIT = "onboarding_submit"
         const val TAG_SKIP_HANDLE = "onboarding_skip_handle"
         const val TAG_SCANNER = "linking_scanner"
+        const val TAG_SCAN_QR = "contacts_scan_qr"
+        const val TAG_NEW_CHAT_SCANNER = "contacts_scanner"
+        const val TAG_CLOSE_SCANNER = "contacts_close_scanner"
     }
 }
