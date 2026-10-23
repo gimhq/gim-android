@@ -4,9 +4,6 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.View
 import androidx.compose.foundation.layout.Column
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
@@ -128,12 +125,11 @@ class ComponentsTest {
             TickState.READ to "Read",
             TickState.FAILED to "Not sent",
         )
-        var state by mutableStateOf(TickState.PENDING)
-        rule.setContent { GimTheme { StatusTicks(state = state) } }
-        expected.forEach { (tick, label) ->
-            state = tick
-            rule.onNodeWithContentDescription(label).assertExists()
-        }
+        // The ticks draw only; the message row announces the label.
+        val labels = mutableMapOf<TickState, String>()
+        rule.setContent { GimTheme { TickState.entries.forEach { labels[it] = tickLabel(it) } } }
+        rule.waitForIdle()
+        assertEquals(expected, labels)
     }
 
     @Test
