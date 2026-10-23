@@ -19,6 +19,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -238,7 +239,12 @@ class ComposerScreenTest {
             .first { it.config.getOrNull(SemanticsActions.GetTextLayoutResult) != null }
         val layouts = mutableListOf<TextLayoutResult>()
         placeholder.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
-        assertFalse(layouts.single().hasVisualOverflow)
+        // Robolectric's text widths are not real, so check height overflow and that the placeholder sits inside the input.
+        assertFalse(layouts.single().didOverflowHeight)
+        val input = rule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).getBoundsInRoot()
+        val shown = placeholder.boundsInRoot
+        val density = placeholder.layoutInfo.density.density
+        assertTrue(shown.top / density >= input.top.value - 0.5f && shown.bottom / density <= input.bottom.value + 0.5f)
     }
 
     @Test
