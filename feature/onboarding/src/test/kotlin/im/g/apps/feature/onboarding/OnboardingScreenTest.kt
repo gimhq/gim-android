@@ -68,8 +68,9 @@ class OnboardingScreenTest {
         InMemoryServerUrlStore(),
     )
 
-    private fun setContent() = rule.setContent {
-        GimTheme { OnboardingRoute(viewModel = viewModel, onFinished = { finished++ }) }
+    private fun setContent() {
+        rule.setContent { GimTheme { OnboardingRoute(viewModel = viewModel, onFinished = { finished++ }) } }
+        rule.onNodeWithTag(OnboardingTestTags.INTRO_SKIP).performClick()
     }
 
     @Test
@@ -93,6 +94,7 @@ class OnboardingScreenTest {
         val manager = gatedManager(gate)
         val vm = OnboardingViewModel(manager)
         rule.setContent { GimTheme { OnboardingRoute(viewModel = vm, onFinished = { finished++ }) } }
+        rule.onNodeWithTag(OnboardingTestTags.INTRO_START).performClick()
 
         rule.onNodeWithTag(OnboardingTestTags.SERVER_URL).performTextInput("https://gim.example.eu")
         rule.onNodeWithTag(OnboardingTestTags.LINK_DEVICE).performScrollTo().performClick()
@@ -116,6 +118,7 @@ class OnboardingScreenTest {
         val manager = gatedManager(gate)
         val vm = OnboardingViewModel(manager)
         rule.setContent { GimTheme { OnboardingRoute(viewModel = vm, onFinished = { finished++ }) } }
+        rule.onNodeWithTag(OnboardingTestTags.INTRO_SKIP).performClick()
         rule.onNodeWithTag(OnboardingTestTags.SERVER_URL).performTextInput("https://gim.example.eu")
         rule.onNodeWithTag(OnboardingTestTags.LINK_DEVICE).performScrollTo().performClick()
         rule.waitUntil(timeoutMillis = 5_000) { vm.state.value.linkQr != null }
@@ -134,7 +137,8 @@ class OnboardingScreenTest {
                 OnboardingScreen(
                     OnboardingUiState(step = OnboardingStep.LINK_QR, error = OnboardingError.LinkTimedOut),
                     OnboardingCallbacks(
-                        {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, { finished++ }, {}, {}, {}, {}, {}, {}, {}, {},
+                        {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+                        { finished++ }, {}, {}, {}, {}, {}, {}, {}, {}, {},
                     ),
                 )
             }
@@ -146,7 +150,7 @@ class OnboardingScreenTest {
     }
 
     @Test
-    fun create_account_flow_shows_the_recovery_code_and_finishes_with_a_handle() {
+    fun create_account_flow_shows_the_recovery_kit_checks_it_and_finishes_with_a_handle() {
         setContent()
         rule.onNodeWithTag(OnboardingTestTags.SERVER_URL).performTextInput("https://gim.example.eu")
         rule.onNodeWithTag(OnboardingTestTags.CREATE_ACCOUNT).assertIsEnabled().performClick()
@@ -154,13 +158,20 @@ class OnboardingScreenTest {
         rule.onNodeWithTag(OnboardingTestTags.DISPLAY_NAME).performTextInput("Sofia Costa")
         rule.onNodeWithTag(OnboardingTestTags.SUBMIT).performScrollTo().performClick()
 
-        rule.waitUntil(timeoutMillis = 5_000) { viewModel.state.value.step == OnboardingStep.RECOVERY_CODE }
-        rule.onNodeWithText(FakeGimClient.fakeRecoveryCode(1)).assertExists()
-        rule.onNodeWithTag(OnboardingTestTags.COPY_CODE).performClick()
+        rule.waitUntil(timeoutMillis = 5_000) { viewModel.state.value.step == OnboardingStep.RECOVERY_KIT }
+        val code = FakeGimClient.fakeRecoveryCode(1)
+        rule.onNodeWithText(code).assertExists()
+        rule.onNodeWithTag(OnboardingTestTags.KIT_ACCOUNT_ID).assertTextContains("u-1", substring = true)
+        rule.onNodeWithTag(OnboardingTestTags.KIT_COPY).performScrollTo().performClick()
         rule.onNodeWithText("Copied").assertExists()
-        rule.onNodeWithTag(OnboardingTestTags.CODE_CONTINUE).assertIsNotEnabled()
-        rule.onNodeWithTag(OnboardingTestTags.CODE_SAVED).performClick()
-        rule.onNodeWithTag(OnboardingTestTags.CODE_CONTINUE).assertIsEnabled().performClick()
+        rule.onNodeWithTag(OnboardingTestTags.CODE_CONTINUE).performScrollTo().performClick()
+
+        rule.onNodeWithTag(OnboardingTestTags.KIT_CHECK_CONFIRM).assertIsNotEnabled()
+        rule.onNodeWithTag(OnboardingTestTags.KIT_CHECK).performTextInput("0000")
+        rule.onNodeWithTag(OnboardingTestTags.KIT_CHECK_CONFIRM).performScrollTo().performClick()
+        rule.onNodeWithText("That doesn’t match. Look at the end of your recovery key and try again.").assertExists()
+        rule.onNodeWithTag(OnboardingTestTags.KIT_CHECK).performTextReplacement(code.replace("-", "").takeLast(4))
+        rule.onNodeWithTag(OnboardingTestTags.KIT_CHECK_CONFIRM).performScrollTo().assertIsEnabled().performClick()
 
         rule.onNodeWithTag(OnboardingTestTags.CLAIM_HANDLE).assertIsNotEnabled()
         rule.onNodeWithTag(OnboardingTestTags.HANDLE).performTextInput("sofia")
@@ -184,10 +195,13 @@ class OnboardingScreenTest {
         )
         val vm = OnboardingViewModel(manager)
         rule.setContent { GimTheme { OnboardingRoute(viewModel = vm, onFinished = { finished++ }) } }
+        rule.onNodeWithTag(OnboardingTestTags.INTRO_SKIP).performClick()
 
         rule.onNodeWithTag(OnboardingTestTags.SERVER_URL).performTextInput("https://gim.example.eu")
         rule.onNodeWithTag(OnboardingTestTags.RESTORE).performScrollTo().performClick()
         rule.onNodeWithTag(OnboardingTestTags.RESTORE_SUBMIT).assertIsNotEnabled()
+        rule.onNodeWithTag(OnboardingTestTags.RESTORE_KIT).performTextInput("not a kit")
+        rule.onNodeWithText("We can’t find an account ID or recovery key here. Check what you pasted.").assertExists()
         rule.onNodeWithTag(OnboardingTestTags.RESTORE_USER_ID).performTextInput(" $USER_ID")
         rule.onNodeWithTag(OnboardingTestTags.RESTORE_CODE).performTextInput("7bq2 k9mx")
         rule.onNodeWithTag(OnboardingTestTags.RESTORE_CODE).assertTextContains("7BQ2-K9MX")

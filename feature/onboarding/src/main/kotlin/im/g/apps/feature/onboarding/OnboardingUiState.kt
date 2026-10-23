@@ -4,12 +4,18 @@ import androidx.compose.runtime.Immutable
 
 /** Screens of the new-account flow, in order. */
 enum class OnboardingStep {
-    /** Server address and the ways to start: create, link, restore. */
+    /** What gim is, before anything is asked; its pages are UI state. */
+    INTRO,
+
+    /** Server address (unless a default is used) and the ways to start: create, link, restore. */
     WELCOME,
     DISPLAY_NAME,
 
-    /** The recovery code from `createIdentity`, shown once. */
-    RECOVERY_CODE,
+    /** The recovery kit: user ID and the recovery code from `createIdentity`, shown once. */
+    RECOVERY_KIT,
+
+    /** The user types the code's last four symbols to show the kit was saved. */
+    RECOVERY_CHECK,
     HANDLE,
 
     /** Link to an existing device: the `startLink` QR code while `waitLink` runs. */
@@ -36,6 +42,15 @@ enum class FieldError {
 
     /** The code does not open the user's backup (`Crypto`). */
     WrongRecoveryCode,
+
+    /** The typed symbols are not the recovery code's ending. */
+    KitCheckMismatch,
+
+    /** The pasted text holds neither a user ID nor a recovery code. */
+    KitNotRecognized,
+
+    /** The pasted text holds only one of user ID and recovery code. */
+    KitIncomplete,
 }
 
 /** Error that is not tied to a single field. */
@@ -68,14 +83,24 @@ sealed interface OnboardingError {
 
 @Immutable
 data class OnboardingUiState(
-    val step: OnboardingStep = OnboardingStep.WELCOME,
+    val step: OnboardingStep = OnboardingStep.INTRO,
     val serverUrl: String = "",
     val serverUrlError: FieldError? = null,
+    /** The app ships a valid server address; Welcome then hides the field until [showServerField]. */
+    val hasDefaultServer: Boolean = false,
+    /** Whether Welcome shows the server field: without a default, or once the user asks for another server. */
+    val showServerField: Boolean = true,
     val displayName: String = "",
     val displayNameError: FieldError? = null,
-    /** Set while [step] is [OnboardingStep.RECOVERY_CODE] only; dropped once the user confirms saving it. */
+    /**
+     * Set on [OnboardingStep.RECOVERY_KIT] and [OnboardingStep.RECOVERY_CHECK] only; dropped once the check passes.
+     */
     val recoveryCode: String? = null,
-    val recoveryCodeSaved: Boolean = false,
+    /** The new user's ID (normalized), shown in the kit. */
+    val accountId: String? = null,
+    /** What the user typed on [OnboardingStep.RECOVERY_CHECK]. */
+    val kitCheck: String = "",
+    val kitCheckError: FieldError? = null,
     val handle: String = "",
     val handleError: FieldError? = null,
     /** `LinkSession.qrString()` while [step] is [OnboardingStep.LINK_QR] and the link is waiting; null otherwise. */
@@ -87,6 +112,9 @@ data class OnboardingUiState(
     /** The recovery code's normalized symbols, without separators; the field shows them grouped. */
     val restoreCode: String = "",
     val restoreCodeError: FieldError? = null,
+    /** A pasted recovery kit; what it holds fills [restoreUserId] and [restoreCode]. */
+    val restoreKitText: String = "",
+    val restoreKitError: FieldError? = null,
     /** `revokeOthers` of `restoreFromRecovery`: sign out every other device of the user. */
     val revokeOtherDevices: Boolean = true,
     val error: OnboardingError? = null,
@@ -97,6 +125,9 @@ data class OnboardingUiState(
 
     val canSubmitDisplayName: Boolean
         get() = !isLoading && isValidDisplayName(displayName) && displayNameError == null
+
+    val canConfirmKitCheck: Boolean
+        get() = !isLoading && normalizeRecoveryCode(kitCheck).length == KIT_CHECK_SYMBOLS
 
     val canClaimHandle: Boolean
         get() = !isLoading && isValidHandle(handle) && handleError == null
@@ -118,15 +149,30 @@ data class OnboardingUiState(
 
     /** Whether system back is handled by [OnboardingViewModel.back] rather than leaving the app. */
     val handlesBack: Boolean
-        get() = step == OnboardingStep.DISPLAY_NAME || step == OnboardingStep.RECOVERY_CODE ||
-            step == OnboardingStep.LINK_QR || step == OnboardingStep.LINK_SAS || step == OnboardingStep.RESTORE
+        get() = step == OnboardingStep.DISPLAY_NAME || step == OnboardingStep.RECOVERY_KIT ||
+            step == OnboardingStep.RECOVERY_CHECK || step == OnboardingStep.LINK_QR ||
+            step == OnboardingStep.LINK_SAS || step == OnboardingStep.RESTORE
 
     companion object {
-        /** Initial state with [serverUrl] prefilled and flagged when invalid. */
-        fun withServerUrl(serverUrl: String) =
-            OnboardingUiState(serverUrl = serverUrl, serverUrlError = serverUrlError(serverUrl))
+        /**
+         * Initial state with [defaultServerUrl] (trimmed) prefilled and flagged when invalid; a valid one hides the
+         * server field.
+         */
+        fun initial(defaultServerUrl: String): OnboardingUiState {
+            val serverUrl = defaultServerUrl.trim()
+            val hasDefault = serverUrl.isNotBlank() && isValidServerUrl(serverUrl)
+            return OnboardingUiState(
+                serverUrl = serverUrl,
+                serverUrlError = serverUrlError(serverUrl),
+                hasDefaultServer = hasDefault,
+                showServerField = !hasDefault,
+            )
+        }
     }
 }
+
+/** The recovery code symbols typed back on [OnboardingStep.RECOVERY_CHECK]. */
+private const val KIT_CHECK_SYMBOLS = 4
 
 /** Blank is not an error yet (the user has not typed); anything else must be a valid URL. */
 internal fun serverUrlError(value: String): FieldError? =
