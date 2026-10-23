@@ -11,11 +11,11 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.assertTouchHeightIsAtLeast
-import androidx.compose.ui.test.assertTouchWidthIsAtLeast
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -74,9 +74,10 @@ class SharedComponentsTest {
                 )
             }
         }
+        // assertTouch*IsAtLeast is not in ui-test 1.7; the button's own bounds are the touch target here.
         rule.onNodeWithContentDescription("Back")
-            .assertTouchWidthIsAtLeast(48.dp)
-            .assertTouchHeightIsAtLeast(48.dp)
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
             .performClick()
         assertEquals(1, clicks)
     }
