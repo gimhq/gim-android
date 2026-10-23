@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -75,7 +76,7 @@ class GimNavHostTest {
         rule.waitUntilAtLeastOneExists(hasTestTag("onboarding_recovery_code"), TIMEOUT)
         val code = FakeGimClient.fakeRecoveryCode(1)
         rule.onNodeWithText(code).assertExists()
-        rule.onNodeWithTag("onboarding_code_continue").performClick()
+        rule.onNodeWithTag("onboarding_code_continue").performScrollTo().performClick()
         rule.onNodeWithTag("onboarding_kit_check").performTextInput(code.replace("-", "").takeLast(4))
         rule.onNodeWithTag("onboarding_kit_check_confirm").performClick()
         rule.waitUntilAtLeastOneExists(hasTestTag("onboarding_handle"), TIMEOUT)

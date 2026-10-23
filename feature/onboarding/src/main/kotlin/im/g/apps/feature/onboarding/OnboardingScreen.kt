@@ -22,23 +22,20 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -50,6 +47,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -75,7 +73,12 @@ class OnboardingCallbacks(
     val onBack: () -> Unit,
     val onDisplayNameChange: (String) -> Unit,
     val onSubmitDisplayName: () -> Unit,
-    val onCopyRecoveryCode: (String) -> Unit,
+    /** Copies the whole kit text. */
+    val onCopyRecoveryKit: (String) -> Unit,
+    /** Offers Account ID and recovery key to the password manager; only called on API 34+. */
+    val onSaveToPasswordManager: suspend (accountId: String, recoveryKey: String) -> PasswordSaveResult,
+    /** Shares the whole kit text as a file. */
+    val onShareRecoveryKit: (String) -> Unit,
     val onContinueFromKit: () -> Unit,
     val onKitCheckChange: (String) -> Unit,
     val onConfirmKitCheck: () -> Unit,
@@ -96,15 +99,20 @@ class OnboardingCallbacks(
     val onRestore: () -> Unit,
 )
 
-/** Hosts [OnboardingScreen]; [onFinished] runs once the account exists. System back goes to [OnboardingViewModel.back]. */
+/**
+ * Hosts [OnboardingScreen]; [onFinished] runs once the account exists. [onShareRecoveryKit] shares the kit text as a
+ * file. System back goes to [OnboardingViewModel.back].
+ */
 @Composable
 fun OnboardingRoute(
     viewModel: OnboardingViewModel,
     onFinished: () -> Unit,
+    onShareRecoveryKit: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val currentOnFinished by rememberUpdatedState(onFinished)
+    val currentOnShareRecoveryKit by rememberUpdatedState(onShareRecoveryKit)
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
@@ -122,7 +130,9 @@ fun OnboardingRoute(
             onBack = viewModel::back,
             onDisplayNameChange = viewModel::onDisplayNameChange,
             onSubmitDisplayName = viewModel::submitDisplayName,
-            onCopyRecoveryCode = { copySensitive(context, it) },
+            onCopyRecoveryKit = { copySensitive(context, it) },
+            onSaveToPasswordManager = { accountId, key -> saveToPasswordManager(context, accountId, key) },
+            onShareRecoveryKit = { currentOnShareRecoveryKit(it) },
             onContinueFromKit = viewModel::continueFromKit,
             onKitCheckChange = viewModel::onKitCheckChange,
             onConfirmKitCheck = viewModel::confirmKitCheck,
@@ -164,6 +174,10 @@ fun OnboardingScreen(
     modifier: Modifier = Modifier,
 ) {
     Surface(modifier = modifier.fillMaxSize()) {
+        if (state.step == OnboardingStep.INTRO) {
+            IntroStep(callbacks, Modifier.safeDrawingPadding())
+            return@Surface
+        }
         Column(
             modifier = Modifier
                 .safeDrawingPadding()
@@ -173,7 +187,7 @@ fun OnboardingScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             when (state.step) {
-                OnboardingStep.INTRO -> IntroStep(callbacks)
+                OnboardingStep.INTRO -> Unit // Shown above, outside this scrolling column.
                 OnboardingStep.WELCOME -> WelcomeStep(state, callbacks)
                 OnboardingStep.DISPLAY_NAME -> DisplayNameStep(state, callbacks)
                 OnboardingStep.RECOVERY_KIT -> RecoveryKitStep(state, callbacks)
@@ -195,28 +209,6 @@ fun OnboardingScreen(
     }
 }
 
-// Placeholder until the intro pages land; both buttons finish the intro.
-@Composable
-private fun ColumnScope.IntroStep(callbacks: OnboardingCallbacks) {
-    StepHeader(R.string.onboarding_intro_title, R.string.onboarding_intro_explanation)
-    Button(
-        onClick = callbacks.onFinishIntro,
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag(OnboardingTestTags.INTRO_START),
-    ) {
-        Text(stringResource(R.string.onboarding_intro_start))
-    }
-    TextButton(
-        onClick = callbacks.onFinishIntro,
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag(OnboardingTestTags.INTRO_SKIP),
-    ) {
-        Text(stringResource(R.string.onboarding_intro_skip))
-    }
-}
-
 @Composable
 private fun ColumnScope.WelcomeStep(state: OnboardingUiState, callbacks: OnboardingCallbacks) {
     val focusManager = LocalFocusManager.current
@@ -227,6 +219,7 @@ private fun ColumnScope.WelcomeStep(state: OnboardingUiState, callbacks: Onboard
             onValueChange = callbacks.onServerUrlChange,
             label = R.string.onboarding_server_url_label,
             placeholder = R.string.onboarding_server_url_placeholder,
+            supporting = R.string.onboarding_server_url_supporting,
             error = state.serverUrlError,
             enabled = !state.isLoading,
             keyboardOptions = KeyboardOptions(
@@ -329,102 +322,6 @@ private fun ColumnScope.DisplayNameStep(state: OnboardingUiState, callbacks: Onb
             callbacks.onSubmitDisplayName()
         },
     )
-}
-
-// Placeholder until the kit screen lands: account ID, recovery key, copy and continue.
-@Composable
-private fun ColumnScope.RecoveryKitStep(state: OnboardingUiState, callbacks: OnboardingCallbacks) {
-    val code = state.recoveryCode.orEmpty()
-    var copied by rememberSaveable { mutableStateOf(false) }
-    StepHeader(R.string.onboarding_kit_title, R.string.onboarding_kit_explanation)
-    Text(
-        text = stringResource(R.string.onboarding_kit_account_id, state.accountId.orEmpty()),
-        style = MaterialTheme.typography.bodyMedium,
-        fontFamily = FontFamily.Monospace,
-        modifier = Modifier.testTag(OnboardingTestTags.KIT_ACCOUNT_ID),
-    )
-    val description = stringResource(R.string.onboarding_recovery_code_description, code)
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = MaterialTheme.shapes.medium,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        // Shown exactly as gim-core returns it: blocks of four separated by '-'.
-        Text(
-            text = code,
-            style = MaterialTheme.typography.titleMedium,
-            fontFamily = FontFamily.Monospace,
-            modifier = Modifier
-                .padding(16.dp)
-                .semantics { contentDescription = description }
-                .testTag(OnboardingTestTags.RECOVERY_CODE),
-        )
-    }
-    OutlinedButton(
-        onClick = {
-            callbacks.onCopyRecoveryCode(code)
-            copied = true
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag(OnboardingTestTags.KIT_COPY),
-    ) {
-        Text(stringResource(if (copied) R.string.onboarding_code_copied else R.string.onboarding_copy_code))
-    }
-    Button(
-        onClick = callbacks.onContinueFromKit,
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag(OnboardingTestTags.CODE_CONTINUE),
-    ) {
-        Text(stringResource(R.string.onboarding_continue))
-    }
-}
-
-// Placeholder until the check screen lands.
-@Composable
-private fun ColumnScope.RecoveryCheckStep(state: OnboardingUiState, callbacks: OnboardingCallbacks) {
-    val focusManager = LocalFocusManager.current
-    TextButton(
-        onClick = callbacks.onBack,
-        modifier = Modifier.testTag(OnboardingTestTags.BACK),
-    ) {
-        Text(stringResource(R.string.onboarding_back))
-    }
-    StepHeader(R.string.onboarding_kit_check_title, R.string.onboarding_kit_check_explanation)
-    OnboardingField(
-        value = state.kitCheck,
-        onValueChange = callbacks.onKitCheckChange,
-        label = R.string.onboarding_kit_check_label,
-        error = state.kitCheckError,
-        enabled = !state.isLoading,
-        keyboardOptions = KeyboardOptions(
-            capitalization = KeyboardCapitalization.Characters,
-            autoCorrectEnabled = false,
-            keyboardType = KeyboardType.Password,
-            imeAction = ImeAction.Done,
-        ),
-        keyboardActions = KeyboardActions(
-            onDone = {
-                focusManager.clearFocus()
-                callbacks.onConfirmKitCheck()
-            },
-        ),
-        monospace = true,
-        tag = OnboardingTestTags.KIT_CHECK,
-    )
-    Button(
-        onClick = {
-            focusManager.clearFocus()
-            callbacks.onConfirmKitCheck()
-        },
-        enabled = state.canConfirmKitCheck,
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag(OnboardingTestTags.KIT_CHECK_CONFIRM),
-    ) {
-        Text(stringResource(R.string.onboarding_kit_check_confirm))
-    }
 }
 
 @Composable
@@ -589,9 +486,14 @@ private fun ColumnScope.RestoreStep(state: OnboardingUiState, callbacks: Onboard
             capitalization = KeyboardCapitalization.None,
             autoCorrectEnabled = false,
             keyboardType = KeyboardType.Ascii,
-            imeAction = ImeAction.Next,
         ),
+        singleLine = false,
         tag = OnboardingTestTags.RESTORE_KIT,
+    )
+    Text(
+        text = stringResource(R.string.onboarding_restore_manual_title),
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.semantics { heading() },
     )
     OnboardingField(
         value = state.restoreUserId,
@@ -638,17 +540,23 @@ private fun ColumnScope.RestoreStep(state: OnboardingUiState, callbacks: Onboard
             .toggleable(
                 value = state.revokeOtherDevices,
                 enabled = !state.isLoading,
-                role = Role.Checkbox,
+                role = Role.Switch,
                 onValueChange = callbacks.onRevokeOtherDevicesChange,
             )
             .testTag(OnboardingTestTags.RESTORE_REVOKE_OTHERS),
     ) {
-        Checkbox(checked = state.revokeOtherDevices, onCheckedChange = null, enabled = !state.isLoading)
-        Text(
-            text = stringResource(R.string.onboarding_restore_revoke_others),
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.padding(start = 12.dp),
-        )
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(
+                text = stringResource(R.string.onboarding_restore_revoke_others),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Text(
+                text = stringResource(R.string.onboarding_restore_revoke_others_supporting),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = state.revokeOtherDevices, onCheckedChange = null, enabled = !state.isLoading)
     }
     ProgressButton(
         label = R.string.onboarding_restore_submit,
@@ -664,7 +572,7 @@ private fun ColumnScope.RestoreStep(state: OnboardingUiState, callbacks: Onboard
 }
 
 @Composable
-private fun StepHeader(@StringRes title: Int, @StringRes explanation: Int) {
+internal fun StepHeader(@StringRes title: Int, @StringRes explanation: Int) {
     Text(
         text = stringResource(title),
         style = MaterialTheme.typography.headlineMedium,
@@ -677,7 +585,7 @@ private fun StepHeader(@StringRes title: Int, @StringRes explanation: Int) {
 }
 
 @Composable
-private fun OnboardingField(
+internal fun OnboardingField(
     value: String,
     onValueChange: (String) -> Unit,
     @StringRes label: Int,
@@ -690,6 +598,7 @@ private fun OnboardingField(
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     monospace: Boolean = false,
+    singleLine: Boolean = true,
 ) {
     val supportingText = error?.messageRes() ?: supporting
     OutlinedTextField(
@@ -697,10 +606,19 @@ private fun OnboardingField(
         onValueChange = onValueChange,
         label = { Text(stringResource(label)) },
         placeholder = placeholder?.let { { Text(stringResource(it)) } },
-        supportingText = supportingText?.let { { Text(stringResource(it)) } },
+        supportingText = supportingText?.let {
+            {
+                // Errors are announced as they appear; hints are read with the field.
+                Text(
+                    text = stringResource(it),
+                    modifier = if (error != null) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier,
+                )
+            }
+        },
         isError = error != null,
         enabled = enabled,
-        singleLine = true,
+        singleLine = singleLine,
+        minLines = if (singleLine) 1 else MULTI_LINE_MIN_LINES,
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
         visualTransformation = visualTransformation,
@@ -808,9 +726,13 @@ internal object OnboardingTestTags {
     const val RESTORE_SUBMIT = "onboarding_restore_submit"
 }
 
-private val previewCallbacks =
+/** Rows shown by a multi-line [OnboardingField] before it grows. */
+private const val MULTI_LINE_MIN_LINES = 3
+
+internal val previewCallbacks =
     OnboardingCallbacks(
-        {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+        {}, {}, {}, {}, {}, {}, {}, {}, { _, _ -> PasswordSaveResult.SAVED }, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+        {}, {}, {}, {}, {}, {}, {}, {},
     )
 
 @GimPreviews
@@ -824,7 +746,7 @@ private fun OnboardingWelcomePreview() {
     }
 }
 
-@Preview(showBackground = true)
+@GimPreviews
 @Composable
 private fun OnboardingDisplayNameLoadingPreview() {
     GimTheme {
@@ -850,7 +772,7 @@ private fun OnboardingRecoveryKitPreview() {
     }
 }
 
-@Preview(showBackground = true)
+@GimPreviews
 @Composable
 private fun OnboardingHandleErrorPreview() {
     GimTheme {
