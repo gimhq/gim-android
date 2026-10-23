@@ -3,11 +3,13 @@ package im.g.apps.navigation
 import androidx.activity.compose.BackHandler
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -96,8 +98,10 @@ fun GimNavHost(
                 ),
             )
             // Re-read whenever the chat list re-enters composition, e.g. after a name change in Settings.
-            val ownName by produceState("", current) {
-                value = withContext(Dispatchers.IO) { current.session()?.displayName.orEmpty() }
+            // (Not produceState: its lint check misses the assignment after withContext.)
+            var ownName by remember(current) { mutableStateOf("") }
+            LaunchedEffect(current) {
+                ownName = withContext(Dispatchers.IO) { current.session()?.displayName.orEmpty() }
             }
             ChatListRoute(
                 viewModel = vm,
