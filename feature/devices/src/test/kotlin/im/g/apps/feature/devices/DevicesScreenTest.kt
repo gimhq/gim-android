@@ -51,9 +51,9 @@ class DevicesScreenTest {
         rule.onNodeWithTag(DevicesTestTags.USER_ID).assertTextEquals("u-7f3a9c21")
         assertEquals(2, rule.onAllNodes(hasText("Added ", substring = true)).fetchSemanticsNodes().size)
         rule.onNode(hasScrollAction()).performScrollToNode(hasText("Device d-lost-0"))
-        rule.onNodeWithText("Revoked").assertExists()
+        rule.onNodeWithText("Removed").assertExists()
         // Only the active other device can be revoked.
-        assertEquals(1, rule.onAllNodesWithContentDescription("Revoke device").fetchSemanticsNodes().size)
+        assertEquals(1, rule.onAllNodesWithContentDescription("Remove device").fetchSemanticsNodes().size)
     }
 
     @Test
@@ -62,7 +62,7 @@ class DevicesScreenTest {
         var copied: String? = null
         show(listed, DevicesActions(onRevoke = { revoked = it }, onCopyUserId = { copied = it }))
 
-        rule.onNodeWithContentDescription("Revoke device").performClick()
+        rule.onNodeWithContentDescription("Remove device").performClick()
         rule.onNodeWithText("Copy").performClick()
 
         assertEquals(tablet, revoked)
@@ -78,9 +78,9 @@ class DevicesScreenTest {
             DevicesActions(onConfirmRevoke = { confirmed++ }, onDismissRevoke = { dismissed++ }),
         )
 
-        rule.onNodeWithText("Revoke this device?").assertExists()
+        rule.onNodeWithText("Remove this device?").assertExists()
         rule.onNodeWithText("Device d-tablet will", substring = true).assertExists()
-        rule.onNode(hasText("Revoke") and hasClickAction()).performClick()
+        rule.onNode(hasText("Remove") and hasClickAction()).performClick()
         rule.onNodeWithText("Cancel").performClick()
 
         assertEquals(1, confirmed)
@@ -106,10 +106,10 @@ class DevicesScreenTest {
             DevicesActions(onRefresh = { refreshed++ }),
         )
 
-        rule.onNodeWithText("Can't reach the server. Check your connection and try again.").assertExists()
+        rule.onNodeWithText("Can't connect to the server. Check your internet and try again.").assertExists()
         rule.onNodeWithText("No devices to show").assertExists()
-        rule.onNodeWithText("Retry").performClick()
-        rule.onNodeWithContentDescription("Refresh").performClick()
+        rule.onNodeWithText("Try again").performClick()
+        rule.onNodeWithContentDescription("Refresh list").performClick()
 
         assertEquals(2, refreshed)
     }
@@ -129,7 +129,7 @@ class DevicesScreenTest {
             ApplicationProvider.getApplicationContext<Context>().getString(DesignR.string.gim_error_user_suspended_on_hub, "https://hub-b.example.eu"),
         ).assertExists()
         rule.onNodeWithText("No devices to show").assertExists()
-        rule.onNodeWithText("Retry").assertDoesNotExist()
+        rule.onNodeWithText("Try again").assertDoesNotExist()
     }
 
     @Test

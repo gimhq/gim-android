@@ -63,13 +63,13 @@ class HubsScreenTest {
         show(listed)
 
         rule.onNode(hasText("10.0.2.2:8080") and row(HUB_A_ID)).assertExists()
-        rule.onNode(hasText("Home") and row(HUB_A_ID)).assertExists()
-        rule.onNode(hasText("Primary") and row(HUB_A_ID)).assertExists()
-        rule.onNode(hasText("Verified · Signed in") and row(HUB_A_ID)).assertExists()
+        rule.onNode(hasText("Your account") and row(HUB_A_ID)).assertExists()
+        rule.onNode(hasText("Main server") and row(HUB_A_ID)).assertExists()
+        rule.onNode(hasText("Connected · Signed in") and row(HUB_A_ID)).assertExists()
         rule.onNode(hasText("10.0.2.2:8081") and row(HUB_B_ID)).assertExists()
-        rule.onNode(hasText("Home") and row(HUB_B_ID)).assertDoesNotExist()
+        rule.onNode(hasText("Your account") and row(HUB_B_ID)).assertDoesNotExist()
         rule.onNode(hasText("Unknown address") and row("hub-shared")).assertExists()
-        rule.onNode(hasText("Unverified · Not signed in") and row("hub-shared")).assertExists()
+        rule.onNode(hasText("Not checked · Not signed in") and row("hub-shared")).assertExists()
 
         rule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(HubsTestTags.ROW_PREFIX + "hub-gone"))
         rule.onNodeWithText("Removed").assertExists()
@@ -83,14 +83,14 @@ class HubsScreenTest {
         val removals = mutableListOf<HubInfo>()
         show(listed, HubsActions(onMakePrimary = { primaries += it }, onRemove = { removals += it }))
 
-        button("Make primary", HUB_A_ID).assertIsNotEnabled()
-        button("Make primary", "hub-shared").assertIsNotEnabled()
+        button("Make main server", HUB_A_ID).assertIsNotEnabled()
+        button("Make main server", "hub-shared").assertIsNotEnabled()
         button("Remove", HUB_A_ID).assertIsEnabled()
-        button("Make primary", HUB_B_ID).performClick()
+        button("Make main server", HUB_B_ID).performClick()
         button("Remove", HUB_B_ID).performClick()
         rule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(HubsTestTags.ROW_PREFIX + "hub-gone"))
         button("Remove", "hub-gone").assertIsNotEnabled()
-        button("Make primary", "hub-gone").assertIsNotEnabled()
+        button("Make main server", "hub-gone").assertIsNotEnabled()
 
         assertEquals(listOf(second), primaries)
         assertEquals(listOf(second), removals)
@@ -104,9 +104,9 @@ class HubsScreenTest {
             HubsActions(onSubmitAddHub = { submitted++ }),
         )
 
-        rule.onNodeWithText("Add a hub").assertExists()
+        rule.onNodeWithText("Add a server").assertExists()
         rule.onNodeWithTag(HubsTestTags.ADD_ERROR, useUnmergedTree = true).assertExists()
-        rule.onNodeWithText("The hub's address does not match its public address", useUnmergedTree = true).assertExists()
+        rule.onNodeWithText("Couldn't check this server. Its address doesn't match. Check the address and try again.", useUnmergedTree = true).assertExists()
         rule.onNodeWithTag(HubsTestTags.ADD_CONFIRM).performClick()
         assertEquals(1, submitted)
     }
@@ -116,9 +116,9 @@ class HubsScreenTest {
         var state by mutableStateOf(listed)
         rule.setContent { GimTheme { HubsScreen(state, HubsActions()) } }
         mapOf(
-            HubsError.InvalidUrl to "Not a gim hub URL",
-            HubsError.Unreachable to "Cannot reach the hub",
-            HubsError.RetryLater(30) to "Try again in 30 s",
+            HubsError.InvalidUrl to "That isn't a gim server address. Check it and try again.",
+            HubsError.Unreachable to "Can't connect to the server. Check the address and your internet, then try again.",
+            HubsError.RetryLater(30) to "The server is busy. Try again in 30 s.",
         ).forEach { (error, text) ->
             state = listed.copy(addHub = AddHubState("x", error = error))
             rule.onNodeWithText(text, useUnmergedTree = true).assertExists()
@@ -135,9 +135,9 @@ class HubsScreenTest {
         )
 
         rule.onNodeWithText(
-            "This hub runs 2 of your group chats. They keep running there; you reach them through your other hubs.",
+            "This server runs 2 of your group chats. They stay there. You can still reach them through your other servers.",
         ).assertExists()
-        rule.onNodeWithText("Confirm").performClick()
+        rule.onNodeWithText("Remove server").performClick()
         rule.onNodeWithText("Cancel").performClick()
 
         assertEquals(1, confirmed)
@@ -149,7 +149,7 @@ class HubsScreenTest {
         var shown = 0
         show(listed.copy(error = HubsError.HomeHub), HubsActions(onErrorShown = { shown++ }))
 
-        rule.onNodeWithText("This is your home hub; make another hub primary and keep this one as secondary").assertExists()
+        rule.onNodeWithText("Your account lives on this server, so you can't remove it yet. Make another server your main server first.").assertExists()
         rule.onNodeWithText("OK").performClick()
         assertEquals(1, shown)
     }
@@ -167,11 +167,11 @@ class HubsScreenTest {
 
         rule.waitUntil { rule.onAllNodes(row(HUB_B_ID)).fetchSemanticsNodes().isNotEmpty() }
         button("Remove", HUB_B_ID).performClick()
-        rule.waitUntil { rule.onAllNodes(hasText("This hub runs 1 of", substring = true)).fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithText("Confirm").performClick()
+        rule.waitUntil { rule.onAllNodes(hasText("This server runs 1 of", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("Remove server").performClick()
         rule.waitUntil { rule.onAllNodes(hasText("Removed · Not signed in")).fetchSemanticsNodes().isNotEmpty() }
 
-        rule.onNodeWithContentDescription("Add hub").assertIsEnabled()
+        rule.onNodeWithContentDescription("Add server").assertIsEnabled()
         assertEquals(HubState.REMOVED, runBlocking { fake.hubs() }.last().state)
     }
 }
