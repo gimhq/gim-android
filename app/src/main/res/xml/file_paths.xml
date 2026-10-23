@@ -2,4 +2,6 @@
 <paths>
     <!-- AndroidMediaPaths.root: decrypted attachments fetched by gim-core. -->
     <cache-path name="media" path="gim/media/" />
+    <!-- RecoveryKitShare: the recovery kit file shared during onboarding. -->
+    <cache-path name="recovery" path="gim/recovery/" />
 </paths>

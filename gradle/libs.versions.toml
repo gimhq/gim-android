@@ -21,6 +21,7 @@ uiautomator = "2.3.0"
 turbine = "1.2.0"
 camerax = "1.4.1"
 zxing = "3.5.3"
+credentials = "1.6.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -60,6 +61,8 @@ androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycl
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 # QR encode/decode only (Apache-2.0); no ML Kit or Play Services.
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
+# Framework Credential Manager only (API 34+); no credentials-play-services-auth.
+androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
 
 # build-logic dependencies
 android-gradlePlugin = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }

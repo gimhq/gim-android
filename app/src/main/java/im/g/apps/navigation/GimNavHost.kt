@@ -41,7 +41,9 @@ import im.g.apps.feature.linking.linkDeviceViewModelFactory
 import im.g.apps.feature.onboarding.OnboardingRoute
 import im.g.apps.feature.onboarding.OnboardingViewModel
 import im.g.apps.feature.onboarding.onboardingViewModelFactory
+import im.g.apps.deleteRecoveryKitFiles
 import im.g.apps.openFile
+import im.g.apps.shareRecoveryKit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -66,12 +68,15 @@ fun GimNavHost(
             val state by vm.state.collectAsState()
             // Display name -> Welcome, link QR code -> cancel; on the recovery code and the link SAS back is swallowed.
             BackHandler(enabled = state.handlesBack) { vm.back() }
+            val context = LocalContext.current
             OnboardingRoute(
                 viewModel = vm,
                 onFinished = {
+                    deleteRecoveryKitFiles(context)
                     container.sync.onSignedIn()
                     navController.navigate(Routes.CHAT_LIST) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
                 },
+                onShareRecoveryKit = { shareRecoveryKit(context, it) },
             )
         }
         composable(Routes.CHAT_LIST) {
