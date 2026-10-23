@@ -237,15 +237,19 @@ class ChatScreenTest {
     }
 
     @Test
+    // Taps inside the bubble are hit-tested against its clip path, which only native graphics evaluates.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
     fun reactionChipClick_togglesTheOwnReaction() {
         val reacted = message("m1", "Hello").copy(
             reactions = persistentListOf(ReactionChipModel("👍", 2, mine = true), ReactionChipModel("⚓", 1, mine = false)),
         )
         show(listOf(reacted))
 
-        rule.onNodeWithContentDescription("👍, 2 reactions, including yours")
-            .assertHeightIsAtLeast(48.dp)
-            .performClick()
+        val mine = rule.onNodeWithContentDescription("👍, 2 reactions, including yours")
+        val touch = mine.fetchSemanticsNode().touchBoundsInRoot
+        val minPx = with(rule.density) { 48.dp.toPx() } - 1f
+        assertTrue("chip touch area $touch", touch.height >= minPx && touch.width >= minPx)
+        mine.performClick()
         rule.onNodeWithContentDescription("⚓, 1 reaction").performClick()
         assertEquals(listOf("m1" to "👍", "m1" to "⚓"), toggled)
     }

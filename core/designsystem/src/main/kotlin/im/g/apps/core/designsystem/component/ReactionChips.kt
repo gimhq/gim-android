@@ -44,8 +44,8 @@ fun ReactionChips(
                 onClick = { onClick(reaction) },
                 label = { Text("${reaction.emoji} ${reaction.count}") },
                 modifier = Modifier
-                    .minimumInteractiveComponentSize()
-                    .semantics { contentDescription = description },
+                    .semantics { contentDescription = description }
+                    .minimumInteractiveComponentSize(),
             )
         }
     }

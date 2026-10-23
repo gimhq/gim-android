@@ -4,7 +4,6 @@ import android.graphics.Region
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.asAndroidPath
-import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -56,9 +55,11 @@ class ChatComponentsTest {
         rule.setContent {
             GimTheme { ReactionChips(reactions = listOf(ReactionChipModel("👍", 2, mine = true)), onClick = {}) }
         }
-        rule.onNodeWithContentDescription("👍, 2 reactions, including yours")
-            .assertIsSelected()
-            .assertHeightIsAtLeast(48.dp)
+        val chip = rule.onNodeWithContentDescription("👍, 2 reactions, including yours").assertIsSelected()
+        // The chip draws 32 dp high; its touch area is what must reach 48 dp.
+        val touch = chip.fetchSemanticsNode().touchBoundsInRoot
+        val minPx = with(rule.density) { 48.dp.toPx() } - 1f
+        assertTrue("touch area $touch", touch.height >= minPx && touch.width >= minPx)
     }
 
     @Test
