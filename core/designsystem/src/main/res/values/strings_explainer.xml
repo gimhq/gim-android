@@ -7,7 +7,7 @@
     <string name="explainer_no_phone_number_body">You don\'t need a phone number or email. Just pick a name. gim gives you an Account ID.</string>
 
     <string name="explainer_on_your_devices_title">Your account lives on your devices</string>
-    <string name="explainer_on_your_devices_body">Your account is kept on your phone, not on a server. Want to use it somewhere else? Link another device.</string>
+    <string name="explainer_on_your_devices_body">Your account is kept on your devices, not on a server. Want to use it somewhere else? Link another device.</string>
 
     <string name="explainer_locked_messages_title">Your messages are locked</string>
     <string name="explainer_locked_messages_body">Messages are end-to-end encrypted. Only the people in the chat can read them. Not even the server can.</string>
