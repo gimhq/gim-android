@@ -5,3 +5,7 @@ plugins {
 android {
     namespace = "im.g.apps.feature.settings"
 }
+
+dependencies {
+    implementation(libs.zxing.core)
+}
