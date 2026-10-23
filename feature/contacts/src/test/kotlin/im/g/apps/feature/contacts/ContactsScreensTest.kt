@@ -68,7 +68,8 @@ class ContactsScreensTest {
                 }
             }
         }
-        rule.onNodeWithText("Ana Kovač, @nikos does not accept contacts from you.").assertExists()
+        rule.onNodeWithText("Couldn't add Ana Kovač, @nikos. Their server doesn't accept you. Try someone else.")
+            .assertExists()
         rule.onNodeWithText("This chat's hub does not accept messages from you.").assertExists()
         rule.onNodeWithText("Your account is not admitted on this hub.").assertExists()
     }
