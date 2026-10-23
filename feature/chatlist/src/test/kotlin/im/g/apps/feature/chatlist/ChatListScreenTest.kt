@@ -22,8 +22,8 @@ class ChatListScreenTest {
     val rule = createComposeRule()
 
     private val rows = persistentListOf(
-        ChatRowUi("chat-g", "Aegean Crew", null, PreviewSender.Member("Nikos"), "Table booked", "09:58", 3),
-        ChatRowUi("chat-d", "Lukas Berger", null, PreviewSender.You, "See you then!", "Fri", 0),
+        ChatRowUi("chat-g", "Aegean Crew", null, PreviewSender.Member("Nikos"), "Table booked", ChatTimeLabel.Clock("09:58"), 3),
+        ChatRowUi("chat-d", "Lukas Berger", null, PreviewSender.You, "See you then!", ChatTimeLabel.Weekday("Fri"), 0),
     )
 
     private fun show(
@@ -91,7 +91,7 @@ class ChatListScreenTest {
         show(ChatListUiState(isEmpty = true), onNewChat = { newChat++ })
 
         rule.onNodeWithText("No chats yet").assertExists()
-        rule.onNodeWithText("Start chat").performClick()
+        rule.onNodeWithText("Start a chat").performClick()
 
         assertEquals(1, newChat)
     }

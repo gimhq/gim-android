@@ -121,7 +121,7 @@ class ChatListViewModelTest {
         assertEquals("Aegean Crew", group.title)
         assertEquals(PreviewSender.Member("Nikos"), group.sender)
         assertEquals("Booked a table in Vourkari for the first night.", group.preview)
-        assertEquals("09:58", group.time)
+        assertEquals(ChatTimeLabel.Minutes(2), group.time)
         assertEquals(3, group.unreadCount)
         assertNull(group.avatarPath)
         val direct = state.rows[1]
@@ -266,7 +266,7 @@ class ChatListViewModelTest {
     }
 
     @Test
-    fun ticker_reformats_times_after_midnight_without_chat_changes() = runTest {
+    fun ticker_reformats_times_without_chat_changes() = runTest {
         // Sunday 2026-07-12 23:32 in Athens; the demo group's last message is two minutes earlier.
         val evening = ZonedDateTime.of(2026, 7, 12, 23, 32, 0, 0, zone).toInstant()
         val mutableClock = MutableClock(evening, zone)
@@ -274,21 +274,25 @@ class ChatListViewModelTest {
         val client = FakeGimClient.withDemoData(backgroundScope, clock = { evening.toEpochMilli() }, zone = zone, outboxDelays = null)
         val vm = viewModel(client, clock = mutableClock, ticker = ticker)
         advanceUntilIdle()
-        assertEquals("23:30", vm.row(GROUP_CHAT_ID).time)
+        assertEquals(ChatTimeLabel.Minutes(2), vm.row(GROUP_CHAT_ID).time)
 
-        mutableClock.instant = ZonedDateTime.of(2026, 7, 13, 0, 0, 1, 0, zone).toInstant()
+        mutableClock.instant = ZonedDateTime.of(2026, 7, 12, 23, 45, 0, 0, zone).toInstant()
         advanceUntilIdle()
-        assertEquals("23:30", vm.row(GROUP_CHAT_ID).time)
-
+        assertEquals(ChatTimeLabel.Minutes(2), vm.row(GROUP_CHAT_ID).time)
         ticker.emit(Unit)
         advanceUntilIdle()
-        assertEquals("Sun", vm.row(GROUP_CHAT_ID).time)
+        assertEquals(ChatTimeLabel.Minutes(15), vm.row(GROUP_CHAT_ID).time)
+
+        mutableClock.instant = ZonedDateTime.of(2026, 7, 13, 0, 0, 1, 0, zone).toInstant()
+        ticker.emit(Unit)
+        advanceUntilIdle()
+        assertEquals(ChatTimeLabel.Yesterday, vm.row(GROUP_CHAT_ID).time)
     }
 
     @Test
-    fun midnight_ticker_fires_on_start_and_at_each_local_midnight() = runTest {
-        // Saturday 2026-10-24 23:30 in Athens; DST ends the next night, so that day lasts 25 hours.
-        val start = ZonedDateTime.of(2026, 10, 24, 23, 30, 0, 0, zone).toInstant()
+    fun minute_ticker_fires_on_start_at_each_minute_and_at_local_midnight() = runTest {
+        // Saturday 2026-10-24 23:58:30 in Athens; DST ends the next night, so that day lasts 25 hours.
+        val start = ZonedDateTime.of(2026, 10, 24, 23, 58, 30, 0, zone).toInstant()
         val athens = zone
         val virtualClock = object : Clock() {
             override fun instant(): Instant = start.plusMillis(testScheduler.currentTime)
@@ -297,23 +301,38 @@ class ChatListViewModelTest {
         }
         val ticks = mutableListOf<Long>()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            midnightTicker(virtualClock).collect { ticks += testScheduler.currentTime }
+            minuteTicker(virtualClock).collect { ticks += testScheduler.currentTime }
         }
         runCurrent()
         assertEquals(listOf(0L), ticks)
 
-        val toMidnight = 30 * 60_000L
-        advanceTimeBy(toMidnight - 1)
+        val toNextMinute = 30_000L
+        advanceTimeBy(toNextMinute - 1)
         runCurrent()
         assertEquals(listOf(0L), ticks)
         advanceTimeBy(1)
         runCurrent()
-        assertEquals(listOf(0L, toMidnight), ticks)
+        assertEquals(listOf(0L, toNextMinute), ticks)
 
+        // The next tick lands exactly on local midnight.
+        val midnight = toNextMinute + 60_000L
+        advanceTimeBy(60_000L)
+        runCurrent()
+        assertEquals(listOf(0L, toNextMinute, midnight), ticks)
+        assertEquals(
+            ZonedDateTime.of(2026, 10, 25, 0, 0, 0, 0, zone).toInstant(),
+            start.plusMillis(ticks.last()),
+        )
+
+        // Through the 25-hour DST day the ticker keeps one tick per minute.
         val dstDay = 25 * 3_600_000L
         advanceTimeBy(dstDay)
         runCurrent()
-        assertEquals(listOf(0L, toMidnight, toMidnight + dstDay), ticks)
+        assertEquals(3 + 25 * 60, ticks.size)
+        assertEquals(
+            ZonedDateTime.of(2026, 10, 26, 0, 0, 0, 0, zone).toInstant(),
+            start.plusMillis(ticks.last()),
+        )
     }
 
     @Test
