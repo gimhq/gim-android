@@ -1,32 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="linking_title">Link a new device</string>
-    <string name="linking_back">Back</string>
-    <string name="linking_scan_explanation">On the new device, choose “Link to existing device” and scan the code it shows.</string>
-    <string name="linking_camera_request">gim needs the camera to scan the code. The camera is used only while this screen is open.</string>
+    <string name="linking_back">Go back</string>
+    <string name="linking_scan_explanation">On your other device, choose “Link to existing device”. It shows a code. Scan that code here.</string>
+    <string name="linking_camera_request">gim needs your camera to scan the code. It only uses the camera while this screen is open.</string>
     <string name="linking_camera_rationale">Without the camera, gim cannot scan the code. Allow camera access, or paste the code below.</string>
     <string name="linking_camera_denied">Camera access is turned off for gim. Turn it on in the app settings, or paste the code below.</string>
-    <string name="linking_camera_unavailable">No camera is available. Paste the code below instead.</string>
+    <string name="linking_camera_unavailable">No camera found. Paste the code below instead.</string>
     <string name="linking_allow_camera">Allow camera</string>
     <string name="linking_open_settings">Open settings</string>
     <string name="linking_paste_title">Can’t scan?</string>
-    <string name="linking_paste_label">Paste the link code</string>
+    <string name="linking_paste_label">Paste the code from your other device</string>
     <string name="linking_submit_code">Continue</string>
     <string name="linking_approving">Checking the code…</string>
-    <string name="linking_compare_title">Compare the codes</string>
-    <string name="linking_compare_explanation">The new device shows a code too. Confirm only if both codes are the same; the new device then gets access to all your chats.</string>
+    <string name="linking_compare_title">Compare the numbers</string>
+    <string name="linking_compare_explanation">Your other device shows numbers too. Tap “The numbers match” only if they are the same. The new device can then see all your chats.</string>
     <string name="linking_device_id">New device: %1$s</string>
-    <string name="linking_confirm">The codes match</string>
+    <string name="linking_confirm">The numbers match</string>
     <string name="linking_confirming">Adding device</string>
     <string name="linking_reject">They don’t match</string>
-    <string name="linking_done_linked">The new device is linked. It joins your chats on its next sync.</string>
+    <string name="linking_done_linked">Your new device is linked. Your chats will show up on it soon.</string>
     <string name="linking_done_rejected">The new device was not linked.</string>
     <string name="linking_done">Done</string>
-    <string name="linking_error_invalid_code">This is not a valid link code.</string>
-    <string name="linking_error_cannot_reach_server">Cannot reach the hub. Check your connection and try again.</string>
+    <string name="linking_error_invalid_code">This code doesn’t work. Make a new code on your other device and scan it again.</string>
+    <string name="linking_error_cannot_reach_server">Can’t connect to the server. Check your internet and try again.</string>
     <plurals name="linking_error_try_again_later">
-        <item quantity="one">The hub is busy. Try again in %d second.</item>
-        <item quantity="other">The hub is busy. Try again in %d seconds.</item>
+        <item quantity="one">The server is busy. Try again in %d second.</item>
+        <item quantity="other">The server is busy. Try again in %d seconds.</item>
     </plurals>
-    <string name="linking_error_generic">Something went wrong. Please try again.</string>
+    <string name="linking_error_generic">Something went wrong. Try again.</string>
 </resources>
