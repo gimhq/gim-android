@@ -637,7 +637,10 @@ class FakeGimClientTest {
         val photo = tmp.newFile("sunset.jpg").apply { writeBytes(ByteArray(16)) }
         client.sendMedia(GROUP_CHAT_ID, photo.path, "image/jpeg", "Sunset over Kea", replyTo = null)
         assertEquals(GROUP_CHAT_ID, chats.ids.first())
-        assertEquals(MessagePreview(me.displayName, "Photo", base + 2_000, isOwn = true), chats.items[0].lastMessage)
+        assertEquals(
+            MessagePreview(me.displayName, "Photo", base + 2_000, isOwn = true, sendState = SendState.Pending),
+            chats.items[0].lastMessage,
+        )
 
         val pdf = tmp.newFile("charter.pdf").apply { writeText("charter") }
         client.sendMedia(GROUP_CHAT_ID, pdf.path, "application/pdf", caption = null, replyTo = null)

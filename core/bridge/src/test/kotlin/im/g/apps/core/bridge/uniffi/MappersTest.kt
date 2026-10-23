@@ -18,9 +18,14 @@ import im.g.apps.core.bridge.MessageItem
 import im.g.apps.core.bridge.MessagePreview
 import im.g.apps.core.bridge.NotificationContent
 import im.g.apps.core.bridge.NotificationKind
+import im.g.apps.core.bridge.ParsedRecoveryKit
+import im.g.apps.core.bridge.PrivacySettings
 import im.g.apps.core.bridge.PushRegistration
 import im.g.apps.core.bridge.ReactionGroup
+import im.g.apps.core.bridge.RecoveryKitLabels
+import im.g.apps.core.bridge.RecoveryRotation
 import im.g.apps.core.bridge.ReplyPreview
+import im.g.apps.core.bridge.ReportReason
 import im.g.apps.core.bridge.SendFailure
 import im.g.apps.core.bridge.SendState
 import im.g.apps.core.bridge.Session
@@ -34,8 +39,10 @@ import org.junit.Test
 
 // Builds im.g.gimcore records directly: they are plain Kotlin classes, so no native library is loaded.
 class MappersTest {
-    private val coreUser = im.g.gimcore.UserProfile("u1", "alice", "Alice")
+    private val coreUser = im.g.gimcore.UserProfile("u1", "alice", "Alice", hasAvatar = false)
     private val user = UserProfile("u1", "alice", "Alice")
+    private val corePeer = im.g.gimcore.UserProfile("u2", "", "Bob", hasAvatar = true)
+    private val peer = UserProfile("u2", "", "Bob", hasAvatar = true)
     private val coreMedia = im.g.gimcore.MediaRef("c1", "m1", "image/png", 4_000_000_000UL, true)
     private val media = MediaRef("c1", "m1", "image/png", 4_000_000_000L, true)
 
@@ -44,22 +51,32 @@ class MappersTest {
         kind = im.g.gimcore.ChatKind.GROUP,
         name = "Crew",
         avatar = coreMedia,
-        lastMessage = im.g.gimcore.MessagePreview("Alice", "hi", 1_700_000_000_000UL, true),
+        lastMessage = im.g.gimcore.MessagePreview("Alice", "hi", 1_700_000_000_000UL, true, im.g.gimcore.SendState.Read),
         unreadCount = 3u,
         updatedAtMs = 1_700_000_000_001UL,
         memberCount = 4u,
         state = im.g.gimcore.ChatState.LEAVING,
+        peer = corePeer,
+        mutedUntilMs = 1_700_000_003_600UL,
+        pinned = true,
+        archived = true,
+        blocked = true,
     )
     private val summary = ChatSummary(
         chatId = "c1",
         kind = ChatKind.GROUP,
         name = "Crew",
         avatar = media,
-        lastMessage = MessagePreview("Alice", "hi", 1_700_000_000_000L, true),
+        lastMessage = MessagePreview("Alice", "hi", 1_700_000_000_000L, true, SendState.Read),
         unreadCount = 3,
         updatedAtMs = 1_700_000_000_001L,
         memberCount = 4,
         state = ChatState.LEAVING,
+        peer = peer,
+        mutedUntilMs = 1_700_000_003_600L,
+        pinned = true,
+        archived = true,
+        blocked = true,
     )
 
     private val coreMessage = im.g.gimcore.MessageItem(
@@ -138,6 +155,7 @@ class MappersTest {
     @Test
     fun userProfile() {
         assertEquals(user, coreUser.toMirror())
+        assertEquals(peer, corePeer.toMirror())
     }
 
     @Test
@@ -150,8 +168,8 @@ class MappersTest {
     fun chatSummary() {
         assertEquals(summary, coreSummary.toMirror())
         assertEquals(
-            summary.copy(avatar = null, lastMessage = null),
-            coreSummary.copy(avatar = null, lastMessage = null).toMirror(),
+            summary.copy(avatar = null, lastMessage = null, peer = null),
+            coreSummary.copy(avatar = null, lastMessage = null, peer = null).toMirror(),
         )
     }
 
@@ -159,8 +177,74 @@ class MappersTest {
     fun messagePreview() {
         assertEquals(
             MessagePreview("Bob", "Photo", 5L, false),
-            im.g.gimcore.MessagePreview("Bob", "Photo", 5UL, false).toMirror(),
+            im.g.gimcore.MessagePreview("Bob", "Photo", 5UL, false, null).toMirror(),
         )
+        assertEquals(
+            MessagePreview("Me", "hi", 5L, true, SendState.Failed("gone", SendFailure.REJECTED)),
+            im.g.gimcore.MessagePreview(
+                "Me", "hi", 5UL, true, im.g.gimcore.SendState.Failed("gone", im.g.gimcore.SendFailure.REJECTED),
+            ).toMirror(),
+        )
+    }
+
+    @Test
+    fun mutedUntilSaturatesAtMutedForever() {
+        // gim-core's mutedForever() is u64::MAX; the mirror's is Long.MAX_VALUE so "mutedUntilMs > now" holds.
+        assertEquals(Long.MAX_VALUE, ULong.MAX_VALUE.toMirrorMutedUntil())
+        assertEquals(Long.MAX_VALUE, (Long.MAX_VALUE.toULong() + 1UL).toMirrorMutedUntil())
+        assertEquals(1_700_000_000_000L, 1_700_000_000_000UL.toMirrorMutedUntil())
+        assertEquals(0L, 0UL.toMirrorMutedUntil())
+        assertEquals(Long.MAX_VALUE, coreSummary.copy(mutedUntilMs = ULong.MAX_VALUE).toMirror().mutedUntilMs)
+
+        assertEquals(ULong.MAX_VALUE, Long.MAX_VALUE.toCoreMutedUntil())
+        assertEquals(1_700_000_000_000UL, 1_700_000_000_000L.toCoreMutedUntil())
+        assertEquals(0UL, 0L.toCoreMutedUntil())
+        try {
+            (-1L).toCoreMutedUntil()
+            org.junit.Assert.fail("expected InvalidInput")
+        } catch (_: GimException.InvalidInput) {
+        }
+    }
+
+    @Test
+    fun privacySettings() {
+        assertEquals(
+            PrivacySettings(readReceipts = false, typingIndicators = true, blockedUserIds = listOf("u2", "u3")),
+            im.g.gimcore.PrivacySettings(readReceipts = false, typingIndicators = true, blockedUserIds = listOf("u2", "u3"))
+                .toMirror(),
+        )
+    }
+
+    @Test
+    fun recoveryRotation() {
+        assertEquals(
+            RecoveryRotation("7BQ2-K9MX", listOf("hub-b")),
+            im.g.gimcore.RecoveryRotation("7BQ2-K9MX", listOf("hub-b")).toMirror(),
+        )
+    }
+
+    @Test
+    fun reportReason() {
+        assertEquals(
+            listOf(
+                im.g.gimcore.ReportReason.SPAM,
+                im.g.gimcore.ReportReason.HARASSMENT,
+                im.g.gimcore.ReportReason.INAPPROPRIATE,
+                im.g.gimcore.ReportReason.SCAM,
+                im.g.gimcore.ReportReason.OTHER,
+            ),
+            ReportReason.entries.map { it.toCore() },
+        )
+    }
+
+    @Test
+    fun recoveryKitLabelsAndParsedKit() {
+        assertEquals(
+            im.g.gimcore.RecoveryKitLabels("Recovery kit", "Account ID", "Recovery key", "Keep this safe."),
+            RecoveryKitLabels("Recovery kit", "Account ID", "Recovery key", "Keep this safe.").toCore(),
+        )
+        assertEquals(ParsedRecoveryKit("u1", "7BQ2"), im.g.gimcore.ParsedRecoveryKit("u1", "7BQ2").toMirror())
+        assertEquals(ParsedRecoveryKit(null, null), im.g.gimcore.ParsedRecoveryKit(null, null).toMirror())
     }
 
     @Test
@@ -297,6 +381,10 @@ class MappersTest {
         assertEquals(
             im.g.gimcore.ClientConfig("https://gim.example", im.g.gimcore.ClientMode.EXTENSION),
             ClientConfig("https://gim.example", ClientMode.EXTENSION).toCore(),
+        )
+        assertEquals(
+            im.g.gimcore.ClientConfig("https://gim.example", im.g.gimcore.ClientMode.APP, "https://meta.example"),
+            ClientConfig("https://gim.example", metaServerUrl = "https://meta.example").toCore(),
         )
     }
 
