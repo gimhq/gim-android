@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="explainer_title">How gim works</string>
+    <string name="explainer_intro">gim works a bit differently from other chat apps. Here is what to know.</string>
+
+    <string name="explainer_no_phone_number_title">No phone number needed</string>
+    <string name="explainer_no_phone_number_body">You don\'t need a phone number or email. Just pick a name. gim gives you an Account ID.</string>
+
+    <string name="explainer_on_your_devices_title">Your account lives on your devices</string>
+    <string name="explainer_on_your_devices_body">Your account is kept on your devices, not on a server. Want to use it somewhere else? Link another device.</string>
+
+    <string name="explainer_locked_messages_title">Your messages are locked</string>
+    <string name="explainer_locked_messages_body">Messages are end-to-end encrypted. Only the people in the chat can read them. Not even the server can.</string>
+
+    <string name="explainer_account_id_title">Your Account ID is your address</string>
+    <string name="explainer_account_id_body">Share your Account ID so friends can reach you. You can also pick a username to make you easier to find.</string>
+
+    <string name="explainer_recovery_key_title">Your recovery key is a spare key</string>
+    <string name="explainer_recovery_key_body">Lost all your devices? Your recovery key and Account ID bring your account back. Old chats don\'t come back. Keep the key secret and safe. Never show it to anyone.</string>
+</resources>
