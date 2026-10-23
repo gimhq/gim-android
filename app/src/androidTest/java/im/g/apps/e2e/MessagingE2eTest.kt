@@ -56,9 +56,12 @@ import im.g.apps.core.bridge.platform.KeystoreSecretCipher
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
 import im.g.apps.testing.awaitServerReachable
 import im.g.apps.testing.clickWhenSettled
+import im.g.apps.testing.completeRecoveryKit
 import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
+import im.g.apps.testing.onboardingShown
 import im.g.apps.testing.saveFailureScreenshot
+import im.g.apps.testing.skipIntro
 import java.io.File
 import java.security.KeyStore
 import java.util.UUID
@@ -147,9 +150,10 @@ class MessagingE2eTest {
             Log.w(LOG_TAG, "app window still has no focus; continuing")
         }
 
-        // Onboarding (create identity, acknowledge the recovery code, claim a handle) -> chat list. Input goes
-        // through Compose semantics only (no Espresso root lookups, which wait for window focus); hide the soft
-        // keyboard and scroll each button into view in case the keyboard covers it.
+        // Onboarding (skip the intro, create identity, pass the recovery kit check, claim a handle) -> chat list.
+        // Input goes through Compose semantics only (no Espresso root lookups, which wait for window focus); hide the
+        // soft keyboard and scroll each button into view in case the keyboard covers it.
+        compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
         waitForText("onboarding shown", string(OnboardingR.string.onboarding_welcome_title))
         enterText("hub address", TAG_SERVER_URL, serverUrl)
         click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
@@ -160,14 +164,9 @@ class MessagingE2eTest {
         val creating = hasContentDescription(string(OnboardingR.string.onboarding_submitting))
         val recoveryCode = hasTestTag(TAG_RECOVERY_CODE)
         waitFor("identity creation started (loading or recovery code)") { exists(creating) || exists(recoveryCode) }
-        waitFor("recovery code shown", recoveryCode)
-        val code = compose.onNode(recoveryCode).fetchSemanticsNode().config.getOrNull(SemanticsProperties.Text)
-            ?.joinToString("") { it.text }.orEmpty()
+        val code = compose.completeRecoveryKit(LOG_TAG, timeoutMs, ::failStep).recoveryKey
         // Never log the code itself.
         assertTrue("recovery code (${code.length} chars) is not 39 symbols in groups of four", RECOVERY_CODE.matches(code))
-        compose.onNodeWithTag(TAG_CODE_SAVED).performScrollTo().performClick()
-        click("recovery code continue", TAG_CODE_CONTINUE, next = hasTestTag(TAG_HANDLE))
-        waitFor("handle step", hasTestTag(TAG_HANDLE))
         enterText("handle", TAG_HANDLE, appHandle)
         click("claim handle", TAG_CLAIM_HANDLE)
         Log.i(LOG_TAG, "claim handle clicked")
@@ -308,7 +307,7 @@ class MessagingE2eTest {
         val signOut = hasText(string(ChatListR.string.chatlist_sign_out))
         waitFor("overflow menu closed") { compose.onAllNodes(signOut).fetchSemanticsNodes().size == 1 }
         compose.onNode(signOut).performClick()
-        waitForText("onboarding after sign-out", string(OnboardingR.string.onboarding_welcome_title))
+        waitFor("onboarding after sign-out", compose.onboardingShown())
         assertFalse(keystoreHasAlias())
     }
 
@@ -580,8 +579,6 @@ class MessagingE2eTest {
         const val TAG_DISPLAY_NAME = "onboarding_display_name"
         const val TAG_SUBMIT = "onboarding_submit"
         const val TAG_RECOVERY_CODE = "onboarding_recovery_code"
-        const val TAG_CODE_SAVED = "onboarding_code_saved"
-        const val TAG_CODE_CONTINUE = "onboarding_code_continue"
         const val TAG_HANDLE = "onboarding_handle"
         const val TAG_CLAIM_HANDLE = "onboarding_claim_handle"
         const val TAG_COMPOSER = "composer-input"
