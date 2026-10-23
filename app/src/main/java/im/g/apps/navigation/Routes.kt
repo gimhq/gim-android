@@ -16,6 +16,7 @@ object Routes {
     const val DEVICES = "devices"
     const val HUBS = "hubs"
     const val SETTINGS = "settings"
+    const val SETTINGS_PROFILE = "settings/profile"
     const val SETTINGS_HELP = "settings/help"
     const val SETTINGS_LICENCES = "settings/licences"
 

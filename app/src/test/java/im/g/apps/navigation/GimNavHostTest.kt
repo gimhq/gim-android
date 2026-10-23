@@ -185,6 +185,21 @@ class GimNavHostTest {
     }
 
     @Test
+    fun settings_header_opens_the_profile_with_the_account_id() {
+        val container = testContainer(scope = scope)
+        launch(container)
+
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+        rule.onNodeWithTag("chatlist_settings").performClick()
+        rule.waitUntilAtLeastOneExists(hasTestTag("settings_header"), TIMEOUT)
+        rule.onNodeWithTag("settings_header").performClick()
+
+        val accountId = container.manager.client.value!!.userId()!!
+        rule.waitUntilAtLeastOneExists(hasText(accountId), TIMEOUT)
+        rule.runOnIdle { assertEquals(Routes.SETTINGS_PROFILE, nav.currentDestination?.route) }
+    }
+
+    @Test
     fun settings_help_shows_versions_and_opens_the_licences() {
         launch(testContainer(scope = scope))
 

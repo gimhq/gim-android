@@ -48,8 +48,10 @@ import im.g.apps.feature.onboarding.OnboardingViewModel
 import im.g.apps.feature.onboarding.onboardingViewModelFactory
 import im.g.apps.feature.settings.HelpScreen
 import im.g.apps.feature.settings.LicencesScreen
+import im.g.apps.feature.settings.ProfileRoute
 import im.g.apps.feature.settings.SettingsActions
 import im.g.apps.feature.settings.SettingsRoute
+import im.g.apps.feature.settings.profileViewModelFactory
 import im.g.apps.feature.settings.settingsViewModelFactory
 import im.g.apps.deleteRecoveryKitFiles
 import im.g.apps.openFile
@@ -119,6 +121,7 @@ fun GimNavHost(
                 viewModel = viewModel(factory = settingsViewModelFactory(current)),
                 actions = SettingsActions(
                     onBack = { navController.popBackStack() },
+                    onOpenProfile = { navController.navigate(Routes.SETTINGS_PROFILE) },
                     onDevices = { navController.navigate(Routes.DEVICES) },
                     onLinkDevice = { navController.navigate(Routes.LINK_DEVICE) },
                     onServers = { navController.navigate(Routes.HUBS) },
@@ -131,6 +134,13 @@ fun GimNavHost(
                         }
                     },
                 ),
+            )
+        }
+        composable(Routes.SETTINGS_PROFILE) {
+            val current = client ?: return@composable
+            ProfileRoute(
+                viewModel = viewModel(factory = profileViewModelFactory(current)),
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Routes.SETTINGS_HELP) {
