@@ -225,6 +225,8 @@ fun GimNavHost(
                         scope.launch { snackbar.showSnackbar(context.getString(R.string.open_file_no_app)) }
                     }
                 },
+                onReply = composerVm::reply,
+                onToggleReaction = composerVm::toggleReaction,
             )
         }
         composable(Routes.NEW_CHAT) {
