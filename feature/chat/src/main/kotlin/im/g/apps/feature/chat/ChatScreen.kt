@@ -192,7 +192,15 @@ private fun ChatTopBar(header: ChatHeaderUi, onBack: () -> Unit, onOpenGroupInfo
                 BackGlyph(LocalContentColor.current)
             }
         },
-        leading = { Avatar(name = header.title, imagePath = header.avatarPath, size = 40.dp) },
+        // Decorative: the title already names the chat, so TalkBack skips the initials.
+        leading = {
+            Avatar(
+                name = header.title,
+                imagePath = header.avatarPath,
+                size = 40.dp,
+                modifier = Modifier.clearAndSetSemantics {},
+            )
+        },
         actions = {
             if (header.isGroup) {
                 GimTopBarIconButton(onClick = onOpenGroupInfo, contentDescription = stringResource(R.string.chat_group_info)) {
