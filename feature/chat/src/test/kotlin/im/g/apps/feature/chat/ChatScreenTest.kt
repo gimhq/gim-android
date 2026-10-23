@@ -1,13 +1,16 @@
 package im.g.apps.feature.chat
 
+import android.content.Context
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import im.g.apps.core.bridge.SendFailure
+import im.g.apps.core.designsystem.R as DesignR
 import im.g.apps.core.designsystem.component.TickState
 import im.g.apps.core.designsystem.theme.GimTheme
 import im.g.apps.feature.chat.timeline.ChatHeaderUi
@@ -140,7 +143,7 @@ class ChatScreenTest {
         val refused = message("m2", "Refused", TickState.FAILED).copy(sendFailure = SendFailure.NOT_ADMITTED_BY_PEER)
         show(listOf(refused, message("m1", "Fine", TickState.READ)))
 
-        rule.onNodeWithText("This chat's hub does not accept messages from you.").assertExists()
+        rule.onNodeWithText(ApplicationProvider.getApplicationContext<Context>().getString(DesignR.string.gim_error_not_admitted_by_peer)).assertExists()
         rule.onNodeWithText("Not sent. Tap to try again").assertDoesNotExist()
         rule.onNodeWithText("Refused").performClick()
         assertEquals(emptyList<String>(), retried)

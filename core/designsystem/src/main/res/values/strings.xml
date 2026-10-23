@@ -4,7 +4,7 @@
     <string name="gim_tick_sent">Sent</string>
     <string name="gim_tick_delivered">Delivered</string>
     <string name="gim_tick_read">Read</string>
-    <string name="gim_tick_failed">Failed to send</string>
+    <string name="gim_tick_failed">Not sent</string>
     <plurals name="gim_unread_count">
         <item quantity="one">%d unread message</item>
         <item quantity="other">%d unread messages</item>
@@ -18,9 +18,9 @@
         <item quantity="other">%1$s, %2$d reactions</item>
     </plurals>
     <string name="gim_reaction_mine">%1$s, including yours</string>
-    <string name="gim_error_user_suspended">Your account is suspended on this hub.</string>
-    <string name="gim_error_user_suspended_on_hub">Your account is suspended on %1$s.</string>
-    <string name="gim_error_user_not_admitted">Your account is not admitted on this hub.</string>
-    <string name="gim_error_user_not_admitted_on_hub">Your account is not admitted on %1$s.</string>
-    <string name="gim_error_not_admitted_by_peer">This chat\'s hub does not accept messages from you.</string>
+    <string name="gim_error_user_suspended">Your account is suspended on this server. Ask the server admin for help.</string>
+    <string name="gim_error_user_suspended_on_hub">Your account is suspended on %1$s. Ask the server admin for help.</string>
+    <string name="gim_error_user_not_admitted">This server hasn\'t let your account in yet. Ask the server admin for access.</string>
+    <string name="gim_error_user_not_admitted_on_hub">%1$s hasn\'t let your account in yet. Ask the server admin for access.</string>
+    <string name="gim_error_not_admitted_by_peer">This chat\'s server doesn\'t accept messages from you.</string>
 </resources>
