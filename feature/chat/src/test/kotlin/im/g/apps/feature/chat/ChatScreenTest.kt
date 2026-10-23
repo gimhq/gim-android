@@ -1,13 +1,16 @@
 package im.g.apps.feature.chat
 
+import android.content.Context
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import im.g.apps.core.bridge.SendFailure
+import im.g.apps.core.designsystem.R as DesignR
 import im.g.apps.core.designsystem.component.TickState
 import im.g.apps.core.designsystem.theme.GimTheme
 import im.g.apps.feature.chat.timeline.ChatHeaderUi
@@ -116,7 +119,7 @@ class ChatScreenTest {
     fun tappingFailedMessageRetries() {
         show(listOf(message("m2", "Lost", TickState.FAILED), message("m1", "Fine", TickState.READ)))
 
-        rule.onNodeWithText("Not sent. Tap to retry").assertExists()
+        rule.onNodeWithText("Not sent. Tap to try again").assertExists()
         rule.onNodeWithText("Fine").performClick()
         assertEquals(emptyList<String>(), retried)
 
@@ -130,7 +133,7 @@ class ChatScreenTest {
         show(listOf(lost, message("m1", "Fine", TickState.READ)))
 
         rule.onNodeWithText("Not sent").assertExists()
-        rule.onNodeWithText("Not sent. Tap to retry").assertDoesNotExist()
+        rule.onNodeWithText("Not sent. Tap to try again").assertDoesNotExist()
         rule.onNodeWithText("Lost").performClick()
         assertEquals(emptyList<String>(), retried)
     }
@@ -140,8 +143,8 @@ class ChatScreenTest {
         val refused = message("m2", "Refused", TickState.FAILED).copy(sendFailure = SendFailure.NOT_ADMITTED_BY_PEER)
         show(listOf(refused, message("m1", "Fine", TickState.READ)))
 
-        rule.onNodeWithText("This chat's hub does not accept messages from you.").assertExists()
-        rule.onNodeWithText("Not sent. Tap to retry").assertDoesNotExist()
+        rule.onNodeWithText(ApplicationProvider.getApplicationContext<Context>().getString(DesignR.string.gim_error_not_admitted_by_peer)).assertExists()
+        rule.onNodeWithText("Not sent. Tap to try again").assertDoesNotExist()
         rule.onNodeWithText("Refused").performClick()
         assertEquals(emptyList<String>(), retried)
     }
@@ -150,7 +153,7 @@ class ChatScreenTest {
     fun failedMessageRejected_keepsTapToRetry() {
         show(listOf(message("m2", "Lost", TickState.FAILED).copy(sendFailure = SendFailure.REJECTED)))
 
-        rule.onNodeWithText("Not sent. Tap to retry").assertExists()
+        rule.onNodeWithText("Not sent. Tap to try again").assertExists()
         rule.onNodeWithText("Lost").performClick()
         assertEquals(listOf("m2"), retried)
     }
@@ -164,7 +167,7 @@ class ChatScreenTest {
         )
         show(listOf(file, message("m1", "Fine")))
 
-        rule.onNodeWithText("Retry download", useUnmergedTree = true).assertExists()
+        rule.onNodeWithText("Download again", useUnmergedTree = true).assertExists()
         rule.onNodeWithTag(MEDIA_RETRY_TEST_TAG).performClick()
         assertEquals(listOf("m2"), retriedMedia)
     }
