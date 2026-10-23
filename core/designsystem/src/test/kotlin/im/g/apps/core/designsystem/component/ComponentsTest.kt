@@ -1,12 +1,19 @@
 package im.g.apps.core.designsystem.component
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
@@ -17,6 +24,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(AndroidJUnit4::class)
 class ComponentsTest {
@@ -45,6 +53,42 @@ class ComponentsTest {
         assertEquals(avatarColor("Ada Lovelace"), avatarColor("Ada Lovelace"))
         val distinct = listOf("Ada", "Grace", "Linus", "Marta", "Nikos", "Sofia").map(::avatarColor).toSet()
         assertNotEquals(1, distinct.size)
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun avatar_colorFollowsColorKey() {
+        val name = "Ada Lovelace"
+        val key = listOf("chat-1", "chat-2", "chat-3", "chat-4").first { avatarColor(it) != avatarColor(name) }
+        rule.setContent {
+            GimTheme {
+                Column {
+                    Avatar(name = name, imagePath = null, size = 48.dp, colorKey = key, modifier = Modifier.testTag("a"))
+                    Avatar(name = "Grace", imagePath = null, size = 48.dp, colorKey = key, modifier = Modifier.testTag("b"))
+                }
+            }
+        }
+        val first = backgroundOf("a")
+        assertEquals(avatarColor(key), first)
+        assertNotEquals(avatarColor(name), first)
+        assertEquals(first, backgroundOf("b"))
+    }
+
+    /** A pixel inside the circle but above the initials. */
+    private fun backgroundOf(tag: String): Color {
+        val pixels = rule.onNodeWithTag(tag).captureToImage().toPixelMap()
+        return pixels[pixels.width / 2, pixels.height / 8]
+    }
+
+    @Test
+    fun avatar_withDescription_isOneNode() {
+        rule.setContent {
+            GimTheme {
+                Avatar(name = "Ada Lovelace", imagePath = null, size = 48.dp, contentDescription = "Ada Lovelace")
+            }
+        }
+        rule.onNodeWithContentDescription("Ada Lovelace").assertExists()
+        rule.onNodeWithText("AL").assertDoesNotExist()
     }
 
     @Test
