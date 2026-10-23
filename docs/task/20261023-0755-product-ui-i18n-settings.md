@@ -1,8 +1,8 @@
 # 20261023-0755-product-ui-i18n-settings Product-grade UI, languages, account and settings
 
-- **status**: pending
+- **status**: in_progress
 - **priority**: P1
-- **owner**: (unassigned)
+- **owner**: bkd-l1/eynzhrra
 - **createdAt**: 2026-10-23 07:55
 
 ## Description

@@ -1,8 +1,8 @@
 # 20261023-0755-product-ui-i18n-settings Product-grade UI, languages, account explanations and settings
 
-- **status**: draft
+- **status**: approved
 - **createdAt**: 2026-10-23 07:55
-- **approvedAt**: (pending)
+- **approvedAt**: 2026-10-23 09:27
 - **relatedTask**: 20261023-0755-product-ui-i18n-settings
 
 ## Context
@@ -37,7 +37,7 @@ Current state:
 
 ## Proposal
 
-Work in five steps, each a reviewable commit with green gates.
+Work in six steps, each a reviewable commit with green gates.
 
 ### 1. Plain words (glossary) and English copy rewrite
 
@@ -75,8 +75,8 @@ what to try.
 
 ### 3. Settings (new `:feature:settings`)
 
-Entry: your avatar in the chat list top bar (Signal pattern); the overflow
-menu goes away. Sections:
+Entry: your avatar in the chat list top bar (Signal pattern, user decision
+2026-10-23); the overflow menu goes away. Sections:
 
 - **Profile**: name (edit), username (claim, change, remove), Account ID with
   copy, and a "My QR code" card that friends can scan to start a chat.
@@ -116,6 +116,22 @@ New chat gains "Scan QR code" next to the username search.
   to 200 % without clipping, TalkBack order on every new screen.
 - Consistent top bars, dialogs and snackbars from `:core:designsystem`.
 
+### 6. Account safety features (waits on the SDK)
+
+Built once a gim-client-sdk build with the APIs is vendored into
+`:core:bridge` (`rotateRecoveryCode()` exists today; the rest need gim-core
+and gim-hub changes):
+
+- Profile: own profile photo.
+- Privacy: read-receipt and typing switches, blocked users.
+- Chat actions: mute, pin, archive, block, report.
+- Account: "Create a new recovery key" (a lost key cannot be shown again;
+  the new kit replaces it, and hubs in `unsyncedHubIds` keep the old key
+  until a later rotation reaches them), delete account.
+
+Step 3 lays out the Settings screens so these entries have a place; they stay
+hidden until the API exists, with no fake behaviour.
+
 ### Verification
 
 - JVM unit tests for the new ViewModels (settings, profile edit, recovery kit
@@ -142,15 +158,12 @@ New chat gains "Scan QR code" next to the username search.
 
 ## Scope
 
-In: steps 1 to 5 in gim-android.
+In: steps 1 to 6 in gim-android. Step 6 (after a new SDK build is vendored): own profile photo; mute,
+pin, archive; read-receipt and typing switches; block and report; a new
+recovery key after onboarding; account deletion (user, 2026-10-23).
 
-Out (need SDK or hub work first, tracked separately):
-
-- own profile photo, mute, pin, archive;
-- read-receipt and typing privacy switches;
-- block and report, which matter for young users;
-- showing or rotating the recovery key after onboarding;
-- account deletion.
+Out: the SDK, gim-core and gim-hub work for step 6, planned in
+`gim-client-sdk/docs/plan/20261023-0930-account-safety-features.md`.
 
 ## Alternatives
 

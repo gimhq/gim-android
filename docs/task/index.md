@@ -33,4 +33,4 @@ Each task is a single line linking to its detail file. All detailed information 
 
 ## Tasks
 
-- [ ] [**20261023-0755-product-ui-i18n-settings Product-grade UI, languages, account and settings**](20261023-0755-product-ui-i18n-settings.md) `P1`
+- [-] [**20261023-0755-product-ui-i18n-settings Product-grade UI, languages, account and settings**](20261023-0755-product-ui-i18n-settings.md) `P1`
