@@ -117,6 +117,8 @@ data class ChatUiState(
     val hasMoreOlder: Boolean = true,
     val typingLabel: UiText? = null,
     val unreadCount: Int = 0,
+    /** A direct chat whose peer the user blocked: the screen offers Unblock instead of the composer. */
+    val blocked: Boolean = false,
 )
 
 /** One-shot events from [im.g.apps.feature.chat.ChatViewModel]. */

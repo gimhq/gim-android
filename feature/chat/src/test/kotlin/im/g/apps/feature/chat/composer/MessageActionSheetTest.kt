@@ -27,8 +27,9 @@ class MessageActionSheetTest {
 
     private val replied = mutableListOf<String>()
     private val reacted = mutableListOf<Pair<String, String>>()
+    private val reported = mutableListOf<Pair<String, String>>()
 
-    private fun show() {
+    private fun show(reportUserId: String? = null) {
         val actions = MessageActionsUi(
             messageId = "m1",
             canReply = true,
@@ -38,6 +39,7 @@ class MessageActionSheetTest {
             canReact = true,
             ownReactions = persistentSetOf("👍"),
             canRetry = false,
+            reportUserId = reportUserId,
         )
         rule.setContent {
             GimTheme {
@@ -52,6 +54,7 @@ class MessageActionSheetTest {
                         onReact = { id, emoji -> reacted += id to emoji },
                         onRetry = {},
                         onCancelSend = {},
+                        onReport = { userId, messageId -> reported += userId to messageId },
                     ),
                 )
             }
@@ -90,5 +93,18 @@ class MessageActionSheetTest {
         listOf("Reply", "Copy", "Edit", "Delete").forEach {
             rule.onNodeWithText(it).assertHeightIsAtLeast(48.dp)
         }
+    }
+
+    @Test
+    fun report_isShownOnlyWithAReportUser_andOpensTheReportForTheMessage() {
+        show(reportUserId = "u-lukas")
+        rule.onNodeWithText("Report").assertHeightIsAtLeast(48.dp).performClick()
+        assertEquals(listOf("u-lukas" to "m1"), reported)
+    }
+
+    @Test
+    fun report_isHiddenWithoutAReportUser() {
+        show()
+        rule.onNodeWithText("Report").assertDoesNotExist()
     }
 }
