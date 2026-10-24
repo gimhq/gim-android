@@ -4,5 +4,8 @@
          translation is added. -->
     <string-array name="settings_language_tags" translatable="false">
         <item>en</item>
+        <item>zh-CN</item>
+        <item>zh-TW</item>
+        <item>es</item>
     </string-array>
 </resources>

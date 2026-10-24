@@ -20,7 +20,9 @@ class LanguageScreenTest {
     @get:Rule
     val rule = createComposeRule()
 
-    private val options = listOf(LanguageOption("en", "English"), LanguageOption("es", "Español"))
+    private val tags = listOf("en", "zh-CN", "zh-TW", "es")
+    private val names = listOf("English", "简体中文", "繁體中文", "Español")
+    private val options = tags.zip(names) { tag, name -> LanguageOption(tag, name) }
 
     @Test
     fun phone_language_is_checked_when_none_is_chosen() {
@@ -29,8 +31,10 @@ class LanguageScreenTest {
         rule.onNodeWithText("Language").assertExists()
         rule.onNodeWithText("Use phone language").assertExists()
         rule.onNodeWithTag(LanguageTestTags.PHONE).assertIsSelected()
-        rule.onNodeWithTag(LanguageTestTags.option("en")).assertIsNotSelected()
-        rule.onNodeWithTag(LanguageTestTags.option("es")).assertIsNotSelected()
+        for ((tag, name) in tags.zip(names)) {
+            rule.onNodeWithText(name).assertExists()
+            rule.onNodeWithTag(LanguageTestTags.option(tag)).assertIsNotSelected()
+        }
     }
 
     @Test
@@ -38,13 +42,15 @@ class LanguageScreenTest {
         val locales = InMemoryAppLocales()
         var back = 0
         rule.setContent {
-            GimTheme { LanguageRoute(LanguageViewModel(locales, listOf("en", "es")), onBack = { back++ }) }
+            GimTheme { LanguageRoute(LanguageViewModel(locales, tags), onBack = { back++ }) }
         }
 
-        rule.onNodeWithText("Español").performClick()
+        for ((tag, name) in tags.zip(names)) {
+            rule.onNodeWithText(name).performClick()
 
-        assertEquals("es", locales.current())
-        rule.onNodeWithTag(LanguageTestTags.option("es")).assertIsSelected()
+            assertEquals(tag, locales.current())
+            rule.onNodeWithTag(LanguageTestTags.option(tag)).assertIsSelected()
+        }
         rule.onNodeWithTag(LanguageTestTags.PHONE).assertIsNotSelected()
         rule.onNodeWithTag(LanguageTestTags.PHONE).performClick()
         assertNull(locales.current())
