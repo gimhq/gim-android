@@ -35,6 +35,7 @@
     <string name="chat_message_not_sent">No enviado</string>
     <string name="chat_back">Volver</string>
     <string name="chat_group_info">Info del grupo</string>
+    <string name="chat_contact_info">Info del contacto</string>
     <string name="chat_jump_to_bottom">Ir a los últimos mensajes</string>
     <string name="chat_loading_older">Cargando mensajes anteriores…</string>
     <string name="chat_image">Foto</string>
@@ -78,4 +79,11 @@
     <string name="composer_error_cancel">No se pudo detener el envío. Inténtalo de nuevo.</string>
     <string name="composer_error_attach">No se pudo abrir ese archivo. Prueba con otro archivo.</string>
     <string name="composer_error_too_large">Este archivo es demasiado grande. Elige un archivo de menos de 100 MB.</string>
+    <string name="chat_blocked">Bloqueaste a esta persona.</string>
+    <string name="chat_unblock">Desbloquear</string>
+    <string name="chat_unblock_title">¿Desbloquear a %1$s?</string>
+    <string name="chat_unblock_body">Podrá volver a enviarte mensajes. Los mensajes que envió mientras estaba bloqueado no volverán.</string>
+    <string name="chat_unblock_cancel">Cancelar</string>
+    <string name="chat_error_unblock">No se pudo desbloquear. Revisa tu conexión a internet e inténtalo de nuevo.</string>
+    <string name="composer_action_report">Reportar</string>
 </resources>

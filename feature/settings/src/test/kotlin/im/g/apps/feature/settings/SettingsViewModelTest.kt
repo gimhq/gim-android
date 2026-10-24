@@ -13,17 +13,22 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
+    @get:Rule
+    val tmp = TemporaryFolder()
+
     private suspend fun TestScope.signedIn(): FakeGimClient =
         FakeGimClient(backgroundScope, outboxDelays = null).apply { createIdentity("Sofia Costa") }
 
     private fun TestScope.viewModel(client: FakeGimClient) =
-        SettingsViewModel(client, ioDispatcher = main.dispatcher).also { advanceUntilIdle() }
+        SettingsViewModel(client, ProfilePhotos(client, tmp.root), ioDispatcher = main.dispatcher).also { advanceUntilIdle() }
 
     @Test
     fun loads_the_session_into_the_state() = runTest {
@@ -57,6 +62,40 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         assertEquals("Sofia C.", vm.state.value.displayName)
+    }
+
+    @Test
+    fun without_a_photo_the_header_shows_initials() = runTest {
+        val client = signedIn()
+
+        assertNull(viewModel(client).state.value.photoPath)
+    }
+
+    @Test
+    fun loads_the_own_photo_into_the_avatar_folder() = runTest {
+        val client = signedIn()
+        client.setAvatar(File(tmp.root, "a.jpg").apply { writeBytes(byteArrayOf(1)) }.path, "image/jpeg")
+
+        val path = viewModel(client).state.value.photoPath
+
+        assertEquals(File(tmp.root, "gim/avatars/${client.userId()}").path, path)
+        assertTrue(File(path!!).isFile)
+    }
+
+    @Test
+    fun refresh_picks_up_a_new_or_removed_photo() = runTest {
+        val client = signedIn()
+        val vm = viewModel(client)
+
+        client.setAvatar(File(tmp.root, "a.jpg").apply { writeBytes(byteArrayOf(1)) }.path, "image/jpeg")
+        vm.refresh()
+        advanceUntilIdle()
+        assertTrue(vm.state.value.photoPath != null)
+
+        client.removeAvatar()
+        vm.refresh()
+        advanceUntilIdle()
+        assertNull(vm.state.value.photoPath)
     }
 
     @Test

@@ -32,6 +32,7 @@
     <string name="chat_message_not_sent">Not sent</string>
     <string name="chat_back">Go back</string>
     <string name="chat_group_info">Group info</string>
+    <string name="chat_contact_info">Contact info</string>
     <string name="chat_jump_to_bottom">Go to latest messages</string>
     <string name="chat_loading_older">Loading older messages…</string>
     <string name="chat_image">Photo</string>

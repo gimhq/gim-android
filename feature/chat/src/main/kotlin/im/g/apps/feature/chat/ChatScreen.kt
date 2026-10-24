@@ -246,10 +246,9 @@ private fun ChatTopBar(header: ChatHeaderUi, onBack: () -> Unit, onOpenGroupInfo
             )
         },
         actions = {
-            if (header.isGroup) {
-                GimTopBarIconButton(onClick = onOpenGroupInfo, contentDescription = stringResource(R.string.chat_group_info)) {
-                    InfoGlyph(LocalContentColor.current)
-                }
+            val info = stringResource(if (header.isGroup) R.string.chat_group_info else R.string.chat_contact_info)
+            GimTopBarIconButton(onClick = onOpenGroupInfo, contentDescription = info) {
+                InfoGlyph(LocalContentColor.current)
             }
         },
     )

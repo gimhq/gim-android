@@ -131,9 +131,9 @@ class LocaleRenderingTest(
         val client = FakeGimClient.withDemoData(scope, clock = { now.toEpochMilli() }, zone = ZONE, outboxDelays = null)
         val res = context.resources
         val locale = res.configuration.locales[0]
+        val avatarDir = File(context.cacheDir, "gim/avatars")
         val chatList = ChatListViewModel(client, Clock.fixed(now, ZONE), avatarDir, locale = locale)
         val mediaPaths = AppMediaPathProvider(AndroidMediaPaths(context))
-        val avatarDir = File(context.cacheDir, "gim/avatars")
         val clock = { now.toEpochMilli() }
         compose.setContent {
             GimTheme {

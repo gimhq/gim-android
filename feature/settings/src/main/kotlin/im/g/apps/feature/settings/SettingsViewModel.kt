@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 @Immutable
 data class SettingsUiState(
@@ -26,16 +27,20 @@ data class SettingsUiState(
     /** The claimed username without "@"; null when none is claimed. */
     val username: String? = null,
     val accountId: String? = null,
+    /** The downloaded own profile photo; null shows initials. */
+    val photoPath: String? = null,
     val readReceipts: Boolean = true,
     val typingIndicator: Boolean = true,
 )
 
 /**
- * The signed-in user's name, username and Account ID for the settings header, from [GimClient.session], and the
- * privacy switches, from [GimClient.privacy]. A switch moves at once and moves back if saving fails.
+ * The signed-in user's name, username, Account ID and photo for the settings header, from [GimClient.session] and
+ * [GimClient.ownProfile], and the privacy switches, from [GimClient.privacy]. A switch moves at once and moves back if
+ * saving fails.
  */
 class SettingsViewModel(
     private val client: GimClient,
+    private val photos: ProfilePhotos,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val _state = MutableStateFlow(SettingsUiState())
@@ -50,7 +55,7 @@ class SettingsViewModel(
         refresh()
     }
 
-    /** Reloads the session and privacy settings, e.g. after a sub-screen changed the display name. */
+    /** Reloads the session, photo and privacy settings, e.g. after a sub-screen changed the display name. */
     fun refresh() {
         viewModelScope.launch {
             val session = withContext(ioDispatcher) { client.session() } ?: return@launch
@@ -59,11 +64,20 @@ class SettingsViewModel(
             } catch (_: GimException) {
                 null
             }
+            val photoPath = withContext(ioDispatcher) {
+                val hasPhoto = try {
+                    client.ownProfile()?.hasAvatar == true
+                } catch (_: GimException) {
+                    false
+                }
+                if (hasPhoto) photos.load(session.userId) else null
+            }
             _state.update {
                 it.copy(
                     displayName = session.displayName,
                     username = session.handle.ifEmpty { null },
                     accountId = session.userId,
+                    photoPath = photoPath,
                     readReceipts = privacy?.readReceipts ?: it.readReceipts,
                     typingIndicator = privacy?.typingIndicators ?: it.typingIndicator,
                 )
@@ -90,6 +104,7 @@ class SettingsViewModel(
     }
 }
 
-fun settingsViewModelFactory(client: GimClient): ViewModelProvider.Factory = viewModelFactory {
-    initializer { SettingsViewModel(client) }
+/** [cacheDir] holds the downloaded photos (see [ProfilePhotos]). */
+fun settingsViewModelFactory(client: GimClient, cacheDir: File): ViewModelProvider.Factory = viewModelFactory {
+    initializer { SettingsViewModel(client, ProfilePhotos(client, cacheDir)) }
 }

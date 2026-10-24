@@ -176,7 +176,8 @@ fun GimNavHost(
         composable(Routes.SETTINGS) {
             val current = client ?: return@composable
             val themeMode by container.themeModeStore.mode.collectAsState()
-            val vm: SettingsViewModel = viewModel(factory = settingsViewModelFactory(current))
+            val context = LocalContext.current
+            val vm: SettingsViewModel = viewModel(factory = settingsViewModelFactory(current, context.cacheDir))
             SettingsRoute(
                 viewModel = vm,
                 actions = SettingsActions(

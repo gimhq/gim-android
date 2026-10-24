@@ -30,4 +30,30 @@
     </plurals>
     <string name="chatlist_open_chat">Abrir chat</string>
     <string name="chatlist_row_description_separator">", "</string>
+    <string name="chatlist_chat_actions">Acciones del chat</string>
+    <string name="chatlist_muted">Silenciado</string>
+    <string name="chatlist_pinned">Fijado</string>
+    <string name="chatlist_archived_entry">Archivados (%1$d)</string>
+    <string name="chatlist_archived_title">Chats archivados</string>
+    <string name="chatlist_archived_empty">No hay chats archivados</string>
+    <string name="chatlist_back">Volver</string>
+    <string name="chatlist_action_mute">Silenciar</string>
+    <string name="chatlist_action_unmute">Activar sonido</string>
+    <string name="chatlist_action_pin">Fijar</string>
+    <string name="chatlist_action_unpin">Desfijar</string>
+    <string name="chatlist_action_archive">Archivar</string>
+    <string name="chatlist_action_unarchive">Desarchivar</string>
+    <string name="chatlist_mute_title">Silenciar este chat</string>
+    <string name="chatlist_mute_body">No recibirás notificaciones de este chat.</string>
+    <string name="chatlist_mute_one_hour">Durante 1 hora</string>
+    <string name="chatlist_mute_eight_hours">Durante 8 horas</string>
+    <string name="chatlist_mute_one_week">Durante 1 semana</string>
+    <string name="chatlist_mute_always">Siempre</string>
+    <string name="chatlist_cancel">Cancelar</string>
+    <string name="chatlist_error_mute">No se pudo silenciar este chat. Inténtalo de nuevo.</string>
+    <string name="chatlist_error_unmute">No se pudo activar el sonido de este chat. Inténtalo de nuevo.</string>
+    <string name="chatlist_error_pin">No se pudo fijar este chat. Inténtalo de nuevo.</string>
+    <string name="chatlist_error_unpin">No se pudo desfijar este chat. Inténtalo de nuevo.</string>
+    <string name="chatlist_error_archive">No se pudo archivar este chat. Inténtalo de nuevo.</string>
+    <string name="chatlist_error_unarchive">No se pudo desarchivar este chat. Inténtalo de nuevo.</string>
 </resources>

@@ -31,6 +31,7 @@
     <string name="chat_message_not_sent">未傳送</string>
     <string name="chat_back">返回</string>
     <string name="chat_group_info">群組資訊</string>
+    <string name="chat_contact_info">聯絡人資訊</string>
     <string name="chat_jump_to_bottom">前往最新訊息</string>
     <string name="chat_loading_older">正在載入較早的訊息…</string>
     <string name="chat_image">相片</string>
@@ -72,4 +73,11 @@
     <string name="composer_error_cancel">無法停止傳送。請再試一次。</string>
     <string name="composer_error_attach">無法開啟這個檔案。請換一個檔案試試。</string>
     <string name="composer_error_too_large">這個檔案太大了。請選擇小於 100 MB 的檔案。</string>
+    <string name="chat_blocked">你封鎖了對方。</string>
+    <string name="chat_unblock">解除封鎖</string>
+    <string name="chat_unblock_title">要解除封鎖 %1$s 嗎？</string>
+    <string name="chat_unblock_body">對方又可以傳訊息給你了。封鎖期間對方傳的訊息不會再出現。</string>
+    <string name="chat_unblock_cancel">取消</string>
+    <string name="chat_error_unblock">無法解除封鎖對方。請檢查網路後再試一次。</string>
+    <string name="composer_action_report">檢舉</string>
 </resources>

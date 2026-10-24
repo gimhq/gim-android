@@ -70,7 +70,7 @@ fun SettingsRoute(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     languageTag: String? = null,
 ) {
-    // Picks up a name changed in a sub-screen when returning here.
+    // Picks up a name or photo changed in a sub-screen when returning here.
     LifecycleStartEffect(viewModel) {
         viewModel.refresh()
         onStopOrDispose {}
@@ -170,7 +170,7 @@ private fun ProfileHeader(state: SettingsUiState, onOpenProfile: (() -> Unit)?) 
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Avatar(name = state.displayName, imagePath = null, size = 64.dp)
+        Avatar(name = state.displayName, imagePath = state.photoPath, size = 64.dp)
         Spacer(Modifier.width(16.dp))
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(text = state.displayName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
