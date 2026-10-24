@@ -229,7 +229,9 @@ class HubsE2eTest {
      * retried.
      */
     private fun removeHubConfirmingOwnedGroups(hubId: String, ownedGroups: Int) {
-        val owned = hasText(string(HubsR.string.hubs_owned_body, ownedGroups))
+        val owned = hasText(
+            compose.activity.resources.getQuantityString(HubsR.plurals.hubs_owned_body, ownedGroups, ownedGroups),
+        )
         val notDrained = hasText(string(HubsR.string.hubs_error_not_drained))
         repeat(DRAIN_ATTEMPTS) { attempt ->
             click("remove B", inRow(hubId, hasText(string(HubsR.string.hubs_remove)) and hasClickAction()))
@@ -316,10 +318,18 @@ class HubsE2eTest {
         matcher and hasAnyAncestor(hasTestTag(TAG_ROW_PREFIX + hubId))
 
     private fun verifiedSignedIn() =
-        string(HubsR.string.hubs_state_verified) + " · " + string(HubsR.string.hubs_signed_in)
+        string(
+            HubsR.string.hubs_state_line,
+            string(HubsR.string.hubs_state_verified),
+            string(HubsR.string.hubs_signed_in),
+        )
 
     private fun removedNotSignedIn() =
-        string(HubsR.string.hubs_state_removed) + " · " + string(HubsR.string.hubs_not_signed_in)
+        string(
+            HubsR.string.hubs_state_line,
+            string(HubsR.string.hubs_state_removed),
+            string(HubsR.string.hubs_not_signed_in),
+        )
 
     private fun host(url: String): String = URI(url).let { if (it.port > 0) "${it.host}:${it.port}" else it.host }
 

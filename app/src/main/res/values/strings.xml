@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">GIM</string>
+    <string name="app_name" translatable="false">GIM</string>
     <string name="open_file_no_app">No app on your phone can open this file.</string>
     <string name="push_channel_messages">Messages</string>
     <string name="push_channel_reactions">Reactions</string>

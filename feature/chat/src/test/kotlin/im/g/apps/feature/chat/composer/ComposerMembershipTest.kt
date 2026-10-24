@@ -9,7 +9,6 @@ import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.feature.chat.R
 import im.g.apps.feature.chat.timeline.UiText
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -153,7 +152,7 @@ class ComposerMembershipTest {
         vm.send()
         runCurrent()
         assertEquals(
-            ComposerEvent.Error(UiText.Res(R.string.chat_error_retry_later, persistentListOf("30"))),
+            ComposerEvent.Error(UiText.Plural(R.plurals.chat_error_retry_later, 30)),
             vm.events.first(),
         )
     }
