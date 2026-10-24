@@ -15,6 +15,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -24,6 +25,12 @@ import coil.compose.AsyncImage
 import im.g.apps.core.designsystem.theme.GimPalette
 import im.g.apps.core.designsystem.theme.GimTheme
 import java.io.File
+
+/** Test tags of [Avatar]. */
+object AvatarTestTags {
+    /** The photo layer, present while an image path is set. */
+    const val PHOTO = "avatar_photo"
+}
 
 /**
  * Circular avatar. Draws the image at [imagePath] (a local file) when present; the initials on a
@@ -71,7 +78,9 @@ fun Avatar(
                 model = File(imagePath),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag(AvatarTestTags.PHOTO),
             )
         }
     }

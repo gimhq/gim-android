@@ -27,4 +27,30 @@
     </plurals>
     <string name="chatlist_open_chat">Open chat</string>
     <string name="chatlist_row_description_separator">", "</string>
+    <string name="chatlist_chat_actions">Chat actions</string>
+    <string name="chatlist_muted">Muted</string>
+    <string name="chatlist_pinned">Pinned</string>
+    <string name="chatlist_archived_entry">Archived (%1$d)</string>
+    <string name="chatlist_archived_title">Archived chats</string>
+    <string name="chatlist_archived_empty">No archived chats</string>
+    <string name="chatlist_back">Back</string>
+    <string name="chatlist_action_mute">Mute</string>
+    <string name="chatlist_action_unmute">Unmute</string>
+    <string name="chatlist_action_pin">Pin</string>
+    <string name="chatlist_action_unpin">Unpin</string>
+    <string name="chatlist_action_archive">Archive</string>
+    <string name="chatlist_action_unarchive">Unarchive</string>
+    <string name="chatlist_mute_title">Mute this chat</string>
+    <string name="chatlist_mute_body">You won\'t get notifications from this chat.</string>
+    <string name="chatlist_mute_one_hour">For 1 hour</string>
+    <string name="chatlist_mute_eight_hours">For 8 hours</string>
+    <string name="chatlist_mute_one_week">For 1 week</string>
+    <string name="chatlist_mute_always">Always</string>
+    <string name="chatlist_cancel">Cancel</string>
+    <string name="chatlist_error_mute">Couldn\'t mute this chat. Try again.</string>
+    <string name="chatlist_error_unmute">Couldn\'t unmute this chat. Try again.</string>
+    <string name="chatlist_error_pin">Couldn\'t pin this chat. Try again.</string>
+    <string name="chatlist_error_unpin">Couldn\'t unpin this chat. Try again.</string>
+    <string name="chatlist_error_archive">Couldn\'t archive this chat. Try again.</string>
+    <string name="chatlist_error_unarchive">Couldn\'t unarchive this chat. Try again.</string>
 </resources>

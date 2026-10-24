@@ -49,6 +49,12 @@ sealed interface ContactsError {
     /** No invitee could be added: the hubs of [users] (names, or user ids if unknown) do not admit this user. */
     data class ContactNotAdmitted(val users: List<String>) : ContactsError
 
+    /** An invitee is blocked: gim-core refuses chats with them (`InvalidInput`). */
+    data object Blocked : ContactsError
+
+    /** [action] failed for a reason the user cannot fix; trying again may help. */
+    data class ChatActionFailed(val action: ChatAction) : ContactsError
+
     data object Unknown : ContactsError
 }
 
@@ -93,6 +99,26 @@ internal fun GimException.toInviteError(
     else -> toContactsError(suspendedHub)
 }
 
+/** Like [toInviteError], but an `InvalidInput` while one of [invitees] is blocked is [ContactsError.Blocked]. */
+internal suspend fun GimClient.inviteError(e: GimException, invitees: List<UserProfile>): ContactsError {
+    if (e is GimException.InvalidInput) {
+        val blocked = try {
+            privacy().blockedUserIds
+        } catch (_: GimException) {
+            emptyList()
+        }
+        if (invitees.any { it.userId in blocked }) return ContactsError.Blocked
+    }
+    return e.toInviteError(suspendedHubName(e), invitees)
+}
+
+/** Like [toContactsError] for a [ChatAction]; failures without a cause the user can act on name the action. */
+internal fun GimException.toChatActionError(action: ChatAction, suspendedHub: String? = null): ContactsError =
+    when (val error = toContactsError(suspendedHub)) {
+        ContactsError.InvalidInput, ContactsError.Server, ContactsError.Unknown -> ContactsError.ChatActionFailed(action)
+        else -> error
+    }
+
 /** The display name, else "@handle", else the user id. */
 private fun UserProfile.contactName(): String = when {
     displayName.isNotBlank() && displayName != userId -> displayName
@@ -118,8 +144,23 @@ internal fun ContactsError.message(context: Context): String = when (this) {
             R.string.contacts_error_contact_not_admitted,
             ListFormatter.getInstance(context.resources.configuration.locales[0]).format(users),
         )
+    ContactsError.Blocked -> context.getString(R.string.contacts_error_blocked)
+    is ContactsError.ChatActionFailed -> context.getString(action.errorMessage)
     ContactsError.Unknown -> context.getString(R.string.contacts_error_unknown)
 }
+
+private val ChatAction.errorMessage: Int
+    get() = when (this) {
+        ChatAction.MUTE -> R.string.contacts_error_mute
+        ChatAction.UNMUTE -> R.string.contacts_error_unmute
+        ChatAction.PIN -> R.string.contacts_error_pin
+        ChatAction.UNPIN -> R.string.contacts_error_unpin
+        ChatAction.ARCHIVE -> R.string.contacts_error_archive
+        ChatAction.UNARCHIVE -> R.string.contacts_error_unarchive
+        ChatAction.BLOCK -> R.string.contacts_error_block
+        ChatAction.UNBLOCK -> R.string.contacts_error_unblock
+        ChatAction.REPORT -> R.string.contacts_error_report
+    }
 
 @Composable
 internal fun ContactsError.message(): String = message(LocalContext.current)

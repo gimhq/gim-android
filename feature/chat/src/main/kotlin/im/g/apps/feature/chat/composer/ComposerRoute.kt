@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -19,15 +20,18 @@ import kotlinx.coroutines.launch
 
 /**
  * Composer bound to [viewModel], including the message actions sheet, delete confirmation and the
- * photo / file pickers. Fill [im.g.apps.feature.chat.ChatRoute]'s `composer` slot with it, pass
+ * photo / file pickers. Fill [im.g.apps.feature.chat.ChatRoute]'s `composer` slot with it, passing the slot's
+ * `inputVisible` as [inputVisible] (false hides the input bar but keeps the sheets), pass
  * [ComposerViewModel.onMessageLongPress] as `onMessageLongPress`, and share [snackbarHostState] with
- * the chat screen so errors show there.
+ * the chat screen so errors show there. The sheet's Report calls [onReport] with the sender and message ids.
  */
 @Composable
 fun ComposerRoute(
     viewModel: ComposerViewModel,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
+    inputVisible: Boolean = true,
+    onReport: (userId: String, messageId: String) -> Unit = { _, _ -> },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -48,18 +52,21 @@ fun ComposerRoute(
         uri?.let { viewModel.onAttachmentPicked(it.toString()) }
     }
 
-    Composer(
-        state = state,
-        onDraftChange = viewModel::onDraftChange,
-        onSend = viewModel::send,
-        onCancelMode = viewModel::cancelMode,
-        onAttachPhoto = {
-            photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-        },
-        onAttachFile = { filePicker.launch(arrayOf("*/*")) },
-        modifier = modifier,
-    )
+    if (inputVisible) {
+        Composer(
+            state = state,
+            onDraftChange = viewModel::onDraftChange,
+            onSend = viewModel::send,
+            onCancelMode = viewModel::cancelMode,
+            onAttachPhoto = {
+                photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
+            onAttachFile = { filePicker.launch(arrayOf("*/*")) },
+            modifier = modifier,
+        )
+    }
 
+    val currentOnReport by rememberUpdatedState(onReport)
     val callbacks = remember(viewModel, clipboard) {
         MessageActionCallbacks(
             onReply = viewModel::reply,
@@ -72,6 +79,10 @@ fun ComposerRoute(
             onReact = viewModel::toggleReaction,
             onRetry = viewModel::retry,
             onCancelSend = viewModel::cancelSend,
+            onReport = { userId, messageId ->
+                viewModel.dismissActions()
+                currentOnReport(userId, messageId)
+            },
         )
     }
     state.actions?.let { actions ->

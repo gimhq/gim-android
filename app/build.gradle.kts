@@ -17,6 +17,12 @@ android {
         // Shown on Help and about: the first line of the root GIM_CORE_VERSION file (e.g. 0.1.0+c1b7503).
         val gimCoreVersion = rootProject.file("GIM_CORE_VERSION").readLines().first().trim()
         buildConfigField("String", "GIM_CORE_VERSION", "\"$gimCoreVersion\"")
+        // gim meta server (settings backup, user reports): -P/gradle.properties `gim.metaServerUrl`, else env
+        // GIM_META_SERVER_URL; empty (default) leaves it off (AppContainer.metaServerUrl is null).
+        val metaServerUrl = providers.gradleProperty("gim.metaServerUrl").orNull?.takeIf { it.isNotBlank() }
+            ?: providers.environmentVariable("GIM_META_SERVER_URL").orNull.orEmpty()
+        val metaServerUrlLiteral = metaServerUrl.trim().replace("\\", "\\\\").replace("\"", "\\\"")
+        buildConfigField("String", "META_SERVER_URL", "\"$metaServerUrlLiteral\"")
         // libgim_core.so ships for these ABIs only; drops JNA's other ABIs from the APK.
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }

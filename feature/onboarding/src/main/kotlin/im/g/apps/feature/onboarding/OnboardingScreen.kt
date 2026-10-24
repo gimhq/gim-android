@@ -59,6 +59,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import im.g.apps.core.bridge.RecoveryKitLabels
+import im.g.apps.core.bridge.fake.FakeRecoveryKitCodec
 import im.g.apps.core.designsystem.R as DesignR
 import im.g.apps.core.designsystem.component.GimPreviews
 import im.g.apps.core.designsystem.component.userNotAdmittedMessage
@@ -74,6 +76,8 @@ class OnboardingCallbacks(
     val onBack: () -> Unit,
     val onDisplayNameChange: (String) -> Unit,
     val onSubmitDisplayName: () -> Unit,
+    /** The kit text from Account ID, recovery key and the localized labels. */
+    val formatRecoveryKit: (accountId: String, recoveryKey: String, labels: RecoveryKitLabels) -> String,
     /** Copies the whole kit text. */
     val onCopyRecoveryKit: (String) -> Unit,
     /** Offers Account ID and recovery key to the password manager; only called on API 34+. */
@@ -131,6 +135,7 @@ fun OnboardingRoute(
             onBack = viewModel::back,
             onDisplayNameChange = viewModel::onDisplayNameChange,
             onSubmitDisplayName = viewModel::submitDisplayName,
+            formatRecoveryKit = viewModel::formatRecoveryKit,
             onCopyRecoveryKit = { copySensitive(context, it) },
             onSaveToPasswordManager = { accountId, key -> saveToPasswordManager(context, accountId, key) },
             onShareRecoveryKit = { currentOnShareRecoveryKit(it) },
@@ -732,7 +737,7 @@ private const val MULTI_LINE_MIN_LINES = 3
 
 internal val previewCallbacks =
     OnboardingCallbacks(
-        {}, {}, {}, {}, {}, {}, {}, {}, { _, _ -> PasswordSaveResult.SAVED }, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+        {}, {}, {}, {}, {}, {}, {}, FakeRecoveryKitCodec::format, {}, { _, _ -> PasswordSaveResult.SAVED }, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
         {}, {}, {}, {}, {}, {}, {}, {},
     )
 

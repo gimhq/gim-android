@@ -59,9 +59,12 @@ class ComposerViewModelTest {
 
     private fun TestScope.fake() = FakeGimClient.withDemoData(backgroundScope, { testScheduler.currentTime }, outboxDelays = null)
 
-    private fun TestScope.viewModel(client: GimClient, copier: UriCopier = FakeUriCopier(ByteArray(0))) =
-        ComposerViewModel(client, chatId, copier, { testScheduler.currentTime }, dispatcher, dispatcher)
-            .also { runCurrent() }
+    private fun TestScope.viewModel(
+        client: GimClient,
+        copier: UriCopier = FakeUriCopier(ByteArray(0)),
+        reportAvailable: Boolean = false,
+    ) = ComposerViewModel(client, chatId, copier, { testScheduler.currentTime }, dispatcher, dispatcher, reportAvailable)
+        .also { runCurrent() }
 
     private suspend fun GimClient.messages(): List<MessageItem> =
         timeline(chatId).itemsFlow().first().mapNotNull { (it as? TimelineItem.Message)?.item }
@@ -99,6 +102,23 @@ class ComposerViewModelTest {
 
         assertEquals(emptyList<String>(), client.sentTexts)
         assertEquals("   ", vm.uiState.value.draft)
+    }
+
+    @Test
+    fun report_isOfferedOnOthersMessages_onlyWhenReportIsAvailable() = test {
+        val client = fake()
+        val theirs = client.message("Good call. I'll check the currents.")
+        val mine = client.messages().first { it.isOwn }
+
+        val vm = viewModel(client, reportAvailable = true)
+        vm.onMessageLongPress(theirs.messageId)
+        assertEquals(theirs.sender.userId, vm.uiState.value.actions?.reportUserId)
+        vm.onMessageLongPress(mine.messageId)
+        assertNull(vm.uiState.value.actions?.reportUserId)
+
+        val off = viewModel(client)
+        off.onMessageLongPress(theirs.messageId)
+        assertNull(off.uiState.value.actions?.reportUserId)
     }
 
     @Test

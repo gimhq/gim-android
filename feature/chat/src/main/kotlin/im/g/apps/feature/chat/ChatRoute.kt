@@ -14,7 +14,8 @@ import im.g.apps.feature.chat.timeline.ChatEvent
 import kotlinx.coroutines.launch
 
 /**
- * Chat screen entry point. [composer] fills the composer slot; [onOpenFile] receives a downloaded
+ * Chat screen entry point. [composer] fills the composer slot (`inputVisible` is false in a blocked chat, where
+ * an Unblock bar replaces the input); [onOpenFile] receives a downloaded
  * attachment's local path and MIME type; [onMessageLongPress] receives a message id for the action menu.
  * Pass the composer ViewModel's `reply` as [onReply] and `toggleReaction` as [onToggleReaction] so TalkBack
  * can reply and reaction chips toggle; without them TalkBack offers no Reply and chips do nothing.
@@ -23,7 +24,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ChatRoute(
     viewModel: ChatViewModel,
-    composer: @Composable () -> Unit,
+    composer: @Composable (inputVisible: Boolean) -> Unit,
     onBack: () -> Unit,
     onOpenGroupInfo: () -> Unit,
     onOpenFile: (path: String, mime: String) -> Unit,
@@ -60,5 +61,6 @@ fun ChatRoute(
         snackbarHostState = snackbarHostState,
         onReply = onReply,
         onToggleReaction = onToggleReaction,
+        onUnblock = viewModel::unblock,
     )
 }

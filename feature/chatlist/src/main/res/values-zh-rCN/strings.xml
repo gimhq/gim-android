@@ -26,4 +26,30 @@
     </plurals>
     <string name="chatlist_open_chat">打开聊天</string>
     <string name="chatlist_row_description_separator">"，"</string>
+    <string name="chatlist_chat_actions">聊天操作</string>
+    <string name="chatlist_muted">已静音</string>
+    <string name="chatlist_pinned">已置顶</string>
+    <string name="chatlist_archived_entry">已归档 (%1$d)</string>
+    <string name="chatlist_archived_title">已归档的聊天</string>
+    <string name="chatlist_archived_empty">没有已归档的聊天</string>
+    <string name="chatlist_back">返回</string>
+    <string name="chatlist_action_mute">静音</string>
+    <string name="chatlist_action_unmute">取消静音</string>
+    <string name="chatlist_action_pin">置顶</string>
+    <string name="chatlist_action_unpin">取消置顶</string>
+    <string name="chatlist_action_archive">归档</string>
+    <string name="chatlist_action_unarchive">取消归档</string>
+    <string name="chatlist_mute_title">将这个聊天静音</string>
+    <string name="chatlist_mute_body">你不会再收到这个聊天的通知。</string>
+    <string name="chatlist_mute_one_hour">1 小时</string>
+    <string name="chatlist_mute_eight_hours">8 小时</string>
+    <string name="chatlist_mute_one_week">1 周</string>
+    <string name="chatlist_mute_always">一直静音</string>
+    <string name="chatlist_cancel">取消</string>
+    <string name="chatlist_error_mute">无法将这个聊天静音。请重试。</string>
+    <string name="chatlist_error_unmute">无法取消这个聊天的静音。请重试。</string>
+    <string name="chatlist_error_pin">无法置顶这个聊天。请重试。</string>
+    <string name="chatlist_error_unpin">无法取消置顶这个聊天。请重试。</string>
+    <string name="chatlist_error_archive">无法归档这个聊天。请重试。</string>
+    <string name="chatlist_error_unarchive">无法取消归档这个聊天。请重试。</string>
 </resources>

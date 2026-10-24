@@ -6,16 +6,23 @@ import im.g.apps.core.bridge.InMemoryServerUrlStore
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakeGimClientFactory
+import im.g.apps.core.bridge.fake.FakeRecoveryKitCodec
 import im.g.apps.feature.settings.InMemoryAppLocales
 import im.g.apps.feature.settings.InMemoryThemeModeStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 
-/** A container whose stored server URL restores a client from [factory] (demo data by default). */
+/**
+ * A container whose stored server URL restores a client from [factory] (demo data by default); [metaServerUrl] turns
+ * on the meta server for the container and the demo client.
+ */
 fun testContainer(
     storedUrl: String? = DemoData.SERVER_URL,
     scope: CoroutineScope = CoroutineScope(Job()),
-    factory: GimClientFactory = FakeGimClientFactory { _, _ -> FakeGimClient.withDemoData(scope, outboxDelays = null) },
+    metaServerUrl: String? = null,
+    factory: GimClientFactory = FakeGimClientFactory { _, _ ->
+        FakeGimClient.withDemoData(scope, outboxDelays = null, metaServerUrl = metaServerUrl)
+    },
 ) = AppContainer(
     context = ApplicationProvider.getApplicationContext(),
     appScope = scope,
@@ -23,4 +30,6 @@ fun testContainer(
     clientFactory = factory,
     themeModeStore = InMemoryThemeModeStore(),
     appLocales = InMemoryAppLocales(),
+    metaServerUrl = metaServerUrl,
+    recoveryKitCodec = FakeRecoveryKitCodec,
 )

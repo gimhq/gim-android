@@ -22,6 +22,7 @@ import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakeGimClientFactory
 import im.g.apps.core.bridge.fake.FakePlatformHooks
+import im.g.apps.core.bridge.fake.FakeRecoveryKitCodec
 import im.g.apps.core.designsystem.theme.GimTheme
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -47,7 +48,7 @@ class OnboardingScreenTest {
         FakePlatformHooks(),
         InMemoryServerUrlStore(),
     )
-    private val viewModel = OnboardingViewModel(manager)
+    private val viewModel = OnboardingViewModel(manager, FakeRecoveryKitCodec)
     private var finished = 0
 
     @After
@@ -92,7 +93,7 @@ class OnboardingScreenTest {
     fun link_flow_shows_the_qr_code_then_the_sas_and_finishes_on_confirm() {
         val gate = CompletableDeferred<Unit>()
         val manager = gatedManager(gate)
-        val vm = OnboardingViewModel(manager)
+        val vm = OnboardingViewModel(manager, FakeRecoveryKitCodec)
         rule.setContent { GimTheme { OnboardingRoute(viewModel = vm, onFinished = { finished++ }, onShareRecoveryKit = {}) } }
         rule.onNodeWithTag(OnboardingTestTags.INTRO_NEXT).performClick()
         rule.onNodeWithTag(OnboardingTestTags.INTRO_NEXT).performClick()
@@ -118,7 +119,7 @@ class OnboardingScreenTest {
     fun link_cancel_returns_to_welcome() {
         val gate = CompletableDeferred<Unit>()
         val manager = gatedManager(gate)
-        val vm = OnboardingViewModel(manager)
+        val vm = OnboardingViewModel(manager, FakeRecoveryKitCodec)
         rule.setContent { GimTheme { OnboardingRoute(viewModel = vm, onFinished = { finished++ }, onShareRecoveryKit = {}) } }
         rule.onNodeWithTag(OnboardingTestTags.INTRO_SKIP).performClick()
         rule.onNodeWithTag(OnboardingTestTags.SERVER_URL).performTextInput("https://gim.example.eu")
@@ -192,7 +193,7 @@ class OnboardingScreenTest {
             FakePlatformHooks(),
             InMemoryServerUrlStore(),
         )
-        val vm = OnboardingViewModel(manager)
+        val vm = OnboardingViewModel(manager, FakeRecoveryKitCodec)
         rule.setContent { GimTheme { OnboardingRoute(viewModel = vm, onFinished = { finished++ }, onShareRecoveryKit = {}) } }
         rule.onNodeWithTag(OnboardingTestTags.INTRO_SKIP).performClick()
 

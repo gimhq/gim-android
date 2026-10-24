@@ -10,6 +10,9 @@ import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -24,6 +27,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import im.g.apps.core.bridge.SendFailure
 import im.g.apps.core.designsystem.R as DesignR
+import im.g.apps.core.designsystem.component.AvatarTestTags
 import im.g.apps.core.designsystem.component.ReactionChipModel
 import im.g.apps.core.designsystem.component.TickState
 import im.g.apps.core.designsystem.theme.GimTheme
@@ -59,6 +63,8 @@ class ChatScreenTest {
     private val replied = mutableListOf<String>()
     private val toggled = mutableListOf<Pair<String, String>>()
     private var backs = 0
+    private var infos = 0
+    private var unblocks = 0
 
     private fun message(id: String, body: String, tick: TickState? = null) = MessageRow(
         key = id,
@@ -79,19 +85,25 @@ class ChatScreenTest {
         groupedWithNext = false,
     )
 
-    private fun show(items: List<TimelineRowUi>, hasMoreOlder: Boolean = true) {
+    private fun show(
+        items: List<TimelineRowUi>,
+        hasMoreOlder: Boolean = true,
+        header: ChatHeaderUi = ChatHeaderUi(title = "Aegean Crew", isGroup = true),
+        blocked: Boolean = false,
+    ) {
         val state = ChatUiState(
-            header = ChatHeaderUi(title = "Aegean Crew", isGroup = true),
+            header = header,
             items = items.toImmutableList(),
             hasMoreOlder = hasMoreOlder,
+            blocked = blocked,
         )
         rule.setContent {
             GimTheme {
                 ChatScreen(
                     state = state,
-                    composer = { ComposerPlaceholder() },
+                    composer = { inputVisible -> if (inputVisible) ComposerPlaceholder() },
                     onBack = { backs++ },
-                    onOpenGroupInfo = {},
+                    onOpenGroupInfo = { infos++ },
                     onLoadOlder = { loadOlderCalls += Unit },
                     onVisible = {},
                     onRetry = { retried += it },
@@ -101,6 +113,7 @@ class ChatScreenTest {
                     onRetryMedia = { retriedMedia += it },
                     onReply = { replied += it },
                     onToggleReaction = { id, emoji -> toggled += id to emoji },
+                    onUnblock = { unblocks++ },
                 )
             }
         }
@@ -252,6 +265,59 @@ class ChatScreenTest {
         mine.performClick()
         rule.onNodeWithContentDescription("⚓, 1 reaction").performClick()
         assertEquals(listOf("m1" to "👍", "m1" to "⚓"), toggled)
+    }
+
+    @Test
+    fun header_withAPhoto_showsIt() {
+        show(listOf(message("m1", "Hello")), header = ChatHeaderUi(title = "Lukas Berger", avatarPath = "/cache/gim/avatars/u-lukas"))
+        rule.onNodeWithTag(AvatarTestTags.PHOTO, useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun header_withoutAPhoto_showsInitials() {
+        show(listOf(message("m1", "Hello")), header = ChatHeaderUi(title = "Lukas Berger"))
+        rule.onNodeWithTag(AvatarTestTags.PHOTO, useUnmergedTree = true).assertDoesNotExist()
+        rule.onNodeWithText("LB", useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun blockedChat_showsUnblockInsteadOfTheComposer_andUnblocksAfterConfirming() {
+        show(listOf(message("m1", "Hello")), header = ChatHeaderUi(title = "Lukas Berger"), blocked = true)
+
+        rule.onNodeWithText("Message").assertDoesNotExist()
+        rule.onNodeWithText("You blocked this person.").assertIsDisplayed()
+        rule.onNodeWithTag(UNBLOCK_BUTTON_TEST_TAG).assertHeightIsAtLeast(48.dp).performClick()
+        rule.onNodeWithText("Unblock Lukas Berger?").assertIsDisplayed()
+        assertEquals(0, unblocks)
+        rule.onNode(hasText("Unblock") and hasAnyAncestor(isDialog())).performClick()
+        assertEquals(1, unblocks)
+    }
+
+    @Test
+    fun blockedChat_cancellingTheConfirmation_keepsItBlocked() {
+        show(listOf(message("m1", "Hello")), header = ChatHeaderUi(title = "Lukas Berger"), blocked = true)
+
+        rule.onNodeWithTag(UNBLOCK_BUTTON_TEST_TAG).performClick()
+        rule.onNodeWithText("Cancel").performClick()
+        rule.onNodeWithText("Unblock Lukas Berger?").assertDoesNotExist()
+        assertEquals(0, unblocks)
+    }
+
+    @Test
+    fun notBlocked_showsTheComposer() {
+        show(listOf(message("m1", "Hello")))
+        rule.onNodeWithText("You blocked this person.").assertDoesNotExist()
+        rule.onNodeWithTag(UNBLOCK_BUTTON_TEST_TAG).assertDoesNotExist()
+        rule.onNodeWithText("Message").assertIsDisplayed()
+    }
+
+    @Test
+    fun directChat_topBarOpensContactInfo() {
+        show(listOf(message("m1", "Hello")), header = ChatHeaderUi(title = "Lukas Berger", isGroup = false))
+
+        rule.onNodeWithContentDescription("Group info").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Contact info").assertHeightIsAtLeast(48.dp).performClick()
+        assertEquals(1, infos)
     }
 
     @Test

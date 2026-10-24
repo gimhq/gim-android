@@ -2,26 +2,36 @@ package im.g.apps.feature.chatlist
 
 import androidx.compose.runtime.Immutable
 import im.g.apps.core.bridge.ChatState
+import im.g.apps.core.designsystem.component.TickState
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
 /**
- * @property isEmpty true once the first chat list snapshot arrived and it has no chats; false while
- *   loading so the empty state does not flash before the first snapshot.
+ * @property rows the chats that are not archived, pinned first.
+ * @property archivedRows archived chats, shown apart; a new message does not move them back.
+ * @property isEmpty true once the first chat list snapshot arrived and it has no chats, archived ones included;
+ *   false while loading so the empty state does not flash before the first snapshot.
+ * @property ownPhotoPath local file of the signed-in user's photo; null shows their initials.
+ * @property actionError a chat action that failed, until [ChatListViewModel.errorShown].
  */
 @Immutable
 data class ChatListUiState(
     val rows: ImmutableList<ChatRowUi> = persistentListOf(),
+    val archivedRows: ImmutableList<ChatRowUi> = persistentListOf(),
     val connection: ConnectionBannerUi? = null,
     val isEmpty: Boolean = false,
-)
+    val ownPhotoPath: String? = null,
+    val actionError: ChatListAction? = null,
+) {
+    val archivedCount: Int get() = archivedRows.size
+}
 
 @Immutable
 data class ChatRowUi(
     val id: String,
     /** Group name, or the other user's display name for a direct chat. */
     val title: String,
-    /** Local file of the avatar thumbnail; null shows initials. */
+    /** Local file of the chat's photo (the peer's for a direct chat without one); null shows initials. */
     val avatarPath: String?,
     /** Who sent the last message, shown before [preview]; null when no prefix is needed. */
     val sender: PreviewSender?,
@@ -32,7 +42,21 @@ data class ChatRowUi(
     val unreadCount: Int,
     /** Leaving or left chats show their state instead of the last message. */
     val state: ChatState = ChatState.ACTIVE,
-)
+    /** Muted now: muted until a later time, or until unmuted. */
+    val muted: Boolean = false,
+    val pinned: Boolean = false,
+    val archived: Boolean = false,
+    /** Delivery state of the last message when it is the signed-in user's own; null otherwise. */
+    val tick: TickState? = null,
+) {
+    /** The long-press actions, in display order. */
+    val actions: List<ChatListAction>
+        get() = listOf(
+            if (muted) ChatListAction.UNMUTE else ChatListAction.MUTE,
+            if (pinned) ChatListAction.UNPIN else ChatListAction.PIN,
+            if (archived) ChatListAction.UNARCHIVE else ChatListAction.ARCHIVE,
+        )
+}
 
 @Immutable
 sealed interface PreviewSender {

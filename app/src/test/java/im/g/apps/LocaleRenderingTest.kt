@@ -43,6 +43,7 @@ import org.junit.runners.model.Statement
 import org.robolectric.ParameterizedRobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import java.io.File
 import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalTime
@@ -130,7 +131,8 @@ class LocaleRenderingTest(
         val client = FakeGimClient.withDemoData(scope, clock = { now.toEpochMilli() }, zone = ZONE, outboxDelays = null)
         val res = context.resources
         val locale = res.configuration.locales[0]
-        val chatList = ChatListViewModel(client, Clock.fixed(now, ZONE), { _, _ -> "" }, locale = locale)
+        val avatarDir = File(context.cacheDir, "gim/avatars")
+        val chatList = ChatListViewModel(client, Clock.fixed(now, ZONE), avatarDir, locale = locale)
         val mediaPaths = AppMediaPathProvider(AndroidMediaPaths(context))
         val clock = { now.toEpochMilli() }
         compose.setContent {
@@ -146,7 +148,7 @@ class LocaleRenderingTest(
                         onOpenSettings = {},
                     )
                     else -> ChatRoute(
-                        viewModel = remember(id) { ChatViewModel(client, id, mediaPaths, clock, ZONE, locale = locale) },
+                        viewModel = remember(id) { ChatViewModel(client, id, mediaPaths, avatarDir, clock, ZONE, locale = locale) },
                         composer = {},
                         onBack = {},
                         onOpenGroupInfo = {},
