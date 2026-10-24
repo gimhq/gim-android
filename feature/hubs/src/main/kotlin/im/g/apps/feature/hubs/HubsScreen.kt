@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -182,8 +183,10 @@ private fun HubRow(hub: HubInfo, state: HubsUiState, actions: HubsActions) {
             if (hub.isPrimary) Badge(stringResource(R.string.hubs_badge_primary))
         }
         Text(
-            text = stateLabel(hub.state) + " · " + stringResource(
-                if (hub.signedIn) R.string.hubs_signed_in else R.string.hubs_not_signed_in,
+            text = stringResource(
+                R.string.hubs_state_line,
+                stateLabel(hub.state),
+                stringResource(if (hub.signedIn) R.string.hubs_signed_in else R.string.hubs_not_signed_in),
             ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -254,7 +257,7 @@ private fun OwnedGroupsDialog(groupCount: Int, actions: HubsActions) {
     AlertDialog(
         onDismissRequest = actions.onErrorShown,
         title = { Text(stringResource(R.string.hubs_owned_title)) },
-        text = { Text(stringResource(R.string.hubs_owned_body, groupCount)) },
+        text = { Text(pluralStringResource(R.plurals.hubs_owned_body, groupCount, groupCount)) },
         confirmButton = {
             TextButton(onClick = actions.onConfirmRemoveOwnedGroups) { Text(stringResource(R.string.hubs_owned_confirm)) }
         },
@@ -275,7 +278,7 @@ private fun errorMessage(error: HubsError): String = when (error) {
     HubsError.Unreachable -> stringResource(R.string.hubs_error_unreachable)
     HubsError.NotVerified -> stringResource(R.string.hubs_error_not_verified)
     is HubsError.RetryLater -> stringResource(R.string.hubs_error_retry_later, error.seconds)
-    is HubsError.OwnsGroups -> stringResource(R.string.hubs_owned_body, error.groupCount)
+    is HubsError.OwnsGroups -> pluralStringResource(R.plurals.hubs_owned_body, error.groupCount, error.groupCount)
     HubsError.HomeHub -> stringResource(R.string.hubs_error_home_hub)
     HubsError.LastHub -> stringResource(R.string.hubs_error_last_hub)
     HubsError.NotDrained -> stringResource(R.string.hubs_error_not_drained)
