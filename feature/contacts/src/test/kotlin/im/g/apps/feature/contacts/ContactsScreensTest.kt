@@ -77,7 +77,7 @@ class ContactsScreensTest {
                 }
             }
         }
-        rule.onNodeWithText("Couldn't add Ana Kovač, @nikos. Their server doesn't accept you. Try someone else.")
+        rule.onNodeWithText("Couldn't add Ana Kovač and @nikos. Their server doesn't accept you. Try someone else.")
             .assertExists()
         rule.onNodeWithText(ApplicationProvider.getApplicationContext<Context>().getString(DesignR.string.gim_error_not_admitted_by_peer)).assertExists()
         rule.onNodeWithText(ApplicationProvider.getApplicationContext<Context>().getString(DesignR.string.gim_error_user_not_admitted)).assertExists()

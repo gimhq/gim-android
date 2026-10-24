@@ -25,7 +25,7 @@
     <string name="hubs_ok">OK</string>
     <string name="hubs_owned_title">Remove this server?</string>
     <plurals name="hubs_owned_body">
-        <item quantity="one">This server runs %1$d of your group chats. They stay there. You can still reach them through your other servers.</item>
+        <item quantity="one">This server runs %1$d of your group chats. It stays there. You can still reach it through your other servers.</item>
         <item quantity="other">This server runs %1$d of your group chats. They stay there. You can still reach them through your other servers.</item>
     </plurals>
     <string name="hubs_owned_confirm">Remove server</string>

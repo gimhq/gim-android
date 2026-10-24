@@ -3,7 +3,7 @@
 <resources>
     <string name="linking_title">連結新裝置</string>
     <string name="linking_back">返回</string>
-    <string name="linking_scan_explanation">在你的另一台裝置上選擇「連結到現有裝置」。它會顯示一個代碼。在這裡掃描那個代碼。</string>
+    <string name="linking_scan_explanation">在你的另一台裝置上選擇「%1$s」。它會顯示一個代碼。在這裡掃描那個代碼。</string>
     <string name="linking_camera_request">gim 需要使用相機來掃描代碼。只有在這個畫面開啟時才會使用相機。</string>
     <string name="linking_camera_rationale">沒有相機，gim 就無法掃描代碼。請允許使用相機，或在下方貼上代碼。</string>
     <string name="linking_camera_denied">gim 的相機權限已關閉。請到 App 設定中開啟，或在下方貼上代碼。</string>
