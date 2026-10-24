@@ -219,6 +219,45 @@ class AppContainerTest {
         assertFalse(data.exists())
     }
 
+    @Test
+    fun delete_account_wipes_local_state_and_returns_the_unreachable_hubs() = runTest {
+        val store = InMemoryServerUrlStore(DemoData.SERVER_URL)
+        val fake = FakeGimClient.withDemoData(scope).apply { unreachableHubsOnDelete = listOf("hub-two") }
+        val container = AppContainer(context, scope, serverUrlStore = store, clientFactory = GimClientFactory { _, _ -> fake })
+        container.manager.restore()
+        container.sync.onSignedIn()
+        val (secrets, data) = seedLocalState(container)
+
+        assertEquals(listOf("hub-two"), container.deleteAccount())
+
+        assertNull(fake.session())
+        assertNull(store.get())
+        assertNull(container.manager.client.value)
+        assertFalse(container.sync.signedIn.value)
+        assertFalse(secrets.exists())
+        assertFalse(data.exists())
+    }
+
+    @Test
+    fun a_failed_delete_account_keeps_the_client_and_local_state() = runTest {
+        val store = InMemoryServerUrlStore(DemoData.SERVER_URL)
+        val fake = FakeGimClient.withDemoData(scope).apply { failNext("deleteAccount", GimException.Network("offline")) }
+        val container = AppContainer(context, scope, serverUrlStore = store, clientFactory = GimClientFactory { _, _ -> fake })
+        container.manager.restore()
+        container.sync.onSignedIn()
+        val (secrets, data) = seedLocalState(container)
+
+        val error = runCatching { container.deleteAccount() }.exceptionOrNull()
+
+        assertTrue(error is GimException.Network)
+        assertEquals(DemoData.session, fake.session())
+        assertEquals(DemoData.SERVER_URL, store.get())
+        assertSame(fake, container.manager.client.value)
+        assertTrue(container.sync.signedIn.value)
+        assertTrue(secrets.exists())
+        assertTrue(data.exists())
+    }
+
     private fun seedLocalState(container: AppContainer): Pair<File, File> {
         val secrets = File(context.noBackupFilesDir, "secrets").apply { mkdirs() }
         File(secrets, "leftover").writeText("sealed")

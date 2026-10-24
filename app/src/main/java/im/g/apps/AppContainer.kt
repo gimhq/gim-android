@@ -99,6 +99,20 @@ class AppContainer(
         withContext(Dispatchers.IO) { hooks.wipe() }
     }
 
+    /**
+     * Deletes the account ([GimClientManager.deleteAccount], which drops the client) and returns the other hubs that
+     * could not be reached; then stops sync and push and wipes the platform state like [signOut]. On failure nothing
+     * changes, sync keeps running and the error is rethrown.
+     */
+    suspend fun deleteAccount(): List<String> {
+        val unreachable = manager.deleteAccount()
+        sync.onSignedOut()
+        // gim-core's deletion already removed the push registration from the hubs.
+        push.onSigningOut(null)
+        withContext(Dispatchers.IO) { hooks.wipe() }
+        return unreachable
+    }
+
     companion object {
         private const val TAG = "AppContainer"
 

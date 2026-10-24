@@ -56,6 +56,8 @@ internal object SettingsTestTags {
     const val READ_RECEIPTS = "settings_read_receipts"
     const val TYPING_INDICATOR = "settings_typing_indicator"
     const val BLOCKED_PEOPLE = "settings_blocked_people"
+    const val NEW_RECOVERY_KEY = "settings_new_recovery_key"
+    const val DELETE_ACCOUNT = "settings_delete_account"
     const val SIGN_OUT = "settings_sign_out"
     const val SIGN_OUT_CONFIRM = "settings_sign_out_confirm"
 }
@@ -89,10 +91,7 @@ fun SettingsRoute(
     )
 }
 
-/**
- * Callbacks of [SettingsScreen]; the header is clickable only when [onOpenProfile] is set. [onNewRecoveryKey] and
- * [onDeleteAccount] belong to rows hidden behind [AccountSafety] and are not wired yet.
- */
+/** Callbacks of [SettingsScreen]; the header is clickable only when [onOpenProfile] is set. */
 class SettingsActions(
     val onBack: () -> Unit = {},
     val onOpenProfile: (() -> Unit)? = null,
@@ -196,16 +195,17 @@ private fun AccountSection(actions: SettingsActions) {
     )
     SettingsRow(title = stringResource(R.string.settings_linked_devices), onClick = actions.onDevices)
     SettingsRow(title = stringResource(R.string.settings_link_device), onClick = actions.onLinkDevice)
-    if (AccountSafety.NEW_RECOVERY_KEY) {
-        SettingsRow(title = stringResource(R.string.settings_new_recovery_key), onClick = actions.onNewRecoveryKey)
-    }
-    if (AccountSafety.DELETE_ACCOUNT) {
-        SettingsRow(
-            title = stringResource(R.string.settings_delete_account),
-            onClick = actions.onDeleteAccount,
-            titleColor = MaterialTheme.colorScheme.error,
-        )
-    }
+    SettingsRow(
+        title = stringResource(R.string.settings_new_recovery_key),
+        onClick = actions.onNewRecoveryKey,
+        modifier = Modifier.testTag(SettingsTestTags.NEW_RECOVERY_KEY),
+    )
+    SettingsRow(
+        title = stringResource(R.string.settings_delete_account),
+        onClick = actions.onDeleteAccount,
+        modifier = Modifier.testTag(SettingsTestTags.DELETE_ACCOUNT),
+        titleColor = MaterialTheme.colorScheme.error,
+    )
 }
 
 @Composable

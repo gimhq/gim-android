@@ -100,11 +100,15 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun new_recovery_key_and_delete_account_rows_stay_hidden() {
-        show()
+    fun new_recovery_key_and_delete_account_rows_call_their_callbacks() {
+        val calls = mutableListOf<String>()
+        show(actions = SettingsActions(onNewRecoveryKey = { calls += "new key" }, onDeleteAccount = { calls += "delete" }))
 
-        rule.onNodeWithText("Create a new recovery key").assertDoesNotExist()
-        rule.onNodeWithText("Delete account").assertDoesNotExist()
+        rule.onNodeWithTag(SettingsTestTags.NEW_RECOVERY_KEY).performScrollTo()
+            .assertTextContains("Create a new recovery key").performClick()
+        rule.onNodeWithTag(SettingsTestTags.DELETE_ACCOUNT).performScrollTo().assertTextContains("Delete account").performClick()
+
+        assertEquals(listOf("new key", "delete"), calls)
     }
 
     @Test
