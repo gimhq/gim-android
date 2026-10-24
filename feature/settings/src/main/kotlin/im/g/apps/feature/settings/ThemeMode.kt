@@ -1,12 +1,20 @@
 package im.g.apps.feature.settings
 
 import android.content.Context
+import androidx.appcompat.app.AppCompatDelegate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /** The app's light/dark choice: follow the phone, or always light or dark. */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
+/** The [AppCompatDelegate] night mode for this choice, so the window background matches it from the first frame. */
+fun ThemeMode.toNightMode(): Int = when (this) {
+    ThemeMode.SYSTEM -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+    ThemeMode.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+    ThemeMode.DARK -> AppCompatDelegate.MODE_NIGHT_YES
+}
 
 /** Holds the [ThemeMode]; the app theme follows [mode]. */
 interface ThemeModeStore {
