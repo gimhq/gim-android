@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simplified Chinese (zh-CN). -->
+<resources>
+    <string name="linking_title">关联新设备</string>
+    <string name="linking_back">返回</string>
+    <string name="linking_scan_explanation">在你的另一台设备上，选择“关联到已有设备”。它会显示一个代码。在这里扫描这个代码。</string>
+    <string name="linking_camera_request">gim 需要使用摄像头来扫描代码。只有在这个页面打开时才会使用摄像头。</string>
+    <string name="linking_camera_rationale">没有摄像头，gim 就无法扫描代码。请允许使用摄像头，或在下方粘贴代码。</string>
+    <string name="linking_camera_denied">gim 的摄像头权限已关闭。请在应用设置中打开，或在下方粘贴代码。</string>
+    <string name="linking_camera_unavailable">没有找到摄像头。请在下方粘贴代码。</string>
+    <string name="linking_allow_camera">允许使用摄像头</string>
+    <string name="linking_open_settings">打开设置</string>
+    <string name="linking_paste_title">无法扫描？</string>
+    <string name="linking_paste_label">粘贴另一台设备上的代码</string>
+    <string name="linking_submit_code">继续</string>
+    <string name="linking_approving">正在检查代码…</string>
+    <string name="linking_compare_title">核对数字</string>
+    <string name="linking_compare_explanation">你的另一台设备也会显示数字。只有两边相同时，才点按“数字一致”。之后新设备就能看到你所有的聊天。</string>
+    <string name="linking_device_id">新设备：%1$s</string>
+    <string name="linking_confirm">数字一致</string>
+    <string name="linking_confirming">正在添加设备</string>
+    <string name="linking_reject">不一致</string>
+    <string name="linking_done_linked">新设备已关联。你的聊天很快就会出现在上面。</string>
+    <string name="linking_done_rejected">新设备没有关联。</string>
+    <string name="linking_done">完成</string>
+    <string name="linking_error_invalid_code">这个代码无效。请在另一台设备上生成新代码，再扫描一次。</string>
+    <string name="linking_error_cannot_reach_server">无法连接服务器。请检查网络后重试。</string>
+    <plurals name="linking_error_try_again_later">
+        <item quantity="other">服务器繁忙。请在 %d 秒后重试。</item>
+    </plurals>
+    <string name="linking_error_generic">出了点问题。请重试。</string>
+</resources>

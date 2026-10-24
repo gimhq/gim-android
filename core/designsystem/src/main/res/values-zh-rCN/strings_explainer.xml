@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simplified Chinese (zh-CN). -->
+<resources>
+    <string name="explainer_title">gim 是怎么用的</string>
+    <string name="explainer_intro">gim 和其他聊天应用有点不一样。下面是你需要知道的。</string>
+    <string name="explainer_no_phone_number_title">不需要手机号</string>
+    <string name="explainer_no_phone_number_body">你不需要手机号或邮箱。只要起个名字。gim 会给你一个账号 ID。</string>
+    <string name="explainer_on_your_devices_title">你的账号保存在你的设备上</string>
+    <string name="explainer_on_your_devices_body">你的账号保存在你的设备上，不在服务器上。想在别的地方用？关联另一台设备就行。</string>
+    <string name="explainer_locked_messages_title">你的消息是加密的</string>
+    <string name="explainer_locked_messages_body">消息采用端到端加密。只有聊天里的人能看到。连服务器也看不到。</string>
+    <string name="explainer_account_id_title">账号 ID 就是你的地址</string>
+    <string name="explainer_account_id_body">把你的账号 ID 分享给朋友，他们就能找到你。你也可以设置一个用户名，让别人更容易找到你。</string>
+    <string name="explainer_recovery_key_title">恢复密钥是你的备用钥匙</string>
+    <string name="explainer_recovery_key_body">设备全丢了？用恢复密钥和账号 ID 就能找回账号。以前的聊天不会回来。请把密钥保密并放在安全的地方。不要给任何人看。</string>
+</resources>

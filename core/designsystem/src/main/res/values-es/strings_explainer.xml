@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spanish (es, neutral) -->
+<resources>
+    <string name="explainer_title">Cómo funciona gim</string>
+    <string name="explainer_intro">gim funciona un poco distinto a otras apps de chat. Esto es lo que debes saber.</string>
+    <string name="explainer_no_phone_number_title">No necesitas número de teléfono</string>
+    <string name="explainer_no_phone_number_body">No necesitas número de teléfono ni correo. Solo elige un nombre. gim te da un ID de cuenta.</string>
+    <string name="explainer_on_your_devices_title">Tu cuenta vive en tus dispositivos</string>
+    <string name="explainer_on_your_devices_body">Tu cuenta se guarda en tus dispositivos, no en un servidor. ¿Quieres usarla en otro sitio? Vincula otro dispositivo.</string>
+    <string name="explainer_locked_messages_title">Tus mensajes están protegidos</string>
+    <string name="explainer_locked_messages_body">Los mensajes tienen cifrado de extremo a extremo. Solo las personas del chat pueden leerlos. Ni siquiera el servidor puede.</string>
+    <string name="explainer_account_id_title">Tu ID de cuenta es tu dirección</string>
+    <string name="explainer_account_id_body">Comparte tu ID de cuenta para que tus amigos te encuentren. También puedes elegir un nombre de usuario para que sea más fácil encontrarte.</string>
+    <string name="explainer_recovery_key_title">Tu clave de recuperación es una llave de repuesto</string>
+    <string name="explainer_recovery_key_body">¿Perdiste todos tus dispositivos? Tu clave de recuperación y tu ID de cuenta recuperan tu cuenta. Los chats antiguos no vuelven. Guarda la clave en secreto y en un lugar seguro. Nunca se la enseñes a nadie.</string>
+</resources>

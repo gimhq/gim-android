@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simplified Chinese (zh-CN). -->
+<resources>
+    <string name="open_file_no_app">你的手机上没有能打开这个文件的应用。</string>
+    <string name="push_channel_messages">消息</string>
+    <string name="push_channel_reactions">回应</string>
+    <string name="push_channel_invites">聊天邀请</string>
+    <string name="push_channel_other">其他通知</string>
+</resources>

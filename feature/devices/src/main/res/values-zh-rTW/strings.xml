@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Traditional Chinese (zh-TW, Taiwan) -->
+<resources>
+    <string name="devices_title">已連結的裝置</string>
+    <string name="devices_back">返回</string>
+    <string name="devices_refresh">重新整理列表</string>
+    <string name="devices_user_id_label">你的帳號 ID</string>
+    <string name="devices_user_id_hint">請好好保存。你需要它和復原金鑰才能找回帳號。</string>
+    <string name="devices_copy">複製</string>
+    <string name="devices_this_device">這台裝置</string>
+    <string name="devices_other_device">裝置 %1$s</string>
+    <string name="devices_added">新增於 %1$s</string>
+    <string name="devices_revoked">已移除</string>
+    <string name="devices_revoke">移除裝置</string>
+    <string name="devices_revoke_title">要移除這台裝置嗎？</string>
+    <string name="devices_revoke_body">裝置 %1$s 會離開你所有的聊天，也無法再登入。這個動作無法復原。</string>
+    <string name="devices_revoke_confirm">移除</string>
+    <string name="devices_cancel">取消</string>
+    <string name="devices_empty_title">沒有可顯示的裝置</string>
+    <string name="devices_retry">再試一次</string>
+    <string name="devices_removed_title">這台裝置已被移除</string>
+    <string name="devices_removed_body">你已從另一台裝置移除這台裝置。這裡的訊息將會被刪除。如果要繼續使用，請重新設定。</string>
+    <string name="devices_removed_ok">確定</string>
+    <string name="devices_error_network">無法連線到伺服器。請檢查網路連線後再試一次。</string>
+    <string name="devices_error_retry_later">伺服器忙碌中。請在 %1$d 秒後再試一次。</string>
+    <string name="devices_error_current_device">你無法移除正在使用的裝置。請改從另一台裝置移除。</string>
+    <string name="devices_error_not_found">那台裝置已經不在了。請重新整理列表後再試一次。</string>
+    <string name="devices_error_server">伺服器無法完成這項操作。請稍後再試。</string>
+    <string name="devices_error_unknown">發生錯誤。請再試一次。</string>
+</resources>

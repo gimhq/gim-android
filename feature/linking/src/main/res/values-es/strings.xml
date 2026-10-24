@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spanish (es, neutral) -->
+<resources>
+    <string name="linking_title">Vincular un dispositivo nuevo</string>
+    <string name="linking_back">Volver</string>
+    <string name="linking_scan_explanation">En tu otro dispositivo, elige “Vincular a un dispositivo que ya usas”. Mostrará un código. Escanea ese código aquí.</string>
+    <string name="linking_camera_request">gim necesita tu cámara para escanear el código. Solo usa la cámara mientras esta pantalla está abierta.</string>
+    <string name="linking_camera_rationale">Sin la cámara, gim no puede escanear el código. Permite el acceso a la cámara o pega el código abajo.</string>
+    <string name="linking_camera_denied">El acceso a la cámara está desactivado para gim. Actívalo en los ajustes de la app o pega el código abajo.</string>
+    <string name="linking_camera_unavailable">No se encontró ninguna cámara. Pega el código abajo.</string>
+    <string name="linking_allow_camera">Permitir cámara</string>
+    <string name="linking_open_settings">Abrir ajustes</string>
+    <string name="linking_paste_title">¿No puedes escanear?</string>
+    <string name="linking_paste_label">Pega el código de tu otro dispositivo</string>
+    <string name="linking_submit_code">Continuar</string>
+    <string name="linking_approving">Comprobando el código…</string>
+    <string name="linking_compare_title">Compara los números</string>
+    <string name="linking_compare_explanation">Tu otro dispositivo también muestra números. Toca “Los números coinciden” solo si son iguales. Así el dispositivo nuevo podrá ver todos tus chats.</string>
+    <string name="linking_device_id">Dispositivo nuevo: %1$s</string>
+    <string name="linking_confirm">Los números coinciden</string>
+    <string name="linking_confirming">Añadiendo dispositivo</string>
+    <string name="linking_reject">No coinciden</string>
+    <string name="linking_done_linked">Tu dispositivo nuevo está vinculado. Tus chats aparecerán en él pronto.</string>
+    <string name="linking_done_rejected">El dispositivo nuevo no se vinculó.</string>
+    <string name="linking_done">Listo</string>
+    <string name="linking_error_invalid_code">Este código no funciona. Crea un código nuevo en tu otro dispositivo y escanéalo otra vez.</string>
+    <string name="linking_error_cannot_reach_server">No se puede conectar con el servidor. Revisa tu conexión a internet e inténtalo de nuevo.</string>
+    <plurals name="linking_error_try_again_later">
+        <item quantity="one">El servidor está ocupado. Inténtalo de nuevo en %d segundo.</item>
+        <item quantity="many">El servidor está ocupado. Inténtalo de nuevo en %d segundos.</item>
+        <item quantity="other">El servidor está ocupado. Inténtalo de nuevo en %d segundos.</item>
+    </plurals>
+    <string name="linking_error_generic">Algo salió mal. Inténtalo de nuevo.</string>
+</resources>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spanish (es, neutral) -->
+<resources>
+    <string name="chatlist_title">Chats</string>
+    <string name="chatlist_banner_waiting_for_network">Esperando conexión a internet…</string>
+    <string name="chatlist_banner_connecting">Conectando…</string>
+    <string name="chatlist_banner_updating">Actualizando…</string>
+    <string name="chatlist_preview_you">Tú: %1$s</string>
+    <string name="chatlist_preview_member">%1$s: %2$s</string>
+    <string name="chatlist_state_leaving">Saliendo…</string>
+    <string name="chatlist_state_left">Ya no estás en este chat</string>
+    <string name="chatlist_empty_title">Aún no hay chats</string>
+    <string name="chatlist_empty_body">Toca Iniciar un chat para enviar tu primer mensaje.</string>
+    <string name="chatlist_start_chat">Iniciar un chat</string>
+    <string name="chatlist_new_message">Nuevo mensaje</string>
+    <string name="chatlist_new_chat">Nuevo chat</string>
+    <string name="chatlist_new_group">Nuevo grupo</string>
+    <string name="chatlist_open_settings">Ajustes</string>
+    <string name="chatlist_time_now">Ahora</string>
+    <plurals name="chatlist_time_minutes">
+        <item quantity="one">%d min</item>
+        <item quantity="many">%d min</item>
+        <item quantity="other">%d min</item>
+    </plurals>
+    <string name="chatlist_time_yesterday">Ayer</string>
+    <plurals name="chatlist_unread_messages">
+        <item quantity="one">%d mensaje sin leer</item>
+        <item quantity="many">%d mensajes sin leer</item>
+        <item quantity="other">%d mensajes sin leer</item>
+    </plurals>
+    <string name="chatlist_open_chat">Abrir chat</string>
+</resources>

@@ -290,6 +290,32 @@ class TimelineMapperTest {
     }
 
     @Test
+    fun messageTimes_followTheLocale() {
+        // 22:54Z and 10:54Z are 01:54 and 13:54 in Athens.
+        fun times(locale: Locale) = map(
+            "2026-10-15T12:00:00Z",
+            separator("2026-10-15"),
+            message("m1", "2026-10-14T22:54:00Z"),
+            message("m2", "2026-10-15T10:54:00Z"),
+            locale = locale,
+        ).filterIsInstance<MessageRow>().map { it.time.replace('\u202f', ' ') }
+
+        assertEquals(listOf("1:54 PM", "1:54 AM"), times(Locale.US))
+        assertEquals(listOf("下午1:54", "上午1:54"), times(Locale.SIMPLIFIED_CHINESE))
+        assertEquals(listOf("13:54", "01:54"), times(Locale.UK))
+    }
+
+    @Test
+    fun fileSizes_keepUnits_andFormatTheNumberForTheLocale() {
+        assertEquals("512 B", formatSize(512, Locale.US))
+        assertEquals("1.5 MB", formatSize(1_572_864, Locale.US))
+        assertEquals("1,5 MB", formatSize(1_572_864, Locale.forLanguageTag("es")))
+        assertEquals("1,5 MB", formatSize(1_572_864, Locale.GERMANY))
+        assertEquals("471 KB", formatSize(482_304, Locale.forLanguageTag("es")))
+        assertEquals("2.0 GB", formatSize(2_147_483_648, Locale.SIMPLIFIED_CHINESE))
+    }
+
+    @Test
     fun dayMonthPattern_dropsTheYearAndItsSeparators() {
         assertEquals("MMMM d", dayMonthPattern("MMMM d, y"))
         assertEquals("d. MMMM", dayMonthPattern("d. MMMM y"))
