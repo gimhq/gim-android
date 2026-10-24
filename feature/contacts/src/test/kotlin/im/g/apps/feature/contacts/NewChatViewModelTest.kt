@@ -141,6 +141,18 @@ class NewChatViewModelTest {
     }
 
     @Test
+    fun startChat_withBlockedUser_saysTheyAreBlocked() = runTest {
+        val (vm, client) = newViewModel()
+        client.blockUser(DemoData.ana.userId)
+        vm.onQueryChange("ana")
+        advanceUntilIdle()
+        vm.startChat()
+        advanceUntilIdle()
+        assertEquals(NewChatEvent.ShowError(ContactsError.Blocked), vm.events.first())
+        assertTrue(vm.state.value.canStartChat)
+    }
+
+    @Test
     fun startChat_withUnknownUserId_showsUserNotFound() = runTest {
         val (vm, client) = newViewModel()
         vm.onQueryChange(" ${UNKNOWN_USER_ID.uppercase()} ")

@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -18,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.core.app.NotificationManagerCompat
 import androidx.navigation.NavHostController
@@ -116,6 +118,40 @@ class GimNavHostTest {
 
         rule.waitUntilAtLeastOneExists(hasText("See you then!"), TIMEOUT)
         rule.onAllNodesWithText("Message")[0].assertExists()
+    }
+
+    /** Opens the chat info of the demo direct chat and scrolls to its chat actions. */
+    private fun openDirectChatInfo() {
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+        rule.runOnIdle { nav.navigate(Routes.groupInfo(DemoData.DIRECT_CHAT_ID)) }
+        rule.waitUntilAtLeastOneExists(hasText("Contact info"), TIMEOUT)
+        rule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("chat_action_block"))
+    }
+
+    @Test
+    fun chat_info_hides_report_without_a_meta_server() {
+        launch(testContainer(scope = scope))
+        openDirectChatInfo()
+
+        rule.onNodeWithTag("chat_action_block").assertExists()
+        rule.onNodeWithTag("chat_action_report").assertDoesNotExist()
+    }
+
+    @Test
+    fun chat_info_report_opens_the_report_and_sends_it_with_a_meta_server() {
+        launch(testContainer(scope = scope, metaServerUrl = "https://meta.example.eu"))
+        openDirectChatInfo()
+
+        rule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("chat_action_report"))
+        rule.onNodeWithTag("chat_action_report").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("Report Lukas Berger"), TIMEOUT)
+        rule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("report_reason_spam"))
+        rule.onNodeWithTag("report_reason_spam").performClick()
+        rule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("report_send"))
+        rule.onNodeWithTag("report_send").performClick()
+        rule.waitUntilAtLeastOneExists(hasTestTag("report_done"), TIMEOUT)
+        rule.onNodeWithTag("report_done").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("Contact info"), TIMEOUT)
     }
 
     @Test

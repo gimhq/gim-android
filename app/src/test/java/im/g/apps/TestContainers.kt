@@ -12,11 +12,17 @@ import im.g.apps.feature.settings.InMemoryThemeModeStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 
-/** A container whose stored server URL restores a client from [factory] (demo data by default). */
+/**
+ * A container whose stored server URL restores a client from [factory] (demo data by default); [metaServerUrl] turns
+ * on the meta server for the container and the demo client.
+ */
 fun testContainer(
     storedUrl: String? = DemoData.SERVER_URL,
     scope: CoroutineScope = CoroutineScope(Job()),
-    factory: GimClientFactory = FakeGimClientFactory { _, _ -> FakeGimClient.withDemoData(scope, outboxDelays = null) },
+    metaServerUrl: String? = null,
+    factory: GimClientFactory = FakeGimClientFactory { _, _ ->
+        FakeGimClient.withDemoData(scope, outboxDelays = null, metaServerUrl = metaServerUrl)
+    },
 ) = AppContainer(
     context = ApplicationProvider.getApplicationContext(),
     appScope = scope,
@@ -24,5 +30,6 @@ fun testContainer(
     clientFactory = factory,
     themeModeStore = InMemoryThemeModeStore(),
     appLocales = InMemoryAppLocales(),
+    metaServerUrl = metaServerUrl,
     recoveryKitCodec = FakeRecoveryKitCodec,
 )

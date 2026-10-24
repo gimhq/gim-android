@@ -19,6 +19,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
+private const val NOW = 1_760_000_000_000L
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class GroupInfoViewModelTest {
 
@@ -30,10 +32,13 @@ class GroupInfoViewModelTest {
     private lateinit var fake: FakeGimClient
     private lateinit var client: TestClient
 
-    private fun TestScope.newViewModel(chatId: String = DemoData.GROUP_CHAT_ID): GroupInfoViewModel {
+    private fun TestScope.newViewModel(
+        chatId: String = DemoData.GROUP_CHAT_ID,
+        reportAvailable: Boolean = false,
+    ): GroupInfoViewModel {
         fake = demoClient(backgroundScope).also { it.addDirectoryUser(marta) }
         client = TestClient(fake)
-        return GroupInfoViewModel(client, chatId)
+        return GroupInfoViewModel(client, chatId, reportAvailable, clock = { NOW })
     }
 
     private fun GroupInfoViewModel.memberIds() = state.value.members.map { it.user.userId }
@@ -310,6 +315,175 @@ class GroupInfoViewModelTest {
         advanceUntilIdle()
         assertEquals(GroupInfoEvent.ShowError(ContactsError.UserNotFound), vm.events.first())
         assertFalse(ghost in vm.memberIds())
+    }
+
+    @Test
+    fun chatActions_group_offersMutePinArchiveOnly() = runTest {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        assertEquals(listOf(ChatAction.MUTE, ChatAction.PIN, ChatAction.ARCHIVE), vm.state.value.chatActions)
+    }
+
+    @Test
+    fun chatActions_direct_addsBlock_andReportOnlyWhenAvailable() = runTest {
+        val vm = newViewModel(DemoData.DIRECT_CHAT_ID)
+        advanceUntilIdle()
+        assertEquals(
+            listOf(ChatAction.MUTE, ChatAction.PIN, ChatAction.ARCHIVE, ChatAction.BLOCK),
+            vm.state.value.chatActions,
+        )
+
+        val withReport = newViewModel(DemoData.DIRECT_CHAT_ID, reportAvailable = true)
+        advanceUntilIdle()
+        assertEquals(ChatAction.REPORT, withReport.state.value.chatActions.last())
+    }
+
+    @Test
+    fun mute_optionsSetTheEndTime_andUnmuteClearsIt() = runTest {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        val expected = mapOf(
+            MuteOption.ONE_HOUR to NOW + 60 * 60_000L,
+            MuteOption.EIGHT_HOURS to NOW + 8 * 60 * 60_000L,
+            MuteOption.ONE_WEEK to NOW + 7 * 24 * 60 * 60_000L,
+            MuteOption.ALWAYS to fake.mutedForever(),
+        )
+        for ((option, until) in expected) {
+            if (ChatAction.UNMUTE in vm.state.value.chatActions) {
+                vm.onChatAction(ChatAction.UNMUTE)
+                advanceUntilIdle()
+            }
+            vm.onChatAction(ChatAction.MUTE)
+            assertTrue(vm.state.value.choosingMute)
+            vm.mute(option)
+            advanceUntilIdle()
+            assertFalse(vm.state.value.choosingMute)
+            assertEquals(until, vm.state.value.chat?.mutedUntilMs)
+            assertEquals(ChatAction.UNMUTE, vm.state.value.chatActions.first())
+            assertEquals(option == MuteOption.ALWAYS, vm.state.value.mutedForever)
+        }
+
+        vm.onChatAction(ChatAction.UNMUTE)
+        advanceUntilIdle()
+        assertEquals(0L, vm.state.value.chat?.mutedUntilMs)
+        assertEquals(ChatAction.MUTE, vm.state.value.chatActions.first())
+        assertFalse(vm.state.value.busy)
+    }
+
+    @Test
+    fun mute_withoutTheDialog_doesNothing() = runTest {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        vm.mute(MuteOption.ONE_HOUR)
+        advanceUntilIdle()
+        assertEquals(0L, vm.state.value.chat?.mutedUntilMs)
+        vm.onChatAction(ChatAction.MUTE)
+        vm.dismissDialog()
+        assertFalse(vm.state.value.choosingMute)
+    }
+
+    @Test
+    fun pinAndArchive_toggle() = runTest {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        vm.onChatAction(ChatAction.PIN)
+        advanceUntilIdle()
+        vm.onChatAction(ChatAction.ARCHIVE)
+        advanceUntilIdle()
+        assertTrue(vm.state.value.chat!!.pinned)
+        assertTrue(vm.state.value.chat!!.archived)
+        assertEquals(listOf(ChatAction.MUTE, ChatAction.UNPIN, ChatAction.UNARCHIVE), vm.state.value.chatActions)
+
+        vm.onChatAction(ChatAction.UNPIN)
+        advanceUntilIdle()
+        vm.onChatAction(ChatAction.UNARCHIVE)
+        advanceUntilIdle()
+        assertFalse(vm.state.value.chat!!.pinned)
+        assertFalse(vm.state.value.chat!!.archived)
+    }
+
+    @Test
+    fun actionNotOffered_isIgnored() = runTest {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        vm.onChatAction(ChatAction.UNPIN)
+        vm.onChatAction(ChatAction.BLOCK)
+        advanceUntilIdle()
+        assertFalse(vm.state.value.confirmingBlock)
+        assertFalse(vm.state.value.chat!!.pinned)
+    }
+
+    @Test
+    fun block_asksFirst_thenBlocksThePeer_andUnblockUndoesIt() = runTest {
+        val vm = newViewModel(DemoData.DIRECT_CHAT_ID)
+        advanceUntilIdle()
+        vm.onChatAction(ChatAction.BLOCK)
+        assertTrue(vm.state.value.confirmingBlock)
+        vm.dismissDialog()
+        assertFalse(vm.state.value.confirmingBlock)
+        vm.confirmBlock()
+        advanceUntilIdle()
+        assertFalse(vm.state.value.chat!!.blocked)
+
+        vm.onChatAction(ChatAction.BLOCK)
+        vm.confirmBlock()
+        advanceUntilIdle()
+        assertTrue(vm.state.value.chat!!.blocked)
+        assertTrue(DemoData.lukas.userId in fake.privacy().blockedUserIds)
+        assertTrue(ChatAction.UNBLOCK in vm.state.value.chatActions)
+
+        vm.onChatAction(ChatAction.UNBLOCK)
+        assertTrue(vm.state.value.confirmingBlock)
+        vm.confirmBlock()
+        advanceUntilIdle()
+        assertFalse(vm.state.value.chat!!.blocked)
+        assertTrue(fake.privacy().blockedUserIds.isEmpty())
+        assertFalse(vm.state.value.busy)
+    }
+
+    @Test
+    fun chatActionFailure_saysWhichActionFailed_andKeepsTheState() = runTest {
+        val vm = newViewModel(DemoData.DIRECT_CHAT_ID)
+        advanceUntilIdle()
+        fake.failNext("setChatMuted", GimException.Storage("disk full"))
+        vm.onChatAction(ChatAction.MUTE)
+        vm.mute(MuteOption.ONE_HOUR)
+        advanceUntilIdle()
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.ChatActionFailed(ChatAction.MUTE)), vm.events.first())
+        assertEquals(0L, vm.state.value.chat?.mutedUntilMs)
+        assertFalse(vm.state.value.busy)
+
+        fake.failNext("blockUser", GimException.Internal("boom"))
+        vm.onChatAction(ChatAction.BLOCK)
+        vm.confirmBlock()
+        advanceUntilIdle()
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.ChatActionFailed(ChatAction.BLOCK)), vm.events.first())
+        assertFalse(vm.state.value.chat!!.blocked)
+
+        fake.failNext("setChatPinned", GimException.NotFound("chat"))
+        vm.onChatAction(ChatAction.PIN)
+        advanceUntilIdle()
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.NotFound), vm.events.first())
+    }
+
+    @Test
+    fun report_opensTheReportForThePeer() = runTest {
+        val vm = newViewModel(DemoData.DIRECT_CHAT_ID, reportAvailable = true)
+        advanceUntilIdle()
+        vm.onChatAction(ChatAction.REPORT)
+        advanceUntilIdle()
+        assertEquals(GroupInfoEvent.OpenReport(DemoData.lukas.userId, DemoData.DIRECT_CHAT_ID), vm.events.first())
+    }
+
+    @Test
+    fun addMember_blockedUser_saysTheyAreBlocked() = runTest {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        fake.blockUser(marta.userId)
+        vm.addMember(marta)
+        advanceUntilIdle()
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.Blocked), vm.events.first())
+        assertFalse(marta.userId in vm.memberIds())
     }
 
     private suspend fun FakeGimClient.chatIds(): List<String> = chatListFlow().first().map { it.chatId }
