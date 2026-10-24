@@ -25,4 +25,5 @@
         <item quantity="other">%d 則未讀訊息</item>
     </plurals>
     <string name="chatlist_open_chat">開啟聊天</string>
+    <string name="chatlist_row_description_separator">"，"</string>
 </resources>

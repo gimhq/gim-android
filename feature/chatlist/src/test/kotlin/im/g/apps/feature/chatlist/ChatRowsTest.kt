@@ -66,6 +66,19 @@ class ChatRowsTest {
     }
 
     @Test
+    @Config(qualifiers = "zh-rCN")
+    fun row_description_uses_the_locale_separator() {
+        show(ChatListUiState(rows = persistentListOf(crew)))
+
+        row("Aegean Crew").assert(
+            SemanticsMatcher.expectValue(
+                SemanticsProperties.ContentDescription,
+                listOf("Aegean Crew，3 条未读消息，Nikos：Table booked，2 分钟"),
+            ),
+        )
+    }
+
+    @Test
     fun read_row_skips_the_unread_count_and_labels_render() {
         show(
             ChatListUiState(

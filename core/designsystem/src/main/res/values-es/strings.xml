@@ -26,4 +26,5 @@
     <string name="gim_error_user_not_admitted">Este servidor aún no ha aceptado tu cuenta. Pide acceso a quien administra el servidor.</string>
     <string name="gim_error_user_not_admitted_on_hub">%1$s aún no ha aceptado tu cuenta. Pide acceso a quien administra el servidor.</string>
     <string name="gim_error_not_admitted_by_peer">El servidor de este chat no acepta tus mensajes.</string>
+    <string name="designsystem_link_existing_device">Vincular a un dispositivo que ya usas</string>
 </resources>

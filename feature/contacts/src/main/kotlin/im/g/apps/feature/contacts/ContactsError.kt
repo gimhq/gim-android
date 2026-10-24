@@ -1,6 +1,7 @@
 package im.g.apps.feature.contacts
 
 import android.content.Context
+import android.icu.text.ListFormatter
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.platform.LocalContext
@@ -113,7 +114,10 @@ internal fun ContactsError.message(context: Context): String = when (this) {
     is ContactsError.NotAdmitted -> userNotAdmittedMessage(context, hub)
     ContactsError.NotAdmittedByPeer -> context.getString(DesignR.string.gim_error_not_admitted_by_peer)
     is ContactsError.ContactNotAdmitted ->
-        context.getString(R.string.contacts_error_contact_not_admitted, users.joinToString(", "))
+        context.getString(
+            R.string.contacts_error_contact_not_admitted,
+            ListFormatter.getInstance(context.resources.configuration.locales[0]).format(users),
+        )
     ContactsError.Unknown -> context.getString(R.string.contacts_error_unknown)
 }
 

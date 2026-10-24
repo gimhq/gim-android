@@ -11,7 +11,6 @@
     <string name="onboarding_server_url_placeholder" translatable="false">https://</string>
     <string name="onboarding_server_url_supporting">The server your account uses.</string>
     <string name="onboarding_create_account">Create new account</string>
-    <string name="onboarding_link_device">Link to a device you already use</string>
     <string name="onboarding_restore">Restore with your recovery kit</string>
     <string name="onboarding_use_another_server">Use another server</string>
     <string name="onboarding_back">Back</string>

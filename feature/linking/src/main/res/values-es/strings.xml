@@ -3,7 +3,7 @@
 <resources>
     <string name="linking_title">Vincular un dispositivo nuevo</string>
     <string name="linking_back">Volver</string>
-    <string name="linking_scan_explanation">En tu otro dispositivo, elige “Vincular a un dispositivo que ya usas”. Mostrará un código. Escanea ese código aquí.</string>
+    <string name="linking_scan_explanation">En tu otro dispositivo, elige “%1$s”. Mostrará un código. Escanea ese código aquí.</string>
     <string name="linking_camera_request">gim necesita tu cámara para escanear el código. Solo usa la cámara mientras esta pantalla está abierta.</string>
     <string name="linking_camera_rationale">Sin la cámara, gim no puede escanear el código. Permite el acceso a la cámara o pega el código abajo.</string>
     <string name="linking_camera_denied">El acceso a la cámara está desactivado para gim. Actívalo en los ajustes de la app o pega el código abajo.</string>

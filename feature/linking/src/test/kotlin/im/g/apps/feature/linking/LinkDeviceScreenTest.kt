@@ -1,5 +1,6 @@
 package im.g.apps.feature.linking
 
+import android.content.Context
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -11,12 +12,15 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import im.g.apps.core.designsystem.R as DesignR
 import im.g.apps.core.designsystem.theme.GimTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
 class LinkDeviceScreenTest {
@@ -40,6 +44,23 @@ class LinkDeviceScreenTest {
             LinkDeviceScreen(state, camera, callbacks, scanner = { Box(it) })
         }
     }
+
+    @Test
+    fun scan_explanation_quotes_the_onboarding_button_label() {
+        show(LinkDeviceUiState(), CameraAccess.GRANTED)
+        val label = context().getString(DesignR.string.designsystem_link_existing_device)
+        rule.onNodeWithText("“$label”", substring = true).assertExists()
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rTW")
+    fun scan_explanation_quotes_the_onboarding_button_label_zh_tw() {
+        show(LinkDeviceUiState(), CameraAccess.GRANTED)
+        val label = context().getString(DesignR.string.designsystem_link_existing_device)
+        rule.onNodeWithText("「$label」", substring = true).assertExists()
+    }
+
+    private fun context(): Context = ApplicationProvider.getApplicationContext()
 
     @Test
     fun granted_camera_shows_the_scanner() {
