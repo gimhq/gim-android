@@ -1,6 +1,10 @@
 package im.g.apps.feature.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -68,6 +73,10 @@ object ProfileTestTags {
     const val ACCOUNT_ID = "settings_profile_account_id"
     const val COPY_ACCOUNT_ID = "settings_profile_copy_account_id"
     const val QR_CODE = "settings_profile_qr"
+    const val PHOTO = "settings_profile_photo"
+    const val PHOTO_CHANGE = "settings_profile_photo_change"
+    const val PHOTO_REMOVE = "settings_profile_photo_remove"
+    const val PHOTO_PROGRESS = "settings_profile_photo_progress"
 }
 
 @Composable
@@ -76,6 +85,11 @@ fun ProfileRoute(viewModel: ProfileViewModel, onBack: () -> Unit, modifier: Modi
     val snackbarHostState = remember { SnackbarHostState() }
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
+    // The system photo picker needs no storage permission.
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        val resolver = context.applicationContext.contentResolver
+        if (uri != null) viewModel.changePhoto { resolver.openInputStream(uri) }
+    }
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             val message = when (event) {
@@ -100,13 +114,15 @@ fun ProfileRoute(viewModel: ProfileViewModel, onBack: () -> Unit, modifier: Modi
             onRemoveUsername = viewModel::removeUsername,
             onCancelEdit = viewModel::cancelEdit,
             onCopyAccountId = viewModel::copyAccountId,
+            onChangePhoto = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+            onRemovePhoto = viewModel::removePhoto,
         ),
         snackbarHostState = snackbarHostState,
         modifier = modifier,
     )
 }
 
-/** Callbacks of [ProfileScreen]; [onChangePhoto] is shown only when [AccountSafety.AVAILABLE]. */
+/** Callbacks of [ProfileScreen]; [onRemovePhoto] is offered only when [ProfileUiState.hasPhoto]. */
 class ProfileActions(
     val onBack: () -> Unit = {},
     val onEditName: () -> Unit = {},
@@ -118,9 +134,10 @@ class ProfileActions(
     val onCancelEdit: () -> Unit = {},
     val onCopyAccountId: () -> Unit = {},
     val onChangePhoto: () -> Unit = {},
+    val onRemovePhoto: () -> Unit = {},
 )
 
-/** The own profile: photo slot, name, username, Account ID and "My QR code"; the open [ProfileUiState.editor] as a dialog. */
+/** The own profile: photo, name, username, Account ID and "My QR code"; the open [ProfileUiState.editor] as a dialog. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
@@ -149,7 +166,7 @@ fun ProfileScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
         ) {
-            PhotoHeader(state.displayName, actions.onChangePhoto)
+            PhotoHeader(state, actions)
             HorizontalDivider()
             SettingsSectionHeader(stringResource(R.string.profile_section_name))
             SettingsRow(
@@ -172,18 +189,39 @@ fun ProfileScreen(
     }
 }
 
-/** Own photo slot: initials only until the SDK can set an own photo (see [AccountSafety]). */
+/** Own photo (the initials without one), with a spinner while a change is saved, "Change photo" and "Remove photo". */
 @Composable
-private fun PhotoHeader(name: String, onChangePhoto: () -> Unit) {
+private fun PhotoHeader(state: ProfileUiState, actions: ProfileActions) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Avatar(name = name, imagePath = null, size = 96.dp)
-        if (AccountSafety.AVAILABLE) {
-            TextButton(onClick = onChangePhoto) { Text(stringResource(R.string.profile_change_photo)) }
+        Box(contentAlignment = Alignment.Center) {
+            Avatar(
+                name = state.displayName,
+                imagePath = state.photoPath,
+                size = 96.dp,
+                modifier = Modifier.testTag(ProfileTestTags.PHOTO),
+            )
+            if (state.photoSaving) {
+                CircularProgressIndicator(modifier = Modifier.testTag(ProfileTestTags.PHOTO_PROGRESS))
+            }
+        }
+        Row {
+            TextButton(
+                onClick = actions.onChangePhoto,
+                enabled = !state.photoSaving,
+                modifier = Modifier.testTag(ProfileTestTags.PHOTO_CHANGE),
+            ) { Text(stringResource(R.string.profile_change_photo)) }
+            if (state.hasPhoto) {
+                TextButton(
+                    onClick = actions.onRemovePhoto,
+                    enabled = !state.photoSaving,
+                    modifier = Modifier.testTag(ProfileTestTags.PHOTO_REMOVE),
+                ) { Text(stringResource(R.string.profile_remove_photo), color = MaterialTheme.colorScheme.error) }
+            }
         }
     }
 }

@@ -1,0 +1,108 @@
+package im.g.apps.core.bridge.fake
+
+import im.g.apps.core.bridge.ParsedRecoveryKit
+import im.g.apps.core.bridge.RecoveryKitCodec
+import im.g.apps.core.bridge.RecoveryKitLabels
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+// The cases of feature/onboarding RecoveryKitTest; UniffiRecoveryKitCodecTest (androidTest) runs them on gim-core.
+class FakeRecoveryKitCodecTest {
+    private val codec: RecoveryKitCodec = FakeRecoveryKitCodec
+
+    @Test
+    fun format_writes_the_kit_lines() {
+        val text = codec.format(" ${USER_ID.uppercase()} ", SYMBOLS.lowercase(), LABELS)
+        assertEquals(
+            "Recovery kit\nAccount ID: $USER_ID\nRecovery key: $CODE\n\nKeep this safe.\n",
+            text,
+        )
+    }
+
+    @Test
+    fun format_then_parse_round_trips() {
+        for (code in listOf(CODE, SYMBOLS)) {
+            assertEquals(FULL, codec.parse(codec.format(USER_ID, code, LABELS)))
+        }
+    }
+
+    @Test
+    fun parse_ignores_the_labels() {
+        val spanish = RecoveryKitLabels("Kit de recuperación", "ID de cuenta", "Clave de recuperación", "Guárdalo.")
+        val chinese = RecoveryKitLabels("恢复工具包", "账户 ID", "恢复密钥", "请妥善保管。")
+        for (labels in listOf(spanish, chinese)) {
+            assertEquals(FULL, codec.parse(codec.format(USER_ID, CODE, labels)))
+        }
+        val fullWidth = "账户 ID：$USER_ID\n恢复密钥：$CODE\n"
+        assertEquals(FULL, codec.parse(fullWidth))
+    }
+
+    @Test
+    fun parse_accepts_lowercase_and_spaced_keys() {
+        assertEquals(FULL, codec.parse("Account ID: $USER_ID\nRecovery key: ${CODE.lowercase()}\n"))
+        assertEquals(FULL, codec.parse("Account ID: $USER_ID\nRecovery key: ${CODE.replace('-', ' ')}\n"))
+        assertEquals(FULL, codec.parse("$USER_ID $SYMBOLS"))
+    }
+
+    @Test
+    fun parse_finds_the_kit_in_surrounding_text() {
+        val kit = codec.format(USER_ID, CODE, LABELS).replace("\n", "\r\n")
+        val text = "Hi,\r\n\r\nhere is my kit:\r\n\r\n$kit" +
+            "\r\nmy key is ${CODE.replace('-', ' ')} again.\r\n"
+        assertEquals(FULL, codec.parse(text))
+        assertEquals(FULL, codec.parse("Account ID: ${USER_ID.uppercase()}\r\nRecovery key: $CODE\r\n"))
+    }
+
+    @Test
+    fun parse_returns_whatever_part_is_there() {
+        assertEquals(ParsedRecoveryKit(null, SYMBOLS), codec.parse("my key is $CODE"))
+        assertEquals(ParsedRecoveryKit(USER_ID, null), codec.parse("Account ID: $USER_ID"))
+        assertEquals(ParsedRecoveryKit(null, null), codec.parse(""))
+        assertEquals(ParsedRecoveryKit(null, null), codec.parse("  \n\t "))
+        assertEquals(ParsedRecoveryKit(null, null), codec.parse("hello, this is not a kit at all!"))
+    }
+
+    @Test
+    fun parse_rejects_bad_tokens() {
+        val badPadding = CODE.dropLast(1) + "S"
+        assertEquals(ParsedRecoveryKit(USER_ID, null), codec.parse("$USER_ID\n$badPadding"))
+        // A user ID glued to other letters is not a whole token.
+        assertEquals(ParsedRecoveryKit(null, null), codec.parse("x$USER_ID"))
+    }
+
+    @Test
+    fun parse_never_takes_the_user_id_as_the_key() {
+        // A valid user ID followed by more symbols must not be read as (part of) a key.
+        assertEquals(ParsedRecoveryKit(USER_ID, null), codec.parse("$USER_ID-0000"))
+        assertEquals(ParsedRecoveryKit(USER_ID, SYMBOLS), codec.parse("$USER_ID-$CODE"))
+    }
+
+    @Test
+    fun key_ending_is_the_last_four_symbols() {
+        assertEquals("MV7R", codec.keyEnding(CODE))
+        assertEquals("MV7R", codec.keyEnding(SYMBOLS.lowercase()))
+    }
+
+    @Test
+    fun key_ending_match_ignores_case_and_separators() {
+        val code = SYMBOLS.dropLast(4) + "ABCD"
+        assertTrue(codec.matchesKeyEnding(code, "ABCD"))
+        assertTrue(codec.matchesKeyEnding(code, "abcd"))
+        assertTrue(codec.matchesKeyEnding(code, "ab-cd"))
+        assertTrue(codec.matchesKeyEnding(code, " a b c d "))
+        assertFalse(codec.matchesKeyEnding(code, "ABCE"))
+        assertFalse(codec.matchesKeyEnding(code, "BCD"))
+        assertFalse(codec.matchesKeyEnding(code, "ABCDE"))
+        assertFalse(codec.matchesKeyEnding(code, ""))
+    }
+
+    private companion object {
+        val USER_ID = "u" + "abcdefghijklmnopqrstuvwxyz234567".repeat(2).take(54) + "q"
+        const val CODE = "7BQ2-K9MX-4TVA-0HZR-PC63-W8NE-1SJD-5GFY-QK2M-V7R"
+        val SYMBOLS = CODE.replace("-", "")
+        val FULL = ParsedRecoveryKit(USER_ID, SYMBOLS)
+        val LABELS = RecoveryKitLabels("Recovery kit", "Account ID", "Recovery key", "Keep this safe.")
+    }
+}

@@ -15,7 +15,10 @@ import im.g.apps.core.bridge.LocalTimeZone
 import im.g.apps.core.bridge.NotificationContent
 import im.g.apps.core.bridge.PendingApproval
 import im.g.apps.core.bridge.PlatformHooks
+import im.g.apps.core.bridge.PrivacySettings
 import im.g.apps.core.bridge.PushRegistration
+import im.g.apps.core.bridge.RecoveryRotation
+import im.g.apps.core.bridge.ReportReason
 import im.g.apps.core.bridge.Session
 import im.g.apps.core.bridge.TaskHandle
 import im.g.apps.core.bridge.Timeline
@@ -48,6 +51,8 @@ internal class UniffiGimClient(private val inner: im.g.gimcore.GimClient) : GimC
     override suspend fun restoreFromRecovery(userId: String, recoveryCode: String, revokeOthers: Boolean) =
         core { inner.restoreFromRecovery(userId, recoveryCode, revokeOthers) }
 
+    override suspend fun rotateRecoveryCode(): RecoveryRotation = core { inner.rotateRecoveryCode().toMirror() }
+
     override fun startLink(hubs: List<String>): LinkSession = UniffiLinkSession(core { inner.startLink(hubs) })
 
     override suspend fun waitLink(link: LinkSession): String = core { inner.waitLink(link.native()) }
@@ -78,11 +83,22 @@ internal class UniffiGimClient(private val inner: im.g.gimcore.GimClient) : GimC
 
     override suspend fun setDisplayName(name: String) = core { inner.setDisplayName(name) }
 
+    override suspend fun ownProfile(): UserProfile? = core { inner.ownProfile()?.toMirror() }
+
+    override suspend fun setAvatar(filePath: String, mime: String) = core { inner.setAvatar(filePath, mime) }
+
+    override suspend fun removeAvatar() = core { inner.removeAvatar() }
+
     override suspend fun claimHandle(handle: String) = core { inner.claimHandle(handle) }
 
     override suspend fun releaseHandle() = core { inner.releaseHandle() }
 
     override suspend fun signOut() = core { inner.signOut() }
+
+    override suspend fun deleteAccount(): List<String> = core { inner.deleteAccount() }
+
+    override suspend fun reportUser(userId: String, reason: ReportReason, note: String?, messageIds: List<String>): String =
+        core { inner.reportUser(userId, reason.toCore(), note, messageIds) }
 
     override suspend fun registerPush(registration: PushRegistration) =
         core { inner.registerPush(registration.toCore()) }
@@ -158,6 +174,32 @@ internal class UniffiGimClient(private val inner: im.g.gimcore.GimClient) : GimC
 
     override suspend fun fetchThumbnail(chatId: String, messageId: String, destPath: String): String? =
         core { inner.fetchThumbnail(chatId, messageId, destPath) }
+
+    override suspend fun fetchUserAvatar(userId: String, destPath: String): String =
+        core { inner.fetchUserAvatar(userId, destPath) }
+
+    override suspend fun fetchChatAvatar(chatId: String, destPath: String): String =
+        core { inner.fetchChatAvatar(chatId, destPath) }
+
+    override suspend fun privacy(): PrivacySettings = core { inner.privacy().toMirror() }
+
+    override suspend fun setReadReceipts(enabled: Boolean) = core { inner.setReadReceipts(enabled) }
+
+    override suspend fun setTypingIndicators(enabled: Boolean) = core { inner.setTypingIndicators(enabled) }
+
+    override suspend fun blockUser(userId: String) = core { inner.blockUser(userId) }
+
+    override suspend fun unblockUser(userId: String) = core { inner.unblockUser(userId) }
+
+    override suspend fun setChatMuted(chatId: String, mutedUntilMs: Long) =
+        core { inner.setChatMuted(chatId, mutedUntilMs.toCoreMutedUntil()) }
+
+    override fun mutedForever(): Long = im.g.gimcore.mutedForever().toMirrorMutedUntil()
+
+    override suspend fun setChatPinned(chatId: String, pinned: Boolean) = core { inner.setChatPinned(chatId, pinned) }
+
+    override suspend fun setChatArchived(chatId: String, archived: Boolean) =
+        core { inner.setChatArchived(chatId, archived) }
 
     override suspend fun chatList(listener: ChatListListener): TaskHandle =
         UniffiTaskHandle(core { inner.chatList(ChatListListenerAdapter(listener)) })

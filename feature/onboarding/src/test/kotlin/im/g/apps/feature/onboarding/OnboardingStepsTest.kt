@@ -20,10 +20,13 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import im.g.apps.core.bridge.GimClientManager
 import im.g.apps.core.bridge.InMemoryServerUrlStore
+import im.g.apps.core.bridge.ParsedRecoveryKit
+import im.g.apps.core.bridge.RecoveryKitLabels
 import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakeGimClientFactory
 import im.g.apps.core.bridge.fake.FakePlatformHooks
+import im.g.apps.core.bridge.fake.FakeRecoveryKitCodec
 import im.g.apps.core.designsystem.explainer.accountIntroPoints
 import im.g.apps.core.designsystem.theme.GimTheme
 import kotlinx.coroutines.CoroutineScope
@@ -140,10 +143,10 @@ class OnboardingStepsTest {
         rule.waitForIdle()
 
         assertEquals(1, copied.size)
-        assertEquals(ParsedRecoveryKit(USER_ID, RECOVERY_SYMBOLS), parseRecoveryKit(copied.single()))
+        assertEquals(ParsedRecoveryKit(USER_ID, RECOVERY_SYMBOLS), FakeRecoveryKitCodec.parse(copied.single()))
         assertEquals(listOf(USER_ID to RECOVERY_CODE), saved)
         assertEquals(1, shared.size)
-        assertEquals(ParsedRecoveryKit(USER_ID, RECOVERY_SYMBOLS), parseRecoveryKit(shared.single()))
+        assertEquals(ParsedRecoveryKit(USER_ID, RECOVERY_SYMBOLS), FakeRecoveryKitCodec.parse(shared.single()))
         rule.onNodeWithText(PASSWORD_FAILED).assertDoesNotExist()
 
         rule.onNodeWithTag(OnboardingTestTags.CODE_CONTINUE).performScrollTo().performClick()
@@ -204,7 +207,7 @@ class OnboardingStepsTest {
             FakePlatformHooks(),
             InMemoryServerUrlStore(),
         )
-        val vm = OnboardingViewModel(manager, "https://gim.example.eu")
+        val vm = OnboardingViewModel(manager, FakeRecoveryKitCodec, "https://gim.example.eu")
         rule.setContent { GimTheme { OnboardingRoute(viewModel = vm, onFinished = {}, onShareRecoveryKit = {}) } }
         rule.onNodeWithTag(OnboardingTestTags.INTRO_SKIP).performClick()
         rule.onNodeWithTag(OnboardingTestTags.RESTORE).performScrollTo().performClick()
@@ -217,7 +220,7 @@ class OnboardingStepsTest {
         ).assertExists()
         rule.onNodeWithTag(OnboardingTestTags.RESTORE_SUBMIT).assertIsNotEnabled()
 
-        val kit = formatRecoveryKit(USER_ID, RECOVERY_CODE, RecoveryKitLabels("gim", "Account ID", "Recovery key", ""))
+        val kit = FakeRecoveryKitCodec.format(USER_ID, RECOVERY_CODE, RecoveryKitLabels("gim", "Account ID", "Recovery key", ""))
         rule.onNodeWithTag(OnboardingTestTags.RESTORE_KIT).performTextReplacement(kit)
         rule.onNodeWithTag(OnboardingTestTags.RESTORE_USER_ID).assertTextContains(USER_ID)
         rule.onNodeWithTag(OnboardingTestTags.RESTORE_CODE).assertTextContains(RECOVERY_CODE)
