@@ -32,3 +32,5 @@ Turning the Android demo UI into a product UI
   F (bkd/jdepq1ie, SDK b86283e vendored, F1-F4 merged on its branch; F5 in
   progress, F6-F8 not started). Crons l1-auto-eynzhrra, l2-dispatch-hucbnppr
   and l2-dispatch-jdepq1ie are paused; resume them when the user resumes.
+- 2026-10-24: campaign resumed by the user; crons re-enabled; E and F continue
+  from their branches (E: final gate + device E2E; F: F5 device run, then F6-F8).
