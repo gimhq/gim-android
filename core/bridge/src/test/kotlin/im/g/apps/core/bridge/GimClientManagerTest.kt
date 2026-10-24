@@ -130,4 +130,67 @@ class GimClientManagerTest {
         assertEquals(DemoData.SERVER_URL, store.get())
         assertEquals(listOf(first, second), factory.created)
     }
+
+    @Test
+    fun connect_passes_the_meta_server_url_into_the_client_config() = runTest {
+        val configs = mutableListOf<ClientConfig>()
+        val factory = FakeGimClientFactory { config, _ ->
+            configs += config
+            FakeGimClient.withDemoData(backgroundScope, outboxDelays = null)
+        }
+        GimClientManager(factory, hooks, store, metaServerUrl = "https://meta.example.eu").connect(DemoData.SERVER_URL)
+        GimClientManager(factory, hooks, InMemoryServerUrlStore()).connect(DemoData.SERVER_URL)
+
+        assertEquals(
+            listOf(
+                ClientConfig(DemoData.SERVER_URL, metaServerUrl = "https://meta.example.eu"),
+                ClientConfig(DemoData.SERVER_URL),
+            ),
+            configs,
+        )
+    }
+
+    @Test
+    fun delete_account_deletes_forgets_the_url_and_drops_the_client() = runTest {
+        val factory = factory()
+        val manager = GimClientManager(factory, hooks, store)
+        val client = manager.connect(DemoData.SERVER_URL) as FakeGimClient
+        client.unreachableHubsOnDelete = listOf("hub-b")
+
+        assertEquals(listOf("hub-b"), manager.deleteAccount())
+        assertNull(client.session())
+        assertNull(store.get())
+        assertNull(manager.client.value)
+        assertNull(manager.restore())
+    }
+
+    @Test
+    fun failed_delete_account_keeps_the_client_and_can_be_repeated() = runTest {
+        val factory = factory()
+        val manager = GimClientManager(factory, hooks, store)
+        val client = manager.connect(DemoData.SERVER_URL) as FakeGimClient
+        client.failNext("deleteAccount", GimException.Network("offline"))
+
+        try {
+            manager.deleteAccount()
+            fail("expected Network")
+        } catch (_: GimException.Network) {
+        }
+        assertSame(client, manager.client.value)
+        assertEquals(DemoData.SERVER_URL, store.get())
+        assertEquals(DemoData.session, client.session())
+
+        assertEquals(emptyList<String>(), manager.deleteAccount())
+        assertNull(manager.client.value)
+        assertNull(store.get())
+    }
+
+    @Test
+    fun delete_account_without_a_client_is_not_registered() = runTest {
+        try {
+            GimClientManager(factory(), hooks, store).deleteAccount()
+            fail("expected NotRegistered")
+        } catch (_: GimException.NotRegistered) {
+        }
+    }
 }

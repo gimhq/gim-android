@@ -45,6 +45,8 @@ class AppContainer(
     val themeModeStore: ThemeModeStore = SharedPrefsThemeModeStore(context),
     /** The in-app language; kept across restarts and sign-out. */
     val appLocales: AppLocales = AppCompatAppLocales(),
+    /** Build-time gim meta server URL (settings backup, user reports); null when not configured (feature off). */
+    val metaServerUrl: String? = BuildConfig.META_SERVER_URL.ifBlank { null },
 ) {
     private val appContext = context.applicationContext
 
@@ -65,6 +67,7 @@ class AppContainer(
         },
         hooks = hooks,
         serverUrlStore = serverUrlStore,
+        metaServerUrl = metaServerUrl,
     )
 
     val sync = SyncController(manager, reachability.reachable, appScope)
