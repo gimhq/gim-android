@@ -39,8 +39,17 @@ class InMemoryAppLocales(private var tag: String? = null) : AppLocales {
 fun supportedLanguageTags(context: Context): List<String> =
     context.resources.getStringArray(R.array.settings_language_tags).toList()
 
-/** [tag]'s language named in that language, e.g. "English", "Español". */
+/**
+ * [tag]'s language named in that language, e.g. "English", "Español". Chinese is named by script (简体中文,
+ * 繁體中文), since the platform name ("中文 (中国)") reads as a country, not a writing system.
+ */
 fun languageDisplayName(tag: String): String {
     val locale = Locale.forLanguageTag(tag)
+    if (locale.language == "zh") {
+        when {
+            locale.script == "Hans" || (locale.script.isEmpty() && locale.country == "CN") -> return "简体中文"
+            locale.script == "Hant" || (locale.script.isEmpty() && locale.country == "TW") -> return "繁體中文"
+        }
+    }
     return locale.getDisplayName(locale).replaceFirstChar { it.titlecase(locale) }
 }
