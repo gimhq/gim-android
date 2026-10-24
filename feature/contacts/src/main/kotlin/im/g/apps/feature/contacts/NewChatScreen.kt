@@ -126,6 +126,7 @@ internal fun NewChatScreen(
                 query = state.query,
                 onQueryChange = onQueryChange,
                 state = state.search,
+                photos = state.photos,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Button(onClick = onStartChat, enabled = state.canStartChat) {

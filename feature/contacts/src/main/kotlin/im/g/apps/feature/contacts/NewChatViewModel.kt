@@ -9,6 +9,10 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.UserProfile
+import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 
 @Immutable
 data class NewChatUiState(
@@ -26,6 +31,8 @@ data class NewChatUiState(
     val starting: Boolean = false,
     val scannerOpen: Boolean = false,
     val scanNotice: ScanNotice? = null,
+    /** Downloaded photos by user id. */
+    val photos: PersistentMap<String, String> = persistentMapOf(),
 ) {
     /** A user other than the signed-in one was found and no chat is being created. */
     val canStartChat: Boolean
@@ -48,16 +55,27 @@ sealed interface NewChatEvent {
 
 /**
  * Finds a user by handle (or takes a typed or scanned user id) and opens (or creates) the direct chat with them;
- * an unknown user id fails with [ContactsError.UserNotFound].
+ * an unknown user id fails with [ContactsError.UserNotFound]. The found user's photo is downloaded into [avatarDir].
  */
-class NewChatViewModel(private val client: GimClient) : ViewModel() {
+class NewChatViewModel(
+    private val client: GimClient,
+    avatarDir: File,
+    defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
+) : ViewModel() {
     private val _state = MutableStateFlow(NewChatUiState())
     val state: StateFlow<NewChatUiState> = _state.asStateFlow()
 
     private val _events = Channel<NewChatEvent>(Channel.BUFFERED)
     val events: Flow<NewChatEvent> = _events.receiveAsFlow()
 
-    private val search = UserSearch(client, viewModelScope) { result -> _state.update { it.copy(search = result) } }
+    private val photos = ContactPhotos(client, avatarDir, viewModelScope, defaultDispatcher) { userId, path ->
+        _state.update { it.copy(photos = it.photos.put(userId, path)) }
+    }
+
+    private val search = UserSearch(client, viewModelScope) { result ->
+        _state.update { it.copy(search = result) }
+        if (result is UserSearchState.Found) photos.requestUser(result.user)
+    }
 
     init {
         viewModelScope.launch {
@@ -127,6 +145,7 @@ class NewChatViewModel(private val client: GimClient) : ViewModel() {
     }
 }
 
-fun newChatViewModelFactory(client: GimClient): ViewModelProvider.Factory = viewModelFactory {
-    initializer { NewChatViewModel(client) }
+/** [avatarDir] holds the downloaded photos (the app's `cacheDir/gim/avatars`). */
+fun newChatViewModelFactory(client: GimClient, avatarDir: File): ViewModelProvider.Factory = viewModelFactory {
+    initializer { NewChatViewModel(client, avatarDir) }
 }

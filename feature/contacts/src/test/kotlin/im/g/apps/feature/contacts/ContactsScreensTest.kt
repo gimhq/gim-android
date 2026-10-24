@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
@@ -17,6 +18,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -30,6 +32,7 @@ import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.designsystem.R as DesignR
+import im.g.apps.core.designsystem.component.AvatarTestTags
 import im.g.apps.core.designsystem.theme.GimTheme
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CoroutineScope
@@ -41,6 +44,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 
@@ -49,6 +53,11 @@ class ContactsScreensTest {
 
     @get:Rule
     val rule = createComposeRule()
+
+    @get:Rule
+    val tmp = TemporaryFolder()
+
+    private val avatarDir by lazy { tmp.newFolder("avatars") }
 
     private val scope = CoroutineScope(SupervisorJob())
 
@@ -77,6 +86,53 @@ class ContactsScreensTest {
         rule.onNodeWithText("@lukas").assertExists()
         rule.onNodeWithText("Start chat").assertIsEnabled().performClick()
         assertEquals(1, started)
+    }
+
+    @Test
+    fun userRow_readsTheNameOnce_withoutTheInitials() {
+        rule.setContent { GimTheme { UserRow(user = DemoData.ana) } }
+        rule.onAllNodesWithText("AK").assertCountEquals(0)
+        rule.onAllNodes(hasText("Ana Kovač", substring = true) or hasContentDescription("Ana Kovač", substring = true))
+            .assertCountEquals(1)
+    }
+
+    @Test
+    fun userRow_withAPhoto_showsIt() {
+        rule.setContent { GimTheme { UserRow(user = DemoData.ana, photoPath = "/cache/gim/avatars/u-ana") } }
+        rule.onNodeWithTag(AvatarTestTags.PHOTO, useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun userRow_withoutAPhoto_showsTheInitials() {
+        rule.setContent { GimTheme { UserRow(user = DemoData.ana) } }
+        rule.onNodeWithTag(AvatarTestTags.PHOTO, useUnmergedTree = true).assertDoesNotExist()
+        rule.onNodeWithText("AK", useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun directChatInfo_headerShowsThePeerPhoto() {
+        val fake = demoClient(scope).apply {
+            addDirectoryUser(DemoData.lukas.copy(hasAvatar = true))
+            // The chat list row picks up the new profile with the next change of the chat.
+            simulateIncoming(DemoData.DIRECT_CHAT_ID, "New photo", from = DemoData.lukas.userId)
+        }
+        val vm = GroupInfoViewModel(fake, DemoData.DIRECT_CHAT_ID, avatarDir)
+        rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}) } }
+
+        rule.waitUntil(5_000) { vm.state.value.headerPhotoPath != null }
+        rule.onNodeWithTag(AvatarTestTags.PHOTO, useUnmergedTree = true).assertExists()
+        rule.onAllNodesWithText("LB").assertCountEquals(0)
+    }
+
+    @Test
+    fun groupInfo_avatarsAreDecorative() {
+        val vm = GroupInfoViewModel(demoClient(scope), DemoData.GROUP_CHAT_ID, avatarDir)
+        rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}) } }
+
+        rule.onNodeWithText("Sofia Costa (You)").assertExists()
+        // Header, own row and a member row.
+        listOf("AC", "SC", "AK").forEach { rule.onAllNodesWithText(it).assertCountEquals(0) }
+        rule.onAllNodesWithText("Aegean Crew").assertCountEquals(1)
     }
 
     @Test
@@ -121,7 +177,7 @@ class ContactsScreensTest {
         shadowOf(app).grantPermissions(Manifest.permission.CAMERA)
         val friend = UserProfile("u" + "c".repeat(54) + "i", "cleo", "Cleo Marsh")
         val fake = demoClient(scope).apply { addDirectoryUser(friend) }
-        val vm = NewChatViewModel(TestClient(fake))
+        val vm = NewChatViewModel(TestClient(fake), avatarDir)
         var opened: String? = null
         rule.setContent {
             GimTheme {
@@ -164,7 +220,7 @@ class ContactsScreensTest {
 
     @Test
     fun newGroup_nextAndCreateFollowValidation() {
-        val vm = NewGroupViewModel(demoClient(scope))
+        val vm = NewGroupViewModel(demoClient(scope), avatarDir)
         var openedChatId: String? = null
         rule.setContent {
             GimTheme { NewGroupRoute(vm, onOpenChat = { openedChatId = it }, onBack = {}) }
@@ -190,7 +246,7 @@ class ContactsScreensTest {
 
     @Test
     fun groupInfo_removeMemberAsksForConfirmation() {
-        val vm = GroupInfoViewModel(demoClient(scope), DemoData.GROUP_CHAT_ID)
+        val vm = GroupInfoViewModel(demoClient(scope), DemoData.GROUP_CHAT_ID, avatarDir)
         rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}) } }
 
         rule.onNodeWithText("Sofia Costa (You)").assertExists()
@@ -211,7 +267,7 @@ class ContactsScreensTest {
 
     @Test
     fun groupInfo_showsTheChatActionsOfAGroup_withoutBlockOrReport() {
-        val vm = GroupInfoViewModel(demoClient(scope), DemoData.GROUP_CHAT_ID, reportAvailable = true)
+        val vm = GroupInfoViewModel(demoClient(scope), DemoData.GROUP_CHAT_ID, avatarDir, reportAvailable = true)
         rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}) } }
 
         rule.onNodeWithText("Sofia Costa (You)").assertExists()
@@ -228,7 +284,7 @@ class ContactsScreensTest {
     @Test
     fun directChatInfo_hidesReportWithoutAMetaServer() {
         val fake = demoClient(scope)
-        val vm = GroupInfoViewModel(fake, DemoData.DIRECT_CHAT_ID, reportAvailable = false)
+        val vm = GroupInfoViewModel(fake, DemoData.DIRECT_CHAT_ID, avatarDir, reportAvailable = false)
         rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}) } }
 
         scrollToTag(ChatActionsTestTags.action(ChatAction.BLOCK))
@@ -240,7 +296,7 @@ class ContactsScreensTest {
     @Test
     fun directChatInfo_showsReportWithAMetaServer_andOpensItForThePeer() {
         val fake = FakeGimClient.withDemoData(scope, outboxDelays = null, metaServerUrl = "https://meta.example.eu")
-        val vm = GroupInfoViewModel(fake, DemoData.DIRECT_CHAT_ID, reportAvailable = true)
+        val vm = GroupInfoViewModel(fake, DemoData.DIRECT_CHAT_ID, avatarDir, reportAvailable = true)
         var reported: Pair<String, String>? = null
         rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}, onReport = { u, c -> reported = u to c }) } }
 
@@ -253,7 +309,7 @@ class ContactsScreensTest {
 
     @Test
     fun chatInfo_muteForAnHour_showsUnmuteAndUntilWhen() {
-        val vm = GroupInfoViewModel(demoClient(scope), DemoData.DIRECT_CHAT_ID)
+        val vm = GroupInfoViewModel(demoClient(scope), DemoData.DIRECT_CHAT_ID, avatarDir)
         rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}) } }
 
         scrollToTag(ChatActionsTestTags.action(ChatAction.MUTE))
@@ -273,7 +329,7 @@ class ContactsScreensTest {
 
     @Test
     fun chatInfo_muteAlways_saysUntilYouUnmute() {
-        val vm = GroupInfoViewModel(demoClient(scope), DemoData.GROUP_CHAT_ID)
+        val vm = GroupInfoViewModel(demoClient(scope), DemoData.GROUP_CHAT_ID, avatarDir)
         rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}) } }
 
         scrollToTag(ChatActionsTestTags.action(ChatAction.MUTE))
@@ -286,7 +342,7 @@ class ContactsScreensTest {
     @Test
     fun chatInfo_blockAsksWithAnExplanation_thenShowsUnblock() {
         val fake = demoClient(scope)
-        val vm = GroupInfoViewModel(fake, DemoData.DIRECT_CHAT_ID)
+        val vm = GroupInfoViewModel(fake, DemoData.DIRECT_CHAT_ID, avatarDir)
         rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}) } }
 
         scrollToTag(ChatActionsTestTags.action(ChatAction.BLOCK))

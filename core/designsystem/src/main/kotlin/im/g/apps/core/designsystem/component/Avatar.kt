@@ -36,7 +36,8 @@ object AvatarTestTags {
  * Circular avatar. Draws the image at [imagePath] (a local file) when present; the initials on a
  * [colorKey]-derived color stay underneath, so they remain visible while loading or if decoding fails.
  * Pass the chat id as [colorKey] to keep the color stable when the name changes. With a
- * [contentDescription] the avatar is one semantics node; without it, it is decorative.
+ * [contentDescription] the avatar is one semantics node; without it, it is decorative: TalkBack skips it, initials
+ * included.
  */
 @Composable
 fun Avatar(
@@ -55,13 +56,7 @@ fun Avatar(
             .size(size)
             .clip(CircleShape)
             .background(background)
-            .then(
-                if (contentDescription != null) {
-                    Modifier.clearAndSetSemantics { this.contentDescription = contentDescription }
-                } else {
-                    Modifier
-                },
-            ),
+            .clearAndSetSemantics { if (contentDescription != null) this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
         // Line height follows the avatar size, not the font scale, so large text does not clip the initials.
