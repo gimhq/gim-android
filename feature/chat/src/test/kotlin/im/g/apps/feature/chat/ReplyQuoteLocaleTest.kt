@@ -77,13 +77,13 @@ class ReplyQuoteLocaleTest {
             }
         }
 
-        rule.onNodeWithText("Foto").assertExists()
-        rule.onNodeWithText("Archivo: informe.pdf").assertExists()
-        rule.onNodeWithText("Archivo").assertExists()
-        rule.onNodeWithText("Mensaje eliminado").assertExists()
-        rule.onNodeWithText("Nos vemos a las nueve").assertExists()
-        rule.onNodeWithText("Photo").assertDoesNotExist()
-        rule.onNodeWithText("File: informe.pdf").assertDoesNotExist()
-        rule.onNodeWithText("Message deleted").assertDoesNotExist()
+        rule.onNodeWithText("Foto", useUnmergedTree = true).assertExists()
+        rule.onNodeWithText("Archivo: informe.pdf", useUnmergedTree = true).assertExists()
+        rule.onNodeWithText("Archivo", useUnmergedTree = true).assertExists()
+        rule.onNodeWithText("Mensaje eliminado", useUnmergedTree = true).assertExists()
+        rule.onNodeWithText("Nos vemos a las nueve", useUnmergedTree = true).assertExists()
+        rule.onNodeWithText("Photo", useUnmergedTree = true).assertDoesNotExist()
+        rule.onNodeWithText("File: informe.pdf", useUnmergedTree = true).assertDoesNotExist()
+        rule.onNodeWithText("Message deleted", useUnmergedTree = true).assertDoesNotExist()
     }
 }
