@@ -96,7 +96,8 @@ data class FileUi(
 @Immutable
 data class ReplyPreviewUi(
     val senderName: String,
-    val text: String,
+    /** The quoted text, or a localized label for media and deleted messages. */
+    val text: UiText,
 )
 
 @Immutable

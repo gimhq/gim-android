@@ -6,6 +6,10 @@
     <string name="chatlist_banner_updating">Updating…</string>
     <string name="chatlist_preview_you">You: %1$s</string>
     <string name="chatlist_preview_member">%1$s: %2$s</string>
+    <string name="chatlist_preview_photo">Photo</string>
+    <string name="chatlist_preview_file">File: %1$s</string>
+    <string name="chatlist_preview_file_unnamed">File</string>
+    <string name="chatlist_preview_deleted">Message deleted</string>
     <string name="chatlist_state_leaving">Leaving…</string>
     <string name="chatlist_state_left">You\'re no longer in this chat</string>
     <string name="chatlist_empty_title">No chats yet</string>

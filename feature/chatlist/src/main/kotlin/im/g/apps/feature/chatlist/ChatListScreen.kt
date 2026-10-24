@@ -56,6 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import im.g.apps.core.bridge.ChatState
+import im.g.apps.core.bridge.PreviewKind
 import im.g.apps.core.designsystem.component.Avatar
 import im.g.apps.core.designsystem.component.ConnectionBanner
 import im.g.apps.core.designsystem.component.EmptyState
@@ -434,10 +435,19 @@ private fun timeText(label: ChatTimeLabel): String = when (label) {
 private fun previewText(row: ChatRowUi): String = when (row.state) {
     ChatState.LEAVING -> stringResource(R.string.chatlist_state_leaving)
     ChatState.LEFT -> stringResource(R.string.chatlist_state_left)
-    ChatState.ACTIVE -> when (val sender = row.sender) {
-        null -> row.preview
-        PreviewSender.You -> stringResource(R.string.chatlist_preview_you, row.preview)
-        is PreviewSender.Member -> stringResource(R.string.chatlist_preview_member, sender.firstName, row.preview)
+    ChatState.ACTIVE -> {
+        val message = when (val kind = row.previewKind) {
+            PreviewKind.Text -> row.preview
+            PreviewKind.Photo -> stringResource(R.string.chatlist_preview_photo)
+            is PreviewKind.File -> kind.fileName?.let { stringResource(R.string.chatlist_preview_file, it) }
+                ?: stringResource(R.string.chatlist_preview_file_unnamed)
+            PreviewKind.Deleted -> stringResource(R.string.chatlist_preview_deleted)
+        }
+        when (val sender = row.sender) {
+            null -> message
+            PreviewSender.You -> stringResource(R.string.chatlist_preview_you, message)
+            is PreviewSender.Member -> stringResource(R.string.chatlist_preview_member, sender.firstName, message)
+        }
     }
 }
 

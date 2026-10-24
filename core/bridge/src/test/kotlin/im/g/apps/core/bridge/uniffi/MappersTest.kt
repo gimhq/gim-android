@@ -19,6 +19,7 @@ import im.g.apps.core.bridge.MessagePreview
 import im.g.apps.core.bridge.NotificationContent
 import im.g.apps.core.bridge.NotificationKind
 import im.g.apps.core.bridge.ParsedRecoveryKit
+import im.g.apps.core.bridge.PreviewKind
 import im.g.apps.core.bridge.PrivacySettings
 import im.g.apps.core.bridge.PushRegistration
 import im.g.apps.core.bridge.ReactionGroup
@@ -51,7 +52,7 @@ class MappersTest {
         kind = im.g.gimcore.ChatKind.GROUP,
         name = "Crew",
         avatar = coreMedia,
-        lastMessage = im.g.gimcore.MessagePreview("Alice", "hi", 1_700_000_000_000UL, true, im.g.gimcore.SendState.Read),
+        lastMessage = im.g.gimcore.MessagePreview("Alice", "hi", im.g.gimcore.PreviewKind.Text, 1_700_000_000_000UL, true, im.g.gimcore.SendState.Read),
         unreadCount = 3u,
         updatedAtMs = 1_700_000_000_001UL,
         memberCount = 4u,
@@ -67,7 +68,7 @@ class MappersTest {
         kind = ChatKind.GROUP,
         name = "Crew",
         avatar = media,
-        lastMessage = MessagePreview("Alice", "hi", 1_700_000_000_000L, true, SendState.Read),
+        lastMessage = MessagePreview("Alice", "hi", PreviewKind.Text, 1_700_000_000_000L, true, SendState.Read),
         unreadCount = 3,
         updatedAtMs = 1_700_000_000_001L,
         memberCount = 4,
@@ -86,7 +87,7 @@ class MappersTest {
         isOwn = true,
         sentAtMs = 1_700_000_000_000UL,
         content = im.g.gimcore.MessageContent.Text("hello"),
-        replyTo = im.g.gimcore.ReplyPreview("m0", "Bob", "earlier"),
+        replyTo = im.g.gimcore.ReplyPreview("m0", "Bob", "earlier", im.g.gimcore.PreviewKind.Text),
         reactions = listOf(im.g.gimcore.ReactionGroup("+1", 2u, true)),
         edited = true,
         sendState = im.g.gimcore.SendState.Delivered,
@@ -98,7 +99,7 @@ class MappersTest {
         isOwn = true,
         sentAtMs = 1_700_000_000_000L,
         content = MessageContent.Text("hello"),
-        replyTo = ReplyPreview("m0", "Bob", "earlier"),
+        replyTo = ReplyPreview("m0", "Bob", "earlier", PreviewKind.Text),
         reactions = listOf(ReactionGroup("+1", 2, true)),
         edited = true,
         sendState = SendState.Delivered,
@@ -176,15 +177,24 @@ class MappersTest {
     @Test
     fun messagePreview() {
         assertEquals(
-            MessagePreview("Bob", "Photo", 5L, false),
-            im.g.gimcore.MessagePreview("Bob", "Photo", 5UL, false, null).toMirror(),
+            MessagePreview("Bob", "Photo", PreviewKind.Photo, 5L, false),
+            im.g.gimcore.MessagePreview("Bob", "Photo", im.g.gimcore.PreviewKind.Photo, 5UL, false, null).toMirror(),
         )
         assertEquals(
-            MessagePreview("Me", "hi", 5L, true, SendState.Failed("gone", SendFailure.REJECTED)),
+            MessagePreview("Me", "hi", PreviewKind.Text, 5L, true, SendState.Failed("gone", SendFailure.REJECTED)),
             im.g.gimcore.MessagePreview(
-                "Me", "hi", 5UL, true, im.g.gimcore.SendState.Failed("gone", im.g.gimcore.SendFailure.REJECTED),
+                "Me", "hi", im.g.gimcore.PreviewKind.Text, 5UL, true, im.g.gimcore.SendState.Failed("gone", im.g.gimcore.SendFailure.REJECTED),
             ).toMirror(),
         )
+    }
+
+    @Test
+    fun previewKind() {
+        assertSame(PreviewKind.Text, im.g.gimcore.PreviewKind.Text.toMirror())
+        assertSame(PreviewKind.Photo, im.g.gimcore.PreviewKind.Photo.toMirror())
+        assertEquals(PreviewKind.File("report.pdf"), im.g.gimcore.PreviewKind.File("report.pdf").toMirror())
+        assertEquals(PreviewKind.File(null), im.g.gimcore.PreviewKind.File(null).toMirror())
+        assertSame(PreviewKind.Deleted, im.g.gimcore.PreviewKind.Deleted.toMirror())
     }
 
     @Test
@@ -293,7 +303,10 @@ class MappersTest {
 
     @Test
     fun replyPreviewAndReactionGroup() {
-        assertEquals(ReplyPreview("m", "s", "t"), im.g.gimcore.ReplyPreview("m", "s", "t").toMirror())
+        assertEquals(
+            ReplyPreview("m", "s", "t", PreviewKind.Deleted),
+            im.g.gimcore.ReplyPreview("m", "s", "t", im.g.gimcore.PreviewKind.Deleted).toMirror(),
+        )
         assertEquals(ReactionGroup("x", 7, false), im.g.gimcore.ReactionGroup("x", 7u, false).toMirror())
     }
 

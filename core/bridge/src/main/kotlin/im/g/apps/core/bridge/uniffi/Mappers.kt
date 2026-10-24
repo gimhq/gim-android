@@ -24,6 +24,7 @@ import im.g.apps.core.bridge.PushRegistration
 import im.g.apps.core.bridge.ReactionGroup
 import im.g.apps.core.bridge.RecoveryKitLabels
 import im.g.apps.core.bridge.RecoveryRotation
+import im.g.apps.core.bridge.PreviewKind
 import im.g.apps.core.bridge.ReplyPreview
 import im.g.apps.core.bridge.ReportReason
 import im.g.apps.core.bridge.SendFailure
@@ -151,6 +152,7 @@ internal fun ChatState.toCore(): im.g.gimcore.ChatState = when (this) {
 internal fun im.g.gimcore.MessagePreview.toMirror() = MessagePreview(
     senderName = senderName,
     text = text,
+    kind = kind.toMirror(),
     sentAtMs = sentAtMs.toLong(),
     isOwn = isOwn,
     sendState = sendState?.toMirror(),
@@ -214,7 +216,15 @@ internal fun im.g.gimcore.ReplyPreview.toMirror() = ReplyPreview(
     messageId = messageId,
     senderName = senderName,
     text = text,
+    kind = kind.toMirror(),
 )
+
+internal fun im.g.gimcore.PreviewKind.toMirror(): PreviewKind = when (this) {
+    im.g.gimcore.PreviewKind.Text -> PreviewKind.Text
+    im.g.gimcore.PreviewKind.Photo -> PreviewKind.Photo
+    is im.g.gimcore.PreviewKind.File -> PreviewKind.File(fileName)
+    im.g.gimcore.PreviewKind.Deleted -> PreviewKind.Deleted
+}
 
 internal fun im.g.gimcore.ReactionGroup.toMirror() = ReactionGroup(
     emoji = emoji,

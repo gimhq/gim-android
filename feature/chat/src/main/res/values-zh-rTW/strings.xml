@@ -35,6 +35,8 @@
     <string name="chat_jump_to_bottom">前往最新訊息</string>
     <string name="chat_loading_older">正在載入較早的訊息…</string>
     <string name="chat_image">相片</string>
+    <string name="chat_reply_file">檔案：%1$s</string>
+    <string name="chat_reply_file_unnamed">檔案</string>
     <string name="chat_file_open">開啟 %1$s</string>
     <string name="chat_composer_placeholder">訊息</string>
     <string name="chat_composer_leaving">正在離開…</string>

@@ -477,7 +477,7 @@ class ChatViewModelTest {
         assertTrue(edited.edited)
         assertFalse(edited.deleted)
         assertEquals("Lukas Berger", edited.replyPreview?.senderName)
-        assertEquals("File: survey-2026.pdf", edited.replyPreview?.text)
+        assertEquals(UiText.Res(R.string.chat_reply_file, persistentListOf("survey-2026.pdf")), edited.replyPreview?.text)
 
         val deleted = vm.messages.single { it.deleted }
         assertNull(deleted.body)
