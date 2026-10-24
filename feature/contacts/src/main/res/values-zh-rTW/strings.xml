@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Traditional Chinese (zh-TW, Taiwan) -->
+<resources>
+    <string name="contacts_back">返回</string>
+    <string name="contacts_you">你</string>
+
+    <string name="contacts_search_label">使用者名稱或帳號 ID</string>
+    <string name="contacts_search_placeholder">\@使用者名稱</string>
+    <string name="contacts_search_hint">輸入使用者名稱的至少 3 個字元，或貼上帳號 ID。</string>
+    <string name="contacts_search_searching">搜尋中…</string>
+    <string name="contacts_search_not_found">沒有人使用 \@%1$s 這個使用者名稱。請檢查拼字後再試一次。</string>
+
+    <string name="contacts_error_network">無法連線到伺服器。請檢查網路連線後再試一次。</string>
+    <string name="contacts_error_not_registered">你已經登出了。請重新登入以繼續。</string>
+    <string name="contacts_error_invalid_input">無法執行。請檢查你輸入的內容後再試一次。</string>
+    <string name="contacts_error_not_found">這個項目已經不在了。請返回後再試一次。</string>
+    <string name="contacts_error_user_not_found">找不到這個人。請檢查使用者名稱後再試一次。</string>
+    <string name="contacts_error_contact_not_admitted">無法新增 %1$s。對方的伺服器不接受你。請試試其他人。</string>
+    <string name="contacts_error_retry_later">嘗試次數太多。請在 %1$d 秒後再試一次。</string>
+    <string name="contacts_error_server">伺服器發生問題。請稍後再試。</string>
+    <string name="contacts_error_not_supported">這項功能還不能使用。請更新 App 後再試一次。</string>
+    <string name="contacts_error_unknown">發生錯誤。請再試一次。</string>
+
+    <string name="contacts_new_chat_title">新聊天</string>
+    <string name="contacts_start_chat">開始聊天</string>
+    <string name="contacts_scan_qr">掃描 QR 碼</string>
+    <string name="contacts_scan_title">掃描 QR 碼</string>
+    <string name="contacts_scan_hint">把相機對準朋友的 QR 碼。他們可以在「設定」&gt;「個人資料」中找到。</string>
+    <string name="contacts_scan_close">關閉</string>
+    <string name="contacts_scan_not_account_id">這個 QR 碼不是 gim 帳號 ID。請朋友出示他們個人資料裡的 QR 碼。</string>
+    <string name="contacts_scan_own_code">這是你自己的 QR 碼。</string>
+    <string name="contacts_scan_camera_denied">你需要允許使用相機才能掃描 QR 碼。你也可以改用使用者名稱搜尋。</string>
+    <string name="contacts_scan_camera_unavailable">現在無法使用相機。你可以改用使用者名稱搜尋。</string>
+
+    <string name="contacts_new_group_title">新群組</string>
+    <string name="contacts_new_group_members_title">新增成員</string>
+    <string name="contacts_new_group_name_title">群組名稱</string>
+    <string name="contacts_add">新增</string>
+    <string name="contacts_added">已新增</string>
+    <string name="contacts_remove_selected">移除 %1$s</string>
+    <string name="contacts_new_group_no_members">請至少新增一位成員才能繼續。</string>
+    <string name="contacts_next">下一步</string>
+    <string name="contacts_create_group">建立群組</string>
+    <string name="contacts_group_name_label">群組名稱</string>
+    <plurals name="contacts_member_count">
+        <item quantity="other">%d 位成員</item>
+    </plurals>
+
+    <string name="contacts_group_info_title">群組資訊</string>
+    <string name="contacts_contact_info_title">聯絡人資訊</string>
+    <string name="contacts_chat_missing">這個聊天已經不在了。請返回你的聊天列表。</string>
+    <string name="contacts_members">成員</string>
+    <string name="contacts_members_unavailable">現在無法顯示成員。請稍後再試。</string>
+    <string name="contacts_add_member">新增成員</string>
+    <string name="contacts_rename_group">重新命名群組</string>
+    <string name="contacts_save">儲存</string>
+    <string name="contacts_cancel">取消</string>
+    <string name="contacts_remove">移除</string>
+    <string name="contacts_remove_member_description">移除 %1$s</string>
+    <string name="contacts_remove_member_confirm">要把 %1$s 移出群組嗎？</string>
+    <string name="contacts_chat_actions">聊天動作</string>
+    <string name="contacts_chat_action_mute">靜音</string>
+    <string name="contacts_chat_action_pin">置頂</string>
+    <string name="contacts_chat_action_archive">封存</string>
+    <string name="contacts_chat_action_block">封鎖</string>
+    <string name="contacts_chat_action_report">檢舉</string>
+    <string name="contacts_leave_group">離開群組</string>
+    <string name="contacts_leave">離開</string>
+    <string name="contacts_leaving">正在離開…</string>
+    <string name="contacts_leave_group_confirm">要離開這個群組嗎？你將不會再收到它的訊息。</string>
+    <string name="contacts_error_chat_not_active">你已經不在這個群組裡了，所以無法變更它。</string>
+</resources>

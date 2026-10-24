@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Traditional Chinese (zh-TW, Taiwan) -->
+<resources>
+    <string name="linking_title">連結新裝置</string>
+    <string name="linking_back">返回</string>
+    <string name="linking_scan_explanation">在你的另一台裝置上選擇「連結到現有裝置」。它會顯示一個代碼。在這裡掃描那個代碼。</string>
+    <string name="linking_camera_request">gim 需要使用相機來掃描代碼。只有在這個畫面開啟時才會使用相機。</string>
+    <string name="linking_camera_rationale">沒有相機，gim 就無法掃描代碼。請允許使用相機，或在下方貼上代碼。</string>
+    <string name="linking_camera_denied">gim 的相機權限已關閉。請到 App 設定中開啟，或在下方貼上代碼。</string>
+    <string name="linking_camera_unavailable">找不到相機。請改在下方貼上代碼。</string>
+    <string name="linking_allow_camera">允許使用相機</string>
+    <string name="linking_open_settings">開啟設定</string>
+    <string name="linking_paste_title">無法掃描嗎？</string>
+    <string name="linking_paste_label">貼上另一台裝置上的代碼</string>
+    <string name="linking_submit_code">繼續</string>
+    <string name="linking_approving">正在檢查代碼…</string>
+    <string name="linking_compare_title">比對數字</string>
+    <string name="linking_compare_explanation">你的另一台裝置也會顯示數字。只有在數字相同時，才點一下「數字相符」。之後新裝置就能看到你所有的聊天。</string>
+    <string name="linking_device_id">新裝置：%1$s</string>
+    <string name="linking_confirm">數字相符</string>
+    <string name="linking_confirming">正在新增裝置</string>
+    <string name="linking_reject">數字不相符</string>
+    <string name="linking_done_linked">你的新裝置已連結。你的聊天很快就會出現在上面。</string>
+    <string name="linking_done_rejected">新裝置沒有連結。</string>
+    <string name="linking_done">完成</string>
+    <string name="linking_error_invalid_code">這個代碼無法使用。請在另一台裝置上產生新的代碼，然後再掃描一次。</string>
+    <string name="linking_error_cannot_reach_server">無法連線到伺服器。請檢查網路連線後再試一次。</string>
+    <plurals name="linking_error_try_again_later">
+        <item quantity="other">伺服器忙碌中。請在 %d 秒後再試一次。</item>
+    </plurals>
+    <string name="linking_error_generic">發生錯誤。請再試一次。</string>
+</resources>

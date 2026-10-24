@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Traditional Chinese (zh-TW, Taiwan) -->
+<resources>
+    <string name="settings_title">設定</string>
+    <string name="settings_back">返回</string>
+    <string name="settings_section_account">帳號和裝置</string>
+    <string name="settings_linked_devices">已連結的裝置</string>
+    <string name="settings_recovery_key">你的復原金鑰</string>
+    <string name="settings_link_device">連結新裝置</string>
+    <string name="settings_new_recovery_key">建立新的復原金鑰</string>
+    <string name="settings_delete_account">刪除帳號</string>
+    <string name="settings_section_notifications">通知</string>
+    <string name="settings_notifications">通知</string>
+    <string name="settings_notifications_value">音效和提醒</string>
+    <string name="settings_section_privacy">隱私</string>
+    <string name="settings_read_receipts">已讀回條</string>
+    <string name="settings_read_receipts_value">讓別人知道你已經讀了他們的訊息。</string>
+    <string name="settings_typing_indicator">輸入狀態</string>
+    <string name="settings_typing_indicator_value">讓別人知道你正在輸入。</string>
+    <string name="settings_blocked_people">已封鎖的人</string>
+    <string name="settings_section_look">外觀和語言</string>
+    <string name="settings_appearance">外觀</string>
+    <string name="settings_language">語言</string>
+    <string name="settings_section_advanced">進階</string>
+    <string name="settings_servers">伺服器</string>
+    <string name="settings_section_help">說明和關於</string>
+    <string name="settings_help">說明和關於</string>
+    <string name="settings_sign_out">登出</string>
+    <string name="settings_sign_out_title">要登出嗎？</string>
+    <string name="settings_sign_out_body">這會從這支手機移除你的帳號和訊息。要再回來，你需要復原包：你的帳號 ID 和復原金鑰。</string>
+    <string name="settings_cancel">取消</string>
+
+    <string name="profile_title">個人資料</string>
+    <string name="profile_change_photo">更換相片</string>
+    <string name="profile_section_name">名字</string>
+    <string name="profile_name_edit">點一下來修改你的名字</string>
+    <string name="profile_name_title">你的名字</string>
+    <string name="profile_name_label">名字</string>
+    <string name="profile_name_saved">名字已儲存。</string>
+    <string name="profile_section_username">使用者名稱</string>
+    <string name="profile_username_add">新增使用者名稱</string>
+    <string name="profile_username_why">朋友可以用它找到你。</string>
+    <string name="profile_username_change">變更</string>
+    <string name="profile_username_change_title">變更使用者名稱</string>
+    <string name="profile_username_remove">移除</string>
+    <string name="profile_username_rule">3 到 32 個字母、數字或 _</string>
+    <string name="profile_username_saved">使用者名稱已儲存。</string>
+    <string name="profile_username_remove_title">要移除使用者名稱嗎？</string>
+    <string name="profile_username_remove_body">朋友將無法再用使用者名稱找到你。你的聊天會保留。</string>
+    <string name="profile_username_removed">使用者名稱已移除。</string>
+    <string name="profile_section_account_id">帳號 ID</string>
+    <string name="profile_copy">複製</string>
+    <string name="profile_account_id_copied">已複製帳號 ID</string>
+    <string name="profile_section_qr">我的 QR 碼</string>
+    <string name="profile_qr_description">你的 QR 碼</string>
+    <string name="profile_qr_caption">朋友掃描這個就能和你開始聊天。</string>
+    <string name="profile_save">儲存</string>
+    <string name="profile_error_name">請輸入 1 到 64 個字元的名字。</string>
+    <string name="profile_error_username">請使用 3 到 32 個字母、數字或 _。</string>
+    <string name="profile_error_username_taken">這個使用者名稱已經有人用了。請換一個試試。</string>
+    <string name="profile_error_network">無法儲存。請檢查網路連線後再試一次。</string>
+    <string name="profile_error_unknown">無法儲存。請再試一次。</string>
+
+    <string name="appearance_title">外觀</string>
+    <string name="appearance_system">使用手機設定</string>
+    <string name="appearance_light">淺色</string>
+    <string name="appearance_dark">深色</string>
+
+    <string name="language_title">語言</string>
+    <string name="language_phone">使用手機語言</string>
+
+    <string name="recovery_key_title">你的復原金鑰</string>
+    <string name="recovery_key_together">你的復原金鑰和帳號 ID 可以在新手機上找回你的帳號。</string>
+    <string name="recovery_key_once">沒有人能再顯示你的金鑰給你看，連 gim 也不行。</string>
+    <string name="recovery_key_keep_safe">請把復原包存放在安全的地方。</string>
+
+    <string name="notifications_title">通知</string>
+    <string name="notifications_body">為每種通知選擇音效和提醒。將會開啟手機的設定。</string>
+    <string name="notifications_all">所有通知</string>
+
+    <string name="help_title">說明和關於</string>
+    <string name="help_how_gim_works">gim 怎麼運作</string>
+    <string name="help_section_about">關於</string>
+    <string name="help_app_version">App 版本</string>
+    <string name="help_sdk_version">SDK 版本</string>
+    <string name="help_licences">開放原始碼授權</string>
+
+    <string name="licences_title">開放原始碼授權</string>
+    <string name="licence_gim_core">gim 用戶端 SDK</string>
+</resources>

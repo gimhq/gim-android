@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Traditional Chinese (zh-TW, Taiwan) -->
+<resources>
+    <string name="onboarding_intro_skip">略過</string>
+    <string name="onboarding_intro_next">下一步</string>
+    <string name="onboarding_intro_start">開始使用</string>
+    <string name="onboarding_intro_page">第 %1$d 頁，共 %2$d 頁</string>
+
+    <string name="onboarding_welcome_title">歡迎使用 gim</string>
+    <string name="onboarding_welcome_explanation">和你在乎的人聊天。建立新帳號，或使用你已經有的帳號。</string>
+    <string name="onboarding_server_url_label">伺服器地址</string>
+    <string name="onboarding_server_url_supporting">你的帳號使用的伺服器。</string>
+    <string name="onboarding_create_account">建立新帳號</string>
+    <string name="onboarding_link_device">連結到你已經在用的裝置</string>
+    <string name="onboarding_restore">用復原包還原</string>
+    <string name="onboarding_use_another_server">使用其他伺服器</string>
+    <string name="onboarding_back">返回</string>
+    <string name="onboarding_cancel">取消</string>
+
+    <string name="onboarding_display_name_title">大家要怎麼稱呼你？</string>
+    <string name="onboarding_display_name_explanation">大家會在聊天中看到這個名字。你之後可以修改。</string>
+    <string name="onboarding_display_name_label">你的名字</string>
+    <string name="onboarding_submit">建立帳號</string>
+    <string name="onboarding_submitting">正在建立你的帳號</string>
+
+    <string name="onboarding_kit_title">你的復原包</string>
+    <string name="onboarding_kit_explanation">這是你帳號的備用鑰匙。如果所有裝置都不見了，你的帳號 ID 和復原金鑰可以找回帳號。請保密。它們只會在這時顯示，所以請存放在安全的地方。</string>
+    <string name="onboarding_kit_account_id_label">帳號 ID</string>
+    <string name="onboarding_kit_account_id_description">帳號 ID %1$s</string>
+    <string name="onboarding_kit_recovery_key_label">復原金鑰</string>
+    <string name="onboarding_recovery_code_description">復原金鑰 %1$s</string>
+    <string name="onboarding_kit_copy">複製</string>
+    <string name="onboarding_kit_copied">已複製</string>
+    <string name="onboarding_kit_save_password">儲存到密碼管理工具</string>
+    <string name="onboarding_kit_save_password_failed">無法儲存到密碼管理工具。請改用複製或存成檔案。</string>
+    <string name="onboarding_kit_share">存成檔案</string>
+    <string name="onboarding_kit_saved">我已經存好了</string>
+    <string name="onboarding_kit_file_title">gim 復原包</string>
+    <string name="onboarding_kit_file_note">請保密。任何拿到它的人都能進入你的帳號。所有裝置都不見了嗎？打開 gim，點一下「用復原包還原」，然後貼上這段文字。</string>
+
+    <string name="onboarding_kit_check_title">檢查你的復原金鑰</string>
+    <string name="onboarding_kit_check_explanation">輸入復原金鑰的最後 4 個字元。這是為了確認你已經存好了。</string>
+    <string name="onboarding_kit_check_label">最後 4 個字元</string>
+    <string name="onboarding_kit_check_confirm">確認</string>
+
+    <string name="onboarding_handle_title">選擇使用者名稱</string>
+    <string name="onboarding_handle_explanation">朋友可以用它找到你。這不是必填的，你之後也可以再設定。</string>
+    <string name="onboarding_handle_label">使用者名稱</string>
+    <string name="onboarding_handle_supporting">3–32 個字元：a–z、0–9 和 _</string>
+    <string name="onboarding_claim_handle">儲存使用者名稱</string>
+    <string name="onboarding_claiming_handle">正在儲存使用者名稱</string>
+    <string name="onboarding_skip">先略過</string>
+
+    <string name="onboarding_link_qr_title">用你的另一台裝置掃描</string>
+    <string name="onboarding_link_qr_explanation">在你使用 gim 的裝置上，打開「聊天」裡的選單。選擇「連結新裝置」，然後掃描這個代碼。</string>
+    <string name="onboarding_link_qr_description">連結代碼</string>
+    <string name="onboarding_link_waiting">正在等待你的另一台裝置…</string>
+    <string name="onboarding_link_copy">改為複製代碼</string>
+    <string name="onboarding_link_retry">顯示新的代碼</string>
+    <string name="onboarding_link_sas_title">比對代碼</string>
+    <string name="onboarding_link_sas_explanation">你的另一台裝置也會顯示一個代碼。只有在兩個代碼相同時，才點一下「代碼相符」。</string>
+    <string name="onboarding_link_confirm">代碼相符</string>
+    <string name="onboarding_link_confirming">正在連結裝置</string>
+    <string name="onboarding_link_reject">代碼不相符</string>
+
+    <string name="onboarding_restore_title">還原你的帳號</string>
+    <string name="onboarding_restore_explanation">使用你建立帳號時存下的復原包。舊的聊天不會回來。朋友需要重新把你加進群組。</string>
+    <string name="onboarding_restore_kit_label">貼上你的復原包</string>
+    <string name="onboarding_restore_kit_supporting">請全部貼上。我們會從中找出你的帳號 ID 和復原金鑰。</string>
+    <string name="onboarding_restore_manual_title">或自己輸入</string>
+    <string name="onboarding_user_id_label">帳號 ID</string>
+    <string name="onboarding_user_id_supporting">以「u」開頭，可以在你的復原包裡找到。</string>
+    <string name="onboarding_restore_code_label">復原金鑰</string>
+    <string name="onboarding_restore_code_supporting">39 個字元。可以包含破折號和空格。</string>
+    <string name="onboarding_restore_revoke_others">移除所有其他裝置</string>
+    <string name="onboarding_restore_revoke_others_supporting">這些裝置會被登出。如果有裝置遺失或被偷，請這樣做。</string>
+    <string name="onboarding_restore_submit">還原帳號</string>
+    <string name="onboarding_restoring">正在還原你的帳號</string>
+
+    <string name="onboarding_error_server_url">請輸入完整的地址，例如 https://example.com</string>
+    <string name="onboarding_error_handle">請使用 3–32 個字元：a–z、0–9 和 _</string>
+    <string name="onboarding_error_handle_taken">這個使用者名稱已經有人使用了。請換一個試試。</string>
+    <string name="onboarding_error_display_name">你的名字長度可以是 1–64 個字元。</string>
+    <string name="onboarding_error_user_id">這不是帳號 ID。帳號 ID 以「u」開頭，共有 56 個字元。</string>
+    <string name="onboarding_error_unknown_user">這個伺服器上沒有使用這個帳號 ID 的帳號。請檢查 ID 和伺服器。</string>
+    <string name="onboarding_error_recovery_code">這不是復原金鑰。請檢查每個字元。</string>
+    <string name="onboarding_error_wrong_recovery_code">這組復原金鑰不屬於這個帳號。請檢查金鑰和帳號 ID。</string>
+    <string name="onboarding_error_kit_check">不相符。請看一下你的復原金鑰，然後再試一次。</string>
+    <string name="onboarding_error_kit_not_recognized">我們在這裡找不到帳號 ID 或復原金鑰。請貼上完整的復原包，或在下方自己輸入。</string>
+    <string name="onboarding_error_kit_incomplete">復原包缺少一部分。請填寫下方空白的欄位。</string>
+    <string name="onboarding_error_cannot_reach_server">連不上伺服器。請檢查地址和網路連線。</string>
+    <string name="onboarding_error_hub_not_verified">我們無法檢查這個伺服器。請確認地址是否正確。</string>
+    <plurals name="onboarding_error_try_again_later">
+        <item quantity="other">伺服器忙碌中。請在 %d 秒後再試一次。</item>
+    </plurals>
+    <string name="onboarding_error_link_timed_out">沒有裝置及時回應。請顯示新的代碼再試一次。</string>
+    <string name="onboarding_error_link_failed">連結失敗。請顯示新的代碼再試一次。</string>
+    <string name="onboarding_error_generic">發生錯誤。請再試一次。</string>
+</resources>

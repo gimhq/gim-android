@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Traditional Chinese (zh-TW, Taiwan) -->
+<resources>
+    <string name="explainer_title">gim 怎麼運作</string>
+    <string name="explainer_intro">gim 和其他聊天 App 有點不一樣。以下是你需要知道的事。</string>
+
+    <string name="explainer_no_phone_number_title">不需要手機號碼</string>
+    <string name="explainer_no_phone_number_body">你不需要手機號碼或電子郵件。只要取個名字就好。gim 會給你一個帳號 ID。</string>
+
+    <string name="explainer_on_your_devices_title">你的帳號存在你的裝置上</string>
+    <string name="explainer_on_your_devices_body">你的帳號存在你的裝置上，而不是伺服器上。想在別的地方使用嗎？連結另一台裝置就可以了。</string>
+
+    <string name="explainer_locked_messages_title">你的訊息都有上鎖</string>
+    <string name="explainer_locked_messages_body">訊息都經過端對端加密。只有聊天裡的人可以讀取，連伺服器也看不到。</string>
+
+    <string name="explainer_account_id_title">你的帳號 ID 就是你的地址</string>
+    <string name="explainer_account_id_body">分享你的帳號 ID，朋友就能聯絡你。你也可以設定使用者名稱，讓別人更容易找到你。</string>
+
+    <string name="explainer_recovery_key_title">你的復原金鑰是一把備用鑰匙</string>
+    <string name="explainer_recovery_key_body">所有裝置都不見了嗎？用復原金鑰和帳號 ID 就能找回你的帳號。舊的聊天不會回來。請把金鑰保密並收好，絕對不要給任何人看。</string>
+</resources>

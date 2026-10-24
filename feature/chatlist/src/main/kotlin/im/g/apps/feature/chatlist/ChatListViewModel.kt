@@ -139,10 +139,12 @@ internal fun millisUntilNextMinute(clock: Clock): Long {
     return Duration.between(now, next).toMillis().coerceAtLeast(1)
 }
 
+/** [locale] is read once; key the ViewModel on it so a language change gets new formatters. */
 fun chatListViewModelFactory(
     client: GimClient,
     thumbnailPath: ThumbnailPathProvider,
     clock: Clock = Clock.systemDefaultZone(),
+    locale: Locale = Locale.getDefault(),
 ): ViewModelProvider.Factory = viewModelFactory {
-    initializer { ChatListViewModel(client, clock, thumbnailPath) }
+    initializer { ChatListViewModel(client, clock, thumbnailPath, locale = locale) }
 }
