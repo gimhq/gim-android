@@ -13,6 +13,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -21,6 +22,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import androidx.core.app.NotificationManagerCompat
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -118,6 +120,27 @@ class GimNavHostTest {
 
         rule.waitUntilAtLeastOneExists(hasText("See you then!"), TIMEOUT)
         rule.onAllNodesWithText("Message")[0].assertExists()
+    }
+
+    @Test
+    fun long_press_archives_a_chat_into_the_archived_section_and_back() {
+        launch(testContainer(scope = scope))
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+
+        rule.onNode(hasText(DemoData.lukas.displayName) and hasClickAction()).performTouchInput { longClick() }
+        rule.onNodeWithText("Archive").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("Archived (1)"), TIMEOUT)
+        rule.onNodeWithText(DemoData.lukas.displayName).assertDoesNotExist()
+
+        rule.onNodeWithTag("chatlist_archived").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("Archived chats"), TIMEOUT)
+        rule.onNode(hasText(DemoData.lukas.displayName) and hasClickAction()).performTouchInput { longClick() }
+        rule.onNodeWithText("Unarchive").performClick()
+        rule.waitUntilAtLeastOneExists(hasText("No archived chats"), TIMEOUT)
+
+        rule.onNodeWithContentDescription("Back").performClick()
+        rule.waitUntilAtLeastOneExists(hasText(DemoData.lukas.displayName), TIMEOUT)
+        rule.onNodeWithTag("chatlist_archived").assertDoesNotExist()
     }
 
     /** Opens the chat info of the demo direct chat and scrolls to its chat actions. */

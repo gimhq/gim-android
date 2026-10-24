@@ -9,10 +9,12 @@ import im.g.apps.core.bridge.ChatListListener
 import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.ConnectionState
 import im.g.apps.core.bridge.GimClient
+import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.DemoData.DIRECT_CHAT_ID
 import im.g.apps.core.bridge.fake.DemoData.GROUP_CHAT_ID
 import im.g.apps.core.bridge.fake.FakeGimClient
+import im.g.apps.core.designsystem.component.TickState
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -74,6 +76,8 @@ class ChatListViewModelTest {
         Dispatchers.resetMain()
     }
 
+    private val avatarDir by lazy { tmp.newFolder("avatars") }
+
     private fun TestScope.demo() = FakeGimClient.withDemoData(
         scope = backgroundScope,
         clock = { now.toEpochMilli() + testScheduler.currentTime },
@@ -94,11 +98,10 @@ class ChatListViewModelTest {
         ticker: Flow<Unit> = flowOf(Unit),
     ): ChatListViewModel {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
-        val thumbDir = tmp.newFolder()
         val vm = ChatListViewModel(
             client = client,
             clock = clock,
-            thumbnailPath = { chatId, messageId -> File(thumbDir, "$chatId-$messageId.png").path },
+            avatarDir = avatarDir,
             defaultDispatcher = dispatcher,
             locale = Locale.UK,
             ticker = ticker,
@@ -241,6 +244,7 @@ class ChatListViewModelTest {
     @Test
     fun rows_are_sorted_even_if_the_client_delivers_them_unsorted() = runTest {
         val fake = demo()
+        fake.setChatPinned(DIRECT_CHAT_ID, true)
         val reversing = object : GimClient by fake {
             override suspend fun chatList(listener: ChatListListener) = fake.chatList { diffs ->
                 listener.onUpdate(diffs.map { if (it is ChatListDiff.Reset) ChatListDiff.Reset(it.values.reversed()) else it })
@@ -248,11 +252,11 @@ class ChatListViewModelTest {
         }
         val vm = viewModel(reversing)
         advanceUntilIdle()
-        assertEquals(listOf(GROUP_CHAT_ID, DIRECT_CHAT_ID), vm.uiState.value.rows.map { it.id })
+        assertEquals(listOf(DIRECT_CHAT_ID, GROUP_CHAT_ID), vm.uiState.value.rows.map { it.id })
     }
 
     @Test
-    fun group_avatar_thumbnail_is_fetched_into_the_provided_path() = runTest {
+    fun group_avatar_is_fetched_into_the_avatar_dir() = runTest {
         val client = demo()
         val vm = viewModel(client)
         val avatar = tmp.newFile("crew.png").apply { writeBytes(byteArrayOf(1, 2, 3)) }
@@ -262,7 +266,222 @@ class ChatListViewModelTest {
 
         val path = vm.row(GROUP_CHAT_ID).avatarPath
         assertTrue(path != null && File(path).isFile)
+        assertEquals(avatarDir.canonicalPath, File(path!!).canonicalFile.parent)
         assertNull(vm.row(DIRECT_CHAT_ID).avatarPath)
+    }
+
+    @Test
+    fun direct_chat_shows_the_peer_photo_only_while_the_peer_has_one() = runTest {
+        val client = demo()
+        val vm = viewModel(client)
+        advanceUntilIdle()
+        assertNull(vm.row(DIRECT_CHAT_ID).avatarPath)
+
+        client.addDirectoryUser(DemoData.lukas.copy(hasAvatar = true))
+        client.simulateIncoming(DIRECT_CHAT_ID, "New photo", from = DemoData.lukas.userId)
+        advanceUntilIdle()
+        val path = vm.row(DIRECT_CHAT_ID).avatarPath
+        assertEquals(File(avatarDir, DemoData.lukas.userId).path, path)
+        assertTrue(File(path!!).isFile)
+
+        client.addDirectoryUser(DemoData.lukas.copy(hasAvatar = false))
+        client.simulateIncoming(DIRECT_CHAT_ID, "Removed it", from = DemoData.lukas.userId)
+        advanceUntilIdle()
+        assertNull(vm.row(DIRECT_CHAT_ID).avatarPath)
+    }
+
+    @Test
+    fun own_photo_is_loaded_when_the_own_profile_has_one() = runTest {
+        val client = demo()
+        val vm = viewModel(client)
+        vm.refreshOwnPhoto()
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.ownPhotoPath)
+
+        client.setAvatar(tmp.newFile("me.png").apply { writeBytes(byteArrayOf(4, 5, 6)) }.path, "image/png")
+        vm.refreshOwnPhoto()
+        advanceUntilIdle()
+        val path = vm.uiState.value.ownPhotoPath
+        assertEquals(File(avatarDir, DemoData.session.userId).path, path)
+        assertTrue(File(path!!).isFile)
+
+        client.removeAvatar()
+        vm.refreshOwnPhoto()
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.ownPhotoPath)
+    }
+
+    @Test
+    fun archived_chats_leave_the_main_list_and_stay_archived_on_new_messages() = runTest {
+        val client = demo()
+        val vm = viewModel(client)
+        advanceUntilIdle()
+        assertEquals(0, vm.uiState.value.archivedCount)
+
+        client.setChatArchived(DIRECT_CHAT_ID, true)
+        advanceUntilIdle()
+        assertEquals(listOf(GROUP_CHAT_ID), vm.uiState.value.rows.map { it.id })
+        assertEquals(listOf(DIRECT_CHAT_ID), vm.uiState.value.archivedRows.map { it.id })
+        assertEquals(1, vm.uiState.value.archivedCount)
+        assertTrue(vm.uiState.value.archivedRows.single().archived)
+        assertFalse(vm.uiState.value.isEmpty)
+
+        client.simulateIncoming(DIRECT_CHAT_ID, "Still there?", from = DemoData.lukas.userId)
+        advanceUntilIdle()
+        assertEquals(listOf(GROUP_CHAT_ID), vm.uiState.value.rows.map { it.id })
+        assertEquals("Still there?", vm.uiState.value.archivedRows.single().preview)
+
+        client.setChatArchived(GROUP_CHAT_ID, true)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.rows.isEmpty())
+        assertEquals(2, vm.uiState.value.archivedCount)
+        assertFalse("archived chats are still chats", vm.uiState.value.isEmpty)
+    }
+
+    @Test
+    fun muted_follows_muted_until_with_forever_and_expiry() = runTest {
+        val mutableClock = MutableClock(now, zone)
+        val ticker = MutableSharedFlow<Unit>(replay = 1).apply { tryEmit(Unit) }
+        val client = demo()
+        val vm = viewModel(client, clock = mutableClock, ticker = ticker)
+        advanceUntilIdle()
+        assertFalse(vm.row(GROUP_CHAT_ID).muted)
+
+        client.setChatMuted(GROUP_CHAT_ID, now.toEpochMilli() + 3_600_000)
+        client.setChatMuted(DIRECT_CHAT_ID, client.mutedForever())
+        advanceUntilIdle()
+        assertTrue(vm.row(GROUP_CHAT_ID).muted)
+        assertTrue(vm.row(DIRECT_CHAT_ID).muted)
+
+        mutableClock.instant = now.plusSeconds(3_600)
+        ticker.emit(Unit)
+        advanceUntilIdle()
+        assertFalse("expired", vm.row(GROUP_CHAT_ID).muted)
+        assertTrue("forever", vm.row(DIRECT_CHAT_ID).muted)
+
+        client.setChatMuted(DIRECT_CHAT_ID, 0)
+        advanceUntilIdle()
+        assertFalse(vm.row(DIRECT_CHAT_ID).muted)
+    }
+
+    @Test
+    fun pinned_chats_come_first_and_are_marked() = runTest {
+        val client = demo()
+        val vm = viewModel(client)
+        advanceUntilIdle()
+        assertFalse(vm.row(DIRECT_CHAT_ID).pinned)
+
+        client.setChatPinned(DIRECT_CHAT_ID, true)
+        advanceUntilIdle()
+        assertEquals(listOf(DIRECT_CHAT_ID, GROUP_CHAT_ID), vm.uiState.value.rows.map { it.id })
+        assertTrue(vm.row(DIRECT_CHAT_ID).pinned)
+        assertFalse(vm.row(GROUP_CHAT_ID).pinned)
+
+        // A newer message in an unpinned chat does not pass a pinned one.
+        client.simulateIncoming(GROUP_CHAT_ID, "Ferry at 7", from = DemoData.nikos.userId)
+        advanceUntilIdle()
+        assertEquals(listOf(DIRECT_CHAT_ID, GROUP_CHAT_ID), vm.uiState.value.rows.map { it.id })
+    }
+
+    @Test
+    fun send_state_of_own_last_message_maps_to_ticks_and_others_have_none() = runTest {
+        val client = demo()
+        val vm = viewModel(client)
+        advanceUntilIdle()
+        assertNull("last message is Nikos'", vm.row(GROUP_CHAT_ID).tick)
+
+        client.sendText(DIRECT_CHAT_ID, "On my way", null)
+        advanceUntilIdle()
+        assertEquals(TickState.PENDING, vm.row(DIRECT_CHAT_ID).tick)
+        for (expected in listOf(TickState.SENT, TickState.DELIVERED, TickState.READ)) {
+            client.advanceOutbox()
+            advanceUntilIdle()
+            assertEquals(expected, vm.row(DIRECT_CHAT_ID).tick)
+        }
+
+        client.failNextSend()
+        client.sendText(GROUP_CHAT_ID, "Lost", null)
+        client.advanceOutbox()
+        advanceUntilIdle()
+        assertEquals(TickState.FAILED, vm.row(GROUP_CHAT_ID).tick)
+
+        client.simulateIncoming(DIRECT_CHAT_ID, "Great", from = DemoData.lukas.userId)
+        advanceUntilIdle()
+        assertNull(vm.row(DIRECT_CHAT_ID).tick)
+    }
+
+    @Test
+    fun row_actions_offer_the_undo_of_each_set_state() {
+        val row = ChatRowUi("c", "C", null, null, "", ChatTimeLabel.JustNow, 0)
+        assertEquals(listOf(ChatListAction.MUTE, ChatListAction.PIN, ChatListAction.ARCHIVE), row.actions)
+        assertEquals(
+            listOf(ChatListAction.UNMUTE, ChatListAction.UNPIN, ChatListAction.UNARCHIVE),
+            row.copy(muted = true, pinned = true, archived = true).actions,
+        )
+    }
+
+    @Test
+    fun actions_change_the_chat_through_the_client() = runTest {
+        val fake = demo()
+        val muted = mutableListOf<Pair<String, Long>>()
+        val client = object : GimClient by fake {
+            override suspend fun setChatMuted(chatId: String, mutedUntilMs: Long) {
+                muted += chatId to mutedUntilMs
+                fake.setChatMuted(chatId, mutedUntilMs)
+            }
+        }
+        val vm = viewModel(client)
+        advanceUntilIdle()
+
+        vm.onAction(GROUP_CHAT_ID, ChatListAction.PIN)
+        advanceUntilIdle()
+        assertTrue(vm.row(GROUP_CHAT_ID).pinned)
+        vm.onAction(GROUP_CHAT_ID, ChatListAction.UNPIN)
+        advanceUntilIdle()
+        assertFalse(vm.row(GROUP_CHAT_ID).pinned)
+
+        vm.mute(GROUP_CHAT_ID, MuteOption.EIGHT_HOURS)
+        vm.mute(DIRECT_CHAT_ID, MuteOption.ALWAYS)
+        advanceUntilIdle()
+        assertEquals(
+            listOf(GROUP_CHAT_ID to now.toEpochMilli() + 8 * 3_600_000, DIRECT_CHAT_ID to fake.mutedForever()),
+            muted,
+        )
+        assertTrue(vm.row(GROUP_CHAT_ID).muted)
+        vm.onAction(GROUP_CHAT_ID, ChatListAction.UNMUTE)
+        advanceUntilIdle()
+        assertEquals(GROUP_CHAT_ID to 0L, muted.last())
+        assertFalse(vm.row(GROUP_CHAT_ID).muted)
+
+        vm.onAction(GROUP_CHAT_ID, ChatListAction.ARCHIVE)
+        advanceUntilIdle()
+        assertEquals(listOf(GROUP_CHAT_ID), vm.uiState.value.archivedRows.map { it.id })
+        vm.onAction(GROUP_CHAT_ID, ChatListAction.UNARCHIVE)
+        advanceUntilIdle()
+        assertEquals(0, vm.uiState.value.archivedCount)
+        assertNull(vm.uiState.value.actionError)
+    }
+
+    @Test
+    fun failed_action_is_reported_until_shown() = runTest {
+        val client = demo()
+        val vm = viewModel(client)
+        advanceUntilIdle()
+
+        client.failNext("setChatArchived", GimException.Storage("disk full"))
+        vm.onAction(GROUP_CHAT_ID, ChatListAction.ARCHIVE)
+        advanceUntilIdle()
+        assertEquals(ChatListAction.ARCHIVE, vm.uiState.value.actionError)
+        assertEquals(0, vm.uiState.value.archivedCount)
+
+        vm.errorShown()
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.actionError)
+
+        client.failNext("setChatMuted", GimException.Storage("disk full"))
+        vm.mute(GROUP_CHAT_ID, MuteOption.ONE_HOUR)
+        advanceUntilIdle()
+        assertEquals(ChatListAction.MUTE, vm.uiState.value.actionError)
     }
 
     @Test
@@ -346,12 +565,11 @@ class ChatListViewModelTest {
         try {
             runBlocking {
                 val client = FakeGimClient.withDemoData(clientScope, { now.toEpochMilli() }, zone, outboxDelays = null)
-                val thumbDir = tmp.newFolder()
                 val vm = store.own(
                     ChatListViewModel(
                         client = client,
                         clock = clock,
-                        thumbnailPath = { chatId, messageId -> File(thumbDir, "$chatId-$messageId.png").path },
+                        avatarDir = tmp.newFolder(),
                         defaultDispatcher = default,
                         locale = Locale.UK,
                         ticker = flowOf(Unit),
