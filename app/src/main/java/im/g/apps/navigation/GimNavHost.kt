@@ -86,7 +86,12 @@ fun GimNavHost(
         composable(Routes.ONBOARDING) {
             val vm: OnboardingViewModel = viewModel(
                 // A dropped link must also wipe the keystore and data dir, like sign-out.
-                factory = onboardingViewModelFactory(container.manager, container.defaultHubUrl, container::signOut),
+                factory = onboardingViewModelFactory(
+                    container.manager,
+                    container.recoveryKitCodec,
+                    container.defaultHubUrl,
+                    container::signOut,
+                ),
             )
             val state by vm.state.collectAsState()
             // Display name -> Welcome, link QR code -> cancel; on the recovery code and the link SAS back is swallowed.

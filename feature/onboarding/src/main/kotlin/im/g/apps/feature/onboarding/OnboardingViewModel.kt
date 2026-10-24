@@ -8,6 +8,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimClientManager
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.RecoveryKitCodec
+import im.g.apps.core.bridge.RecoveryKitLabels
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
@@ -43,6 +45,8 @@ import kotlin.time.Duration.Companion.minutes
  */
 class OnboardingViewModel(
     private val manager: GimClientManager,
+    /** Formats, parses and checks the recovery kit; gim-core's functions in the app, the fake in JVM tests. */
+    private val recoveryKitCodec: RecoveryKitCodec,
     defaultServerUrl: String = "",
     private val discardClient: suspend () -> Unit = { manager.signOutQuietly() },
 ) : ViewModel() {
@@ -86,7 +90,7 @@ class OnboardingViewModel(
     /** Fills user ID and code from a pasted kit like the separate fields; flags text holding one or neither. */
     fun onRestoreKitTextChange(value: String) = edit {
         if (it.step != OnboardingStep.RESTORE) return@edit it
-        val kit = parseRecoveryKit(value)
+        val kit = recoveryKitCodec.parse(value)
         var next = it.copy(restoreKitText = value, error = null)
         kit.userId?.let { userId -> next = next.withRestoreUserId(userId) }
         kit.recoveryCode?.let { code -> next = next.withRestoreCode(code) }
@@ -222,6 +226,10 @@ class OnboardingViewModel(
     }
 
     /** Recovery kit -> kit check. */
+    /** The kit text the recovery kit step copies and shares. */
+    fun formatRecoveryKit(userId: String, recoveryCode: String, labels: RecoveryKitLabels): String =
+        recoveryKitCodec.format(userId, recoveryCode, labels)
+
     fun continueFromKit() = _state.update {
         if (it.step != OnboardingStep.RECOVERY_KIT) it else it.copy(step = OnboardingStep.RECOVERY_CHECK)
     }
@@ -231,7 +239,7 @@ class OnboardingViewModel(
         val code = it.recoveryCode
         when {
             it.step != OnboardingStep.RECOVERY_CHECK || !it.canConfirmKitCheck || code == null -> it
-            matchesRecoveryKeyEnding(code, it.kitCheck) ->
+            recoveryKitCodec.matchesKeyEnding(code, it.kitCheck) ->
                 it.copy(step = OnboardingStep.HANDLE, recoveryCode = null, kitCheck = "", kitCheckError = null)
             else -> it.copy(kitCheckError = FieldError.KitCheckMismatch)
         }
@@ -454,15 +462,16 @@ private suspend fun GimClientManager.signOutQuietly() {
 /** [discardClient] replaces the default sign-out when a dropped link must also wipe platform state. */
 fun onboardingViewModelFactory(
     manager: GimClientManager,
+    recoveryKitCodec: RecoveryKitCodec,
     defaultServerUrl: String = "",
     discardClient: (suspend () -> Unit)? = null,
 ): ViewModelProvider.Factory =
     viewModelFactory {
         initializer {
             if (discardClient == null) {
-                OnboardingViewModel(manager, defaultServerUrl)
+                OnboardingViewModel(manager, recoveryKitCodec, defaultServerUrl)
             } else {
-                OnboardingViewModel(manager, defaultServerUrl, discardClient)
+                OnboardingViewModel(manager, recoveryKitCodec, defaultServerUrl, discardClient)
             }
         }
     }
