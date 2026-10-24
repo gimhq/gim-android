@@ -22,11 +22,16 @@ import im.g.apps.core.designsystem.theme.GimTheme
 
 internal const val UNREAD_BADGE_CAP = 99
 
+/**
+ * Unread count, capped at "99+". Keeps a 20 dp minimum and grows with the font. Speaks the count unless
+ * [describe] is false, for parents (like a chat row) that already say it in their own description.
+ */
 @Composable
 fun UnreadBadge(
     count: Int,
     modifier: Modifier = Modifier,
     muted: Boolean = false,
+    describe: Boolean = true,
 ) {
     val colors = GimTheme.colors
     val overflow = count > UNREAD_BADGE_CAP
@@ -39,7 +44,9 @@ fun UnreadBadge(
     val description = if (muted) stringResource(R.string.gim_unread_count_muted, countDescription) else countDescription
     Box(
         modifier = modifier
-            .semantics(mergeDescendants = true) { contentDescription = description }
+            .then(
+                if (describe) Modifier.semantics(mergeDescendants = true) { contentDescription = description } else Modifier,
+            )
             .defaultMinSize(minWidth = 20.dp, minHeight = 20.dp)
             .background(if (muted) colors.unreadBadgeMuted else colors.unreadBadge, CircleShape)
             .padding(horizontal = 6.dp, vertical = 2.dp),

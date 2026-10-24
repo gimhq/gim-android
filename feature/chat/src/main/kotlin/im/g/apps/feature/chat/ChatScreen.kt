@@ -7,6 +7,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,18 +29,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -57,7 +55,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -71,11 +73,15 @@ import im.g.apps.core.bridge.SendFailure
 import im.g.apps.core.designsystem.R as DesignR
 import im.g.apps.core.designsystem.component.Avatar
 import im.g.apps.core.designsystem.component.DateSeparator
+import im.g.apps.core.designsystem.component.GimSnackbarHost
+import im.g.apps.core.designsystem.component.GimTopBar
+import im.g.apps.core.designsystem.component.GimTopBarIconButton
 import im.g.apps.core.designsystem.component.MessageBubble
 import im.g.apps.core.designsystem.component.ReactionChips
 import im.g.apps.core.designsystem.component.ReplyPreviewBar
 import im.g.apps.core.designsystem.component.StatusTicks
 import im.g.apps.core.designsystem.component.TypingIndicator
+import im.g.apps.core.designsystem.component.tickLabel
 import im.g.apps.feature.chat.timeline.ChatHeaderUi
 import im.g.apps.feature.chat.timeline.ChatUiState
 import im.g.apps.feature.chat.timeline.DateSeparatorRow
@@ -90,15 +96,17 @@ import java.io.File
 
 internal const val TIMELINE_TEST_TAG = "chat-timeline"
 internal const val MEDIA_RETRY_TEST_TAG = "chat-media-retry"
+internal const val SENDER_AVATAR_TEST_TAG = "chat-sender-avatar"
+private val SenderAvatarSize = 32.dp
 private const val LOADING_OLDER_KEY = "loading-older"
 private const val LOAD_OLDER_THRESHOLD = 10
 private const val MESSAGE_CONTENT_TYPE_PREFIX = "message-"
 
 /**
  * Chat timeline. [state] rows are newest first and rendered with `reverseLayout`, so the newest message
- * sits at the bottom. [composer] is the slot for the message composer.
+ * sits at the bottom. [composer] is the slot for the message composer. [onReply] and [onToggleReaction]
+ * are the message sheet's reply and react callbacks, used by TalkBack actions and the reaction chips.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     state: ChatUiState,
@@ -113,34 +121,15 @@ fun ChatScreen(
     onMessageLongPress: (messageId: String) -> Unit,
     modifier: Modifier = Modifier,
     onRetryMedia: (messageId: String) -> Unit = {},
+    onReply: ((messageId: String) -> Unit)? = null,
+    onToggleReaction: ((messageId: String, emoji: String) -> Unit)? = null,
     listState: LazyListState = rememberLazyListState(),
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
     Scaffold(
         modifier = modifier,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = { ChatHeader(state.header) },
-                navigationIcon = {
-                    val description = stringResource(R.string.chat_back)
-                    IconButton(onClick = onBack, modifier = Modifier.semantics { contentDescription = description }) {
-                        BackGlyph(LocalContentColor.current)
-                    }
-                },
-                actions = {
-                    if (state.header.isGroup) {
-                        val description = stringResource(R.string.chat_group_info)
-                        IconButton(
-                            onClick = onOpenGroupInfo,
-                            modifier = Modifier.semantics { contentDescription = description },
-                        ) {
-                            InfoGlyph(LocalContentColor.current)
-                        }
-                    }
-                },
-            )
-        },
+        snackbarHost = { GimSnackbarHost(snackbarHostState) },
+        topBar = { ChatTopBar(state.header, onBack = onBack, onOpenGroupInfo = onOpenGroupInfo) },
     ) { padding ->
         Column(
             modifier = Modifier
@@ -161,6 +150,8 @@ fun ChatScreen(
                     onOpenFile = onOpenFile,
                     onMessageLongPress = onMessageLongPress,
                     onRetryMedia = onRetryMedia,
+                    onReply = onReply,
+                    onToggleReaction = onToggleReaction,
                 )
                 JumpToBottom(
                     listState = listState,
@@ -192,23 +183,32 @@ fun ComposerPlaceholder(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ChatHeader(header: ChatHeaderUi) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Avatar(name = header.title, imagePath = header.avatarPath, size = 40.dp)
-        Spacer(Modifier.width(12.dp))
-        Column {
-            Text(header.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            header.subtitle?.let {
-                Text(
-                    text = it.asString(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+private fun ChatTopBar(header: ChatHeaderUi, onBack: () -> Unit, onOpenGroupInfo: () -> Unit) {
+    GimTopBar(
+        title = header.title,
+        subtitle = header.subtitle?.asString(),
+        navigationIcon = {
+            GimTopBarIconButton(onClick = onBack, contentDescription = stringResource(R.string.chat_back)) {
+                BackGlyph(LocalContentColor.current)
             }
-        }
-    }
+        },
+        // Decorative: the title already names the chat, so TalkBack skips the initials.
+        leading = {
+            Avatar(
+                name = header.title,
+                imagePath = header.avatarPath,
+                size = 40.dp,
+                modifier = Modifier.clearAndSetSemantics {},
+            )
+        },
+        actions = {
+            if (header.isGroup) {
+                GimTopBarIconButton(onClick = onOpenGroupInfo, contentDescription = stringResource(R.string.chat_group_info)) {
+                    InfoGlyph(LocalContentColor.current)
+                }
+            }
+        },
+    )
 }
 
 @Composable
@@ -222,6 +222,8 @@ private fun Timeline(
     onOpenFile: (String) -> Unit,
     onMessageLongPress: (String) -> Unit,
     onRetryMedia: (String) -> Unit,
+    onReply: ((String) -> Unit)?,
+    onToggleReaction: ((String, String) -> Unit)?,
 ) {
     val currentState by rememberUpdatedState(state)
     val currentOnLoadOlder by rememberUpdatedState(onLoadOlder)
@@ -278,6 +280,8 @@ private fun Timeline(
                     onOpenFile = onOpenFile,
                     onLongPress = onMessageLongPress,
                     onRetryMedia = onRetryMedia,
+                    onReply = onReply,
+                    onToggleReaction = onToggleReaction,
                 )
                 is DateSeparatorRow -> DateSeparator(label = row.label.asString())
                 is SystemRow -> Text(
@@ -321,57 +325,103 @@ private fun MessageRowItem(
     onOpenFile: (String) -> Unit,
     onLongPress: (String) -> Unit,
     onRetryMedia: (String) -> Unit,
+    onReply: ((String) -> Unit)?,
+    onToggleReaction: ((String, String) -> Unit)?,
 ) {
     val clickLabel = row.file?.let { stringResource(R.string.chat_file_open, it.name) }
+    val optionsLabel = stringResource(R.string.chat_message_options)
+    val description = messageDescription(row)
+    val replyLabel = stringResource(R.string.composer_action_reply)
+    val reactLabel = stringResource(R.string.chat_message_react)
+    val retryLabel = stringResource(R.string.composer_action_retry)
     // The retry sits under the bubble, outside its click target.
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (row.outgoing) Alignment.End else Alignment.Start,
     ) {
-        MessageBubble(
-            outgoing = row.outgoing,
-            groupedWithPrevious = row.groupedWithPrevious,
-            groupedWithNext = row.groupedWithNext,
-            footer = { MessageFooter(row) },
-            modifier = Modifier.combinedClickable(
-                onClickLabel = clickLabel,
-                onLongClick = { onLongPress(row.key) },
-                onClick = {
-                    when {
-                        row.failed -> if (row.retryable) onRetry(row.key)
-                        row.file != null -> onOpenFile(row.key)
-                    }
-                },
-            ),
-        ) {
-            row.senderName?.let {
-                Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            // Group runs: the avatar beside the last bubble, a spacer beside the others so bubbles line up.
+            row.sender?.let { sender ->
+                if (row.showAvatar) {
+                    Avatar(
+                        name = sender.name,
+                        imagePath = null,
+                        size = SenderAvatarSize,
+                        colorKey = sender.userId,
+                        // The bubble announces the sender.
+                        modifier = Modifier
+                            .testTag(SENDER_AVATAR_TEST_TAG)
+                            .clearAndSetSemantics {},
+                    )
+                } else {
+                    Spacer(Modifier.width(SenderAvatarSize))
+                }
             }
-            row.replyPreview?.let {
-                ReplyPreviewBar(senderName = it.senderName, snippet = it.text, onClose = null)
-            }
-            row.image?.let { MessageImage(row.key, it, onImageNeeded) }
-            row.file?.let { FileAttachment(it) }
-            when {
-                row.deleted -> Text(stringResource(R.string.chat_message_deleted), fontStyle = FontStyle.Italic)
-                row.unsupported -> Text(stringResource(R.string.chat_message_unsupported), fontStyle = FontStyle.Italic)
-                row.body != null -> Text(row.body)
-            }
-            if (row.failed) {
-                Text(
-                    text = stringResource(
-                        when {
-                            row.retryable -> R.string.chat_message_failed
-                            row.sendFailure == SendFailure.NOT_ADMITTED_BY_PEER -> DesignR.string.gim_error_not_admitted_by_peer
-                            else -> R.string.chat_message_not_sent
+            MessageBubble(
+                outgoing = row.outgoing,
+                groupedWithPrevious = row.groupedWithPrevious,
+                groupedWithNext = row.groupedWithNext,
+                footer = { MessageFooter(row) },
+                modifier = Modifier
+                    .weight(1f)
+                    .combinedClickable(
+                        onClickLabel = clickLabel,
+                        onLongClickLabel = optionsLabel,
+                        onLongClick = { onLongPress(row.key) },
+                        onClick = {
+                            when {
+                                row.failed -> if (row.retryable) onRetry(row.key)
+                                row.file != null -> onOpenFile(row.key)
+                            }
                         },
-                    ),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-            if (row.reactions.isNotEmpty()) {
-                ReactionChips(reactions = row.reactions, onClick = {}, modifier = Modifier.padding(top = 4.dp))
+                    )
+                    .semantics {
+                        this[SemanticsProperties.ContentDescription] = description
+                        // The same callbacks as the message sheet, for TalkBack users.
+                        customActions = buildList {
+                            if (!row.deleted) {
+                                onReply?.let { add(CustomAccessibilityAction(replyLabel) { it(row.key); true }) }
+                                add(CustomAccessibilityAction(reactLabel) { onLongPress(row.key); true })
+                            }
+                            if (row.failed && row.retryable) {
+                                add(CustomAccessibilityAction(retryLabel) { onRetry(row.key); true })
+                            }
+                        }
+                    },
+            ) {
+                row.senderName?.let {
+                    Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                }
+                row.replyPreview?.let {
+                    ReplyPreviewBar(senderName = it.senderName, snippet = it.text, onClose = null)
+                }
+                row.image?.let { MessageImage(row.key, it, onImageNeeded) }
+                row.file?.let { FileAttachment(it) }
+                when {
+                    row.deleted -> Text(stringResource(R.string.chat_message_deleted), fontStyle = FontStyle.Italic)
+                    row.unsupported -> Text(stringResource(R.string.chat_message_unsupported), fontStyle = FontStyle.Italic)
+                    row.body != null -> Text(row.body)
+                }
+                if (row.failed) {
+                    Text(
+                        text = stringResource(
+                            when {
+                                row.retryable -> R.string.chat_message_failed
+                                row.sendFailure == SendFailure.NOT_ADMITTED_BY_PEER -> DesignR.string.gim_error_not_admitted_by_peer
+                                else -> R.string.chat_message_not_sent
+                            },
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                if (row.reactions.isNotEmpty()) {
+                    ReactionChips(
+                        reactions = row.reactions,
+                        onClick = { onToggleReaction?.invoke(row.key, it.emoji) },
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
         }
         if (row.mediaUnavailable) {
@@ -382,12 +432,48 @@ private fun MessageRowItem(
     }
 }
 
+/** What TalkBack reads for a message: sender (groups), content, time, "edited" and the delivery state. */
+@Composable
+private fun messageDescription(row: MessageRow): List<String> {
+    val photo = stringResource(R.string.chat_image)
+    val deleted = stringResource(R.string.chat_message_deleted)
+    val unsupported = stringResource(R.string.chat_message_unsupported)
+    val edited = stringResource(R.string.chat_message_edited)
+    val state = row.tick?.let { tickLabel(it) }
+    return buildList {
+        row.sender?.let { add(it.name) }
+        when {
+            row.deleted -> add(deleted)
+            row.unsupported -> add(unsupported)
+            else -> {
+                if (row.image != null) add(photo)
+                row.file?.let {
+                    add(it.name)
+                    add(it.sizeLabel)
+                }
+                row.body?.let(::add)
+            }
+        }
+        add(row.time)
+        if (row.edited) add(edited)
+        state?.let(::add)
+    }
+}
+
+/** Edited, time and ticks; wraps onto more lines at large font sizes instead of overlapping. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MessageFooter(row: MessageRow) {
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (row.edited) Text(stringResource(R.string.chat_message_edited), style = MaterialTheme.typography.labelSmall)
-        Text(row.time, style = MaterialTheme.typography.labelSmall)
-        row.tick?.let { StatusTicks(state = it, size = 14.dp) }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (row.edited) {
+            Text(
+                stringResource(R.string.chat_message_edited),
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.align(Alignment.CenterVertically),
+            )
+        }
+        Text(row.time, style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.CenterVertically))
+        row.tick?.let { StatusTicks(state = it, size = 14.dp, modifier = Modifier.align(Alignment.CenterVertically)) }
     }
 }
 
@@ -410,7 +496,7 @@ private fun MessageImage(messageId: String, image: ImageUi, onImageNeeded: (Stri
         image.path?.let {
             AsyncImage(
                 model = File(it),
-                contentDescription = stringResource(R.string.chat_image),
+                contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.matchParentSize(),
             )

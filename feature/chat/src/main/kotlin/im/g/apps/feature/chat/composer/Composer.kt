@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -47,6 +49,10 @@ import im.g.apps.feature.chat.timeline.asString
 internal const val COMPOSER_INPUT_TEST_TAG = "composer-input"
 internal const val COMPOSER_BANNER_TEST_TAG = "composer-membership-banner"
 private const val MAX_INPUT_LINES = 6
+private val BUTTON_SIZE = 48.dp
+
+/** (TextField min height 56 dp - [BUTTON_SIZE]) / 2. */
+private val BUTTON_BOTTOM_PADDING = 4.dp
 
 /**
  * Message input bar: reply or edit bar, attach menu, multiline field and send button. Stateless; see
@@ -78,9 +84,14 @@ fun Composer(
                 verticalAlignment = Alignment.Bottom,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
             ) {
-                if (state.mode !is ComposerMode.Editing) {
-                    AttachButton(enabled = state.canAttach, onAttachPhoto = onAttachPhoto, onAttachFile = onAttachFile)
-                }
+                // Attach and send keep their place and size in every mode; Row bottom alignment pins them while
+                // the input grows, and the bottom padding centers them on a single-line input.
+                AttachButton(
+                    enabled = state.canAttach,
+                    onAttachPhoto = onAttachPhoto,
+                    onAttachFile = onAttachFile,
+                    modifier = Modifier.padding(bottom = BUTTON_BOTTOM_PADDING),
+                )
                 TextField(
                     value = state.draft,
                     onValueChange = onDraftChange,
@@ -99,10 +110,17 @@ fun Composer(
                 val sendLabel = stringResource(
                     if (state.mode is ComposerMode.Editing) R.string.composer_save else R.string.composer_send,
                 )
-                IconButton(
+                FilledIconButton(
                     onClick = onSend,
                     enabled = state.canSend,
-                    modifier = Modifier.semantics { contentDescription = sendLabel },
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
+                    modifier = Modifier
+                        .padding(bottom = BUTTON_BOTTOM_PADDING)
+                        .size(BUTTON_SIZE)
+                        .semantics { contentDescription = sendLabel },
                 ) {
                     SendGlyph(LocalContentColor.current)
                 }
@@ -170,14 +188,21 @@ private fun EditingBar(originalText: String, onClose: () -> Unit) {
 }
 
 @Composable
-private fun AttachButton(enabled: Boolean, onAttachPhoto: () -> Unit, onAttachFile: () -> Unit) {
+private fun AttachButton(
+    enabled: Boolean,
+    onAttachPhoto: () -> Unit,
+    onAttachFile: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     var expanded by remember { mutableStateOf(false) }
     val description = stringResource(R.string.composer_attach)
-    Box {
+    Box(modifier) {
         IconButton(
             onClick = { expanded = true },
             enabled = enabled,
-            modifier = Modifier.semantics { contentDescription = description },
+            modifier = Modifier
+                .size(BUTTON_SIZE)
+                .semantics { contentDescription = description },
         ) {
             AttachGlyph(LocalContentColor.current)
         }
