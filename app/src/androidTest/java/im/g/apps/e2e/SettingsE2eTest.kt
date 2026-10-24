@@ -2,6 +2,8 @@ package im.g.apps.e2e
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.content.res.Resources
 import android.util.Log
 import androidx.annotation.StringRes
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -25,6 +27,8 @@ import androidx.compose.ui.test.printToString
 import androidx.core.content.ContextCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import im.g.apps.GimApplication
 import im.g.apps.MainActivity
 import im.g.apps.core.bridge.GimClient
@@ -87,6 +91,7 @@ class SettingsE2eTest {
         if (!dismissSystemDialogs(instrumentation, timeoutMs) { appHasFocus() }) {
             Log.w(LOG_TAG, "app window still has no focus; continuing")
         }
+        waitForApp("app shown")
 
         // Onboarding: skip the intro, create an account, pass the recovery kit check, skip the username.
         val name = "Settings $suffix"
@@ -147,11 +152,14 @@ class SettingsE2eTest {
         click("appearance row", TAG_APPEARANCE, next = hasTestTag(TAG_DARK))
         waitFor("appearance screen", hasTestTag(TAG_DARK))
         click("dark", TAG_DARK)
+        // Choosing a theme sets AppCompat's night mode, which recreates the activity when the mode changes.
+        waitForApp("app in dark mode", night = true)
         waitFor("dark selected", hasTestTag(TAG_DARK) and isSelected())
         compose.activityRule.scenario.recreate()
-        keepScreenOn(instrumentation, compose.activity)
+        waitForApp("app after recreation", night = true)
         waitFor("dark still selected after recreation", hasTestTag(TAG_DARK) and isSelected())
         click("use phone setting", TAG_SYSTEM)
+        waitForApp("app in the phone's mode", night = systemNight())
         waitFor("phone setting selected", hasTestTag(TAG_SYSTEM) and isSelected())
         goBack("settings after appearance", hasTestTag(TAG_HEADER))
 
@@ -231,13 +239,52 @@ class SettingsE2eTest {
 
     private fun string(@StringRes id: Int, vararg args: Any): String = compose.activity.getString(id, *args)
 
+    /**
+     * Waits for [condition]; while the activity is not resumed (being recreated, or behind the system permission
+     * dialog) Compose reports no hierarchies, which counts as not yet true.
+     */
     private fun waitFor(step: String, condition: () -> Boolean) {
         try {
-            compose.waitUntil(timeoutMs, condition)
+            compose.waitUntil(timeoutMs) {
+                try {
+                    condition()
+                } catch (e: IllegalStateException) {
+                    if (e.message?.startsWith(NO_COMPOSE_HIERARCHIES) != true) throw e
+                    false
+                }
+            }
         } catch (e: ComposeTimeoutException) {
             failStep(step, e)
         }
     }
+
+    /**
+     * Waits for a resumed MainActivity with a Compose hierarchy (in night mode exactly when [night], if given),
+     * then keeps that activity's screen on.
+     */
+    private fun waitForApp(step: String, night: Boolean? = null) {
+        waitFor(step) {
+            val activity = resumedActivity()
+            activity != null && (night == null || isNight(activity.resources.configuration) == night) &&
+                compose.onAllNodes(isRoot()).fetchSemanticsNodes().isNotEmpty()
+        }
+        keepScreenOn(instrumentation, checkNotNull(resumedActivity()))
+    }
+
+    private fun resumedActivity(): MainActivity? {
+        var activity: MainActivity? = null
+        instrumentation.runOnMainSync {
+            activity = ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED)
+                .filterIsInstance<MainActivity>().firstOrNull()
+        }
+        return activity
+    }
+
+    /** Whether the phone itself (not the app's AppCompat override) is in dark mode. */
+    private fun systemNight(): Boolean = isNight(Resources.getSystem().configuration)
+
+    private fun isNight(configuration: Configuration): Boolean =
+        configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
 
     private fun waitFor(step: String, matcher: SemanticsMatcher) =
         waitFor(step) { compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty() }
@@ -279,6 +326,7 @@ class SettingsE2eTest {
         const val DEFAULT_SERVER_URL = "http://10.0.2.2:8080"
         const val TIMEOUT_MS = 30_000L
         const val LOG_TAG = "SettingsE2eTest"
+        const val NO_COMPOSE_HIERARCHIES = "No compose hierarchies found"
         const val ENGLISH = "English"
         val ACCOUNT_ID = Regex("^u[a-z2-7]{54}[aiqy]$")
 
