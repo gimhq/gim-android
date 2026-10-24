@@ -2,7 +2,7 @@
 <resources>
     <string name="contacts_back">Go back</string>
     <string name="contacts_you">You</string>
-    <string name="contacts_handle">\@%1$s</string>
+    <string name="contacts_handle" translatable="false">\@%1$s</string>
 
     <string name="contacts_search_label">Username or account ID</string>
     <string name="contacts_search_placeholder">\@username</string>
@@ -42,7 +42,7 @@
     <string name="contacts_next">Next</string>
     <string name="contacts_create_group">Create group</string>
     <string name="contacts_group_name_label">Group name</string>
-    <string name="contacts_group_name_counter">%1$d/%2$d</string>
+    <string name="contacts_group_name_counter" translatable="false">%1$d/%2$d</string>
     <plurals name="contacts_member_count">
         <item quantity="one">%d member</item>
         <item quantity="other">%d members</item>

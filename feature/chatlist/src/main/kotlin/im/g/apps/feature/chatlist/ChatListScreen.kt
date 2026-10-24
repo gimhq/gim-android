@@ -316,7 +316,8 @@ private fun ChatRow(row: ChatRowUi, onClick: () -> Unit, onAction: (ChatListActi
     }
     val tick = row.tick?.let { tickLabel(it) }
     // The muted and pinned marks add their own labels after this one.
-    val description = listOfNotNull(row.title, unread, preview, tick, time).joinToString(", ")
+    val description = listOfNotNull(row.title, unread, preview, tick, time)
+        .joinToString(stringResource(R.string.chatlist_row_description_separator))
     Box {
         Row(
             modifier = Modifier

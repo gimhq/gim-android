@@ -17,7 +17,7 @@ private const val HTTP_BAD_GATEWAY = 502
  */
 internal fun GimException.toUiText(@StringRes fallback: Int, suspendedHub: String? = null): UiText = when (this) {
     is GimException.RetryLater ->
-        UiText.Res(R.string.chat_error_retry_later, persistentListOf(retryAfterSecs.coerceAtLeast(1).toString()))
+        UiText.Plural(R.plurals.chat_error_retry_later, retryAfterSecs.coerceAtLeast(1).toInt())
     is GimException.ChatNotActive -> UiText.Res(R.string.chat_error_not_active)
     is GimException.UserSuspended -> if (suspendedHub == null) {
         UiText.Res(DesignR.string.gim_error_user_suspended)

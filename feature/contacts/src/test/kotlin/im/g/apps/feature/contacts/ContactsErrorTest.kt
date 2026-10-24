@@ -1,13 +1,20 @@
 package im.g.apps.feature.contacts
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.fake.DemoData
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 
+@RunWith(AndroidJUnit4::class)
 class ContactsErrorTest {
     @Test
     fun retryLater_carriesTheWaitInSeconds() {
@@ -70,6 +77,27 @@ class ContactsErrorTest {
             GimException.ContactNotAdmitted(listOf("u-a", "u-b", "u-c", "u-d")).toInviteError(invitees = invitees),
         )
     }
+
+    @Test
+    fun contactNotAdmitted_joinsNamesForTheLocale() {
+        assertEquals(
+            "Couldn't add A, B, and C. Their server doesn't accept you. Try someone else.",
+            ContactsError.ContactNotAdmitted(listOf("A", "B", "C")).message(context()),
+        )
+        assertEquals(
+            "Couldn't add A and B. Their server doesn't accept you. Try someone else.",
+            ContactsError.ContactNotAdmitted(listOf("A", "B")).message(context()),
+        )
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN")
+    fun contactNotAdmitted_joinsNamesForTheLocale_zh() {
+        val message = ContactsError.ContactNotAdmitted(listOf("A", "B", "C")).message(context())
+        assertTrue(message, message.contains("A、B和C"))
+    }
+
+    private fun context(): Context = ApplicationProvider.getApplicationContext()
 
     @Test
     fun server_errors_stay_generic() {

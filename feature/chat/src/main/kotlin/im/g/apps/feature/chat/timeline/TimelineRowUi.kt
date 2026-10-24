@@ -31,7 +31,7 @@ data class MessageRow(
     val deleted: Boolean,
     val unsupported: Boolean,
     val tick: TickState?,
-    /** Local time, "HH:mm". */
+    /** Local time in the locale's short format, e.g. "1:54 PM" (en-US) or "13:54" (en-GB). */
     val time: String,
     /** Same sender as the chronologically previous message, within [GROUPING_WINDOW_MS]. */
     val groupedWithPrevious: Boolean,

@@ -47,6 +47,9 @@ internal fun Project.configureKotlinAndroid(commonExtension: CommonExtension<*, 
         lint {
             abortOnError = true
             error += "HardcodedText"
+            // Every translated locale must cover all strings and its plural quantities.
+            error += "MissingTranslation"
+            error += "MissingQuantity"
         }
     }
 

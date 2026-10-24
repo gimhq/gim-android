@@ -2,7 +2,7 @@
 <resources>
     <string name="settings_title">Settings</string>
     <string name="settings_back">Go back</string>
-    <string name="settings_username">\@%1$s</string>
+    <string name="settings_username" translatable="false">\@%1$s</string>
     <string name="settings_section_account">Account and devices</string>
     <string name="settings_linked_devices">Linked devices</string>
     <string name="settings_recovery_key">Your recovery key</string>
@@ -164,8 +164,8 @@
     <string name="help_licences">Open-source licences</string>
 
     <string name="licences_title">Open-source licences</string>
-    <string name="licence_apache_2">Apache 2.0</string>
-    <string name="licence_apache_2_lgpl_2_1">Apache 2.0 / LGPL 2.1</string>
+    <string name="licence_apache_2" translatable="false">Apache 2.0</string>
+    <string name="licence_apache_2_lgpl_2_1" translatable="false">Apache 2.0 / LGPL 2.1</string>
     <string name="licence_gim_core">gim client SDK</string>
     <string name="library_androidx" translatable="false">AndroidX and Jetpack Compose</string>
     <string name="library_kotlin" translatable="false">Kotlin and kotlinx</string>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simplified Chinese (zh-CN). -->
+<resources>
+    <string name="chatlist_title">聊天</string>
+    <string name="chatlist_banner_waiting_for_network">正在等待网络…</string>
+    <string name="chatlist_banner_connecting">正在连接…</string>
+    <string name="chatlist_banner_updating">正在更新…</string>
+    <string name="chatlist_preview_you">你：%1$s</string>
+    <string name="chatlist_preview_member">%1$s：%2$s</string>
+    <string name="chatlist_state_leaving">正在退出…</string>
+    <string name="chatlist_state_left">你已不在这个聊天中</string>
+    <string name="chatlist_empty_title">还没有聊天</string>
+    <string name="chatlist_empty_body">点按“开始聊天”，发出你的第一条消息。</string>
+    <string name="chatlist_start_chat">开始聊天</string>
+    <string name="chatlist_new_message">新消息</string>
+    <string name="chatlist_new_chat">新聊天</string>
+    <string name="chatlist_new_group">新群组</string>
+    <string name="chatlist_open_settings">设置</string>
+    <string name="chatlist_time_now">刚刚</string>
+    <plurals name="chatlist_time_minutes">
+        <item quantity="other">%d 分钟</item>
+    </plurals>
+    <string name="chatlist_time_yesterday">昨天</string>
+    <plurals name="chatlist_unread_messages">
+        <item quantity="other">%d 条未读消息</item>
+    </plurals>
+    <string name="chatlist_open_chat">打开聊天</string>
+    <string name="chatlist_row_description_separator">"，"</string>
+    <string name="chatlist_chat_actions">聊天操作</string>
+    <string name="chatlist_muted">已静音</string>
+    <string name="chatlist_pinned">已置顶</string>
+    <string name="chatlist_archived_entry">已归档 (%1$d)</string>
+    <string name="chatlist_archived_title">已归档的聊天</string>
+    <string name="chatlist_archived_empty">没有已归档的聊天</string>
+    <string name="chatlist_back">返回</string>
+    <string name="chatlist_action_mute">静音</string>
+    <string name="chatlist_action_unmute">取消静音</string>
+    <string name="chatlist_action_pin">置顶</string>
+    <string name="chatlist_action_unpin">取消置顶</string>
+    <string name="chatlist_action_archive">归档</string>
+    <string name="chatlist_action_unarchive">取消归档</string>
+    <string name="chatlist_mute_title">将这个聊天静音</string>
+    <string name="chatlist_mute_body">你不会再收到这个聊天的通知。</string>
+    <string name="chatlist_mute_one_hour">1 小时</string>
+    <string name="chatlist_mute_eight_hours">8 小时</string>
+    <string name="chatlist_mute_one_week">1 周</string>
+    <string name="chatlist_mute_always">一直静音</string>
+    <string name="chatlist_cancel">取消</string>
+    <string name="chatlist_error_mute">无法将这个聊天静音。请重试。</string>
+    <string name="chatlist_error_unmute">无法取消这个聊天的静音。请重试。</string>
+    <string name="chatlist_error_pin">无法置顶这个聊天。请重试。</string>
+    <string name="chatlist_error_unpin">无法取消置顶这个聊天。请重试。</string>
+    <string name="chatlist_error_archive">无法归档这个聊天。请重试。</string>
+    <string name="chatlist_error_unarchive">无法取消归档这个聊天。请重试。</string>
+</resources>

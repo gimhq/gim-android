@@ -26,6 +26,7 @@
         <item quantity="other">%d unread messages</item>
     </plurals>
     <string name="chatlist_open_chat">Open chat</string>
+    <string name="chatlist_row_description_separator">", "</string>
     <string name="chatlist_chat_actions">Chat actions</string>
     <string name="chatlist_muted">Muted</string>
     <string name="chatlist_pinned">Pinned</string>

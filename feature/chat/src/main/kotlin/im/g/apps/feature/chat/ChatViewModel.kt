@@ -365,13 +365,17 @@ class ChatViewModel(
         const val PAGE_SIZE = 30
         const val MARK_READ_DEBOUNCE_MS = 500L
 
-        /** [avatarDir] holds the downloaded photos (the app's `cacheDir/gim/avatars`). */
+        /**
+         * [avatarDir] holds the downloaded photos (the app's `cacheDir/gim/avatars`). [locale] is read once; key
+         * the ViewModel on it so a language change gets new formatters.
+         */
         fun factory(
             client: GimClient,
             chatId: String,
             mediaPaths: MediaPathProvider,
             avatarDir: File,
+            locale: Locale = Locale.getDefault(),
         ): ViewModelProvider.Factory =
-            viewModelFactory { initializer { ChatViewModel(client, chatId, mediaPaths, avatarDir) } }
+            viewModelFactory { initializer { ChatViewModel(client, chatId, mediaPaths, avatarDir, locale = locale) } }
     }
 }

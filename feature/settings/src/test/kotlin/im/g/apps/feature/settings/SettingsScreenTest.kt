@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -13,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import im.g.apps.core.designsystem.component.AvatarTestTags
 import im.g.apps.core.designsystem.theme.GimTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -41,6 +43,22 @@ class SettingsScreenTest {
         rule.onNodeWithText("Settings").assertExists()
         rule.onNodeWithText("Sofia Costa").assertExists()
         rule.onNodeWithText("@sofia").assertExists()
+    }
+
+    @Test
+    fun header_shows_the_photo_when_there_is_one() {
+        show(state.copy(photoPath = "/cache/gim/avatars/u-7f3a9c21"))
+
+        rule.onNode(hasTestTag(AvatarTestTags.PHOTO) and hasAnyAncestor(hasTestTag(SettingsTestTags.HEADER)), useUnmergedTree = true)
+            .assertExists()
+    }
+
+    @Test
+    fun header_without_a_photo_shows_only_initials() {
+        show()
+
+        rule.onNodeWithTag(AvatarTestTags.PHOTO, useUnmergedTree = true).assertDoesNotExist()
+        rule.onNodeWithText("SC", useUnmergedTree = true).assertExists()
     }
 
     @Test

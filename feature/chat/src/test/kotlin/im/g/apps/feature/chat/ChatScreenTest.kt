@@ -63,6 +63,7 @@ class ChatScreenTest {
     private val replied = mutableListOf<String>()
     private val toggled = mutableListOf<Pair<String, String>>()
     private var backs = 0
+    private var infos = 0
     private var unblocks = 0
 
     private fun message(id: String, body: String, tick: TickState? = null) = MessageRow(
@@ -102,7 +103,7 @@ class ChatScreenTest {
                     state = state,
                     composer = { inputVisible -> if (inputVisible) ComposerPlaceholder() },
                     onBack = { backs++ },
-                    onOpenGroupInfo = {},
+                    onOpenGroupInfo = { infos++ },
                     onLoadOlder = { loadOlderCalls += Unit },
                     onVisible = {},
                     onRetry = { retried += it },
@@ -308,6 +309,15 @@ class ChatScreenTest {
         rule.onNodeWithText("You blocked this person.").assertDoesNotExist()
         rule.onNodeWithTag(UNBLOCK_BUTTON_TEST_TAG).assertDoesNotExist()
         rule.onNodeWithText("Message").assertIsDisplayed()
+    }
+
+    @Test
+    fun directChat_topBarOpensContactInfo() {
+        show(listOf(message("m1", "Hello")), header = ChatHeaderUi(title = "Lukas Berger", isGroup = false))
+
+        rule.onNodeWithContentDescription("Group info").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Contact info").assertHeightIsAtLeast(48.dp).performClick()
+        assertEquals(1, infos)
     }
 
     @Test

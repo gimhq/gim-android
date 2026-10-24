@@ -84,8 +84,8 @@ class ChatViewModelTest {
     private fun TestScope.demoClient(pageSize: Int = FakeGimClient.DEFAULT_PAGE_SIZE) =
         FakeGimClient.withDemoData(backgroundScope, clock, zone, outboxDelays = null, pageSize = pageSize)
 
-    private fun TestScope.viewModel(client: GimClient, chatId: String): ChatViewModel =
-        ChatViewModel(client, chatId, mediaPaths(), avatarDir, clock, zone, dispatcher, Locale.UK).also { runCurrent() }
+    private fun TestScope.viewModel(client: GimClient, chatId: String, locale: Locale = Locale.UK): ChatViewModel =
+        ChatViewModel(client, chatId, mediaPaths(), avatarDir, clock, zone, dispatcher, locale).also { runCurrent() }
 
     private val avatarDir by lazy { tmp.newFolder("avatars") }
 
@@ -119,6 +119,17 @@ class ChatViewModelTest {
         assertTrue(vm.rows.take(todayIndex).all { it is MessageRow })
         assertTrue(separators.all { it.value.key.startsWith("date-") })
         assertTrue(vm.rows.last() is DateSeparatorRow)
+    }
+
+    @Test
+    fun messageTimes_followTheLocaleTheViewModelWasCreatedWith() = test {
+        val client = demoClient()
+        val us = viewModel(client, DemoData.DIRECT_CHAT_ID, Locale.US).messages.map { it.time }
+        val zh = viewModel(client, DemoData.DIRECT_CHAT_ID, Locale.SIMPLIFIED_CHINESE).messages.map { it.time }
+
+        assertTrue(us.isNotEmpty())
+        assertTrue(us.all { it.endsWith("AM") || it.endsWith("PM") })
+        assertTrue(zh.all { it.startsWith("上午") || it.startsWith("下午") })
     }
 
     @Test
@@ -582,7 +593,7 @@ class ChatViewModelTest {
 
         vm.onOpenFile(file.key)
         assertEquals(
-            ChatEvent.Error(UiText.Res(R.string.chat_error_retry_later, persistentListOf("7"))),
+            ChatEvent.Error(UiText.Plural(R.plurals.chat_error_retry_later, 7)),
             vm.events.first(),
         )
         vm.retryMedia(file.key)

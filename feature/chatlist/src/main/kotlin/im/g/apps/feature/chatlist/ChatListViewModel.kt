@@ -221,11 +221,15 @@ internal fun millisUntilNextMinute(clock: Clock): Long {
     return Duration.between(now, next).toMillis().coerceAtLeast(1)
 }
 
-/** [avatarDir] holds the downloaded photos (the app's `cacheDir/gim/avatars`). */
+/**
+ * [avatarDir] holds the downloaded photos (the app's `cacheDir/gim/avatars`). [locale] is read once; key the
+ * ViewModel on it so a language change gets new formatters.
+ */
 fun chatListViewModelFactory(
     client: GimClient,
     avatarDir: File,
     clock: Clock = Clock.systemDefaultZone(),
+    locale: Locale = Locale.getDefault(),
 ): ViewModelProvider.Factory = viewModelFactory {
-    initializer { ChatListViewModel(client, clock, avatarDir) }
+    initializer { ChatListViewModel(client, clock, avatarDir, locale = locale) }
 }

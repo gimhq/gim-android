@@ -10,6 +10,8 @@
     <string name="hubs_state_removed">Removed</string>
     <string name="hubs_signed_in">Signed in</string>
     <string name="hubs_not_signed_in">Not signed in</string>
+    <!-- Server row status: state (Connected, Not checked, Removed), then whether this device is signed in. -->
+    <string name="hubs_state_line">%1$s · %2$s</string>
     <string name="hubs_badge_home">Your account</string>
     <string name="hubs_badge_primary">Main server</string>
     <string name="hubs_make_primary">Make main server</string>
@@ -17,12 +19,15 @@
     <string name="hubs_empty_title">No servers to show</string>
     <string name="hubs_add_title">Add a server</string>
     <string name="hubs_add_url_label">Server address</string>
-    <string name="hubs_add_url_hint">https://server.example.eu</string>
+    <string name="hubs_add_url_hint" translatable="false">https://server.example.eu</string>
     <string name="hubs_add_confirm">Add</string>
     <string name="hubs_cancel">Cancel</string>
     <string name="hubs_ok">OK</string>
     <string name="hubs_owned_title">Remove this server?</string>
-    <string name="hubs_owned_body">This server runs %1$d of your group chats. They stay there. You can still reach them through your other servers.</string>
+    <plurals name="hubs_owned_body">
+        <item quantity="one">This server runs %1$d of your group chats. It stays there. You can still reach it through your other servers.</item>
+        <item quantity="other">This server runs %1$d of your group chats. They stay there. You can still reach them through your other servers.</item>
+    </plurals>
     <string name="hubs_owned_confirm">Remove server</string>
     <string name="hubs_error_invalid_url">That isn\'t a gim server address. Check it and try again.</string>
     <string name="hubs_error_unreachable">Can\'t connect to the server. Check the address and your internet, then try again.</string>

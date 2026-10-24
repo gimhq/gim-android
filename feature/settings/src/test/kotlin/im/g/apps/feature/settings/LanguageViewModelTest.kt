@@ -9,14 +9,41 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class LanguageViewModelTest {
+    private val tags = listOf("en", "zh-CN", "zh-TW", "es")
+
     @Test
     fun options_name_each_tag_in_its_own_language() {
-        val vm = LanguageViewModel(InMemoryAppLocales(), listOf("en", "es"))
+        val vm = LanguageViewModel(InMemoryAppLocales(), tags)
 
         assertEquals(
-            listOf(LanguageOption("en", "English"), LanguageOption("es", "Español")),
+            listOf(
+                LanguageOption("en", "English"),
+                LanguageOption("zh-CN", "简体中文"),
+                LanguageOption("zh-TW", "繁體中文"),
+                LanguageOption("es", "Español"),
+            ),
             vm.state.value.options,
         )
+    }
+
+    @Test
+    fun chinese_is_named_by_script() {
+        assertEquals("简体中文", languageDisplayName("zh-Hans"))
+        assertEquals("简体中文", languageDisplayName("zh-Hans-CN"))
+        assertEquals("繁體中文", languageDisplayName("zh-Hant"))
+        assertEquals("繁體中文", languageDisplayName("zh-Hant-HK"))
+    }
+
+    @Test
+    fun select_stores_each_tag() {
+        val locales = InMemoryAppLocales()
+        val vm = LanguageViewModel(locales, tags)
+
+        for (tag in tags) {
+            vm.select(tag)
+            assertEquals(tag, locales.current())
+            assertEquals(tag, vm.state.value.selected)
+        }
     }
 
     @Test
@@ -49,6 +76,6 @@ class LanguageViewModelTest {
 
     @Test
     fun supported_tags_come_from_the_resource_list() {
-        assertEquals(listOf("en"), supportedLanguageTags(ApplicationProvider.getApplicationContext()))
+        assertEquals(tags, supportedLanguageTags(ApplicationProvider.getApplicationContext()))
     }
 }
