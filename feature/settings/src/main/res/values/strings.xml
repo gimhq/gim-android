@@ -79,6 +79,66 @@
     <string name="blocked_load_error">Couldn\'t load blocked people. Try again.</string>
     <string name="blocked_retry">Try again</string>
 
+    <string name="new_key_title">New recovery key</string>
+    <string name="new_key_warning_title">Make a new recovery key?</string>
+    <string name="new_key_warning_old_key">Your old key stops working once the new one is made.</string>
+    <string name="new_key_warning_once">You see the new key only once.</string>
+    <string name="new_key_warning_save">Save it right away, somewhere safe.</string>
+    <string name="new_key_create">Create new key</string>
+    <string name="new_key_creating">Making your new key…</string>
+    <string name="new_key_error_network">Couldn\'t make a new key. Check your internet and try again. Your old key still works.</string>
+    <string name="new_key_error_busy">The server is busy right now. Wait a minute and try again. Your old key still works.</string>
+    <string name="new_key_error_generic">Couldn\'t make a new key. Try again. Your old key still works.</string>
+    <string name="new_key_kit_title">Your new recovery key</string>
+    <string name="new_key_kit_explanation">Save it now. You see it only this time. Your Account ID and this key get your account back if you lose all your devices.</string>
+    <string name="new_key_kit_account_id_label">Account ID</string>
+    <string name="new_key_kit_account_id_description">Account ID %1$s</string>
+    <string name="new_key_kit_recovery_key_label">Recovery key</string>
+    <string name="new_key_kit_recovery_key_description">Recovery key %1$s</string>
+    <string name="new_key_kit_copy">Copy</string>
+    <string name="new_key_kit_copied">Copied</string>
+    <string name="new_key_kit_share">Save as a file</string>
+    <string name="new_key_kit_saved">I saved it</string>
+    <string name="new_key_kit_file_title">gim recovery kit</string>
+    <string name="new_key_kit_file_note">Keep this secret. Anyone who has it can get into your account. Lost all your devices? Open gim, tap “Restore with your recovery kit” and paste this text.</string>
+    <string name="new_key_unsynced_named">Some servers couldn\'t be updated yet: %1$s. Your old key still works there until your next new key reaches them.</string>
+    <plurals name="new_key_unsynced_count">
+        <item quantity="one">%d server couldn\'t be updated yet. Your old key still works there until your next new key reaches it.</item>
+        <item quantity="other">%d servers couldn\'t be updated yet. Your old key still works there until your next new key reaches them.</item>
+    </plurals>
+    <string name="new_key_check_title">Check your new key</string>
+    <string name="new_key_check_explanation">Type the last 4 characters of your new recovery key. This makes sure you saved it.</string>
+    <string name="new_key_check_label">Last 4 characters</string>
+    <string name="new_key_check_confirm">Confirm</string>
+    <string name="new_key_check_mismatch">That doesn\'t match. Look at your new key and try again.</string>
+    <string name="new_key_done_title">Your new recovery key is ready</string>
+    <string name="new_key_done_body">Keep your recovery kit somewhere safe.</string>
+    <string name="new_key_done">Done</string>
+    <string name="new_key_leave_title">Leave without checking?</string>
+    <string name="new_key_leave_body">Your old key doesn\'t work anymore. If you didn\'t save the new one, you can make another new key later.</string>
+    <string name="new_key_leave">Leave</string>
+    <string name="new_key_stay">Stay</string>
+
+    <string name="delete_account_title">Delete account</string>
+    <string name="delete_account_heading">Delete your account?</string>
+    <string name="delete_account_undo">This can\'t be undone.</string>
+    <string name="delete_account_recovery_key">Your recovery key stops working.</string>
+    <string name="delete_account_chats">You leave all your chats.</string>
+    <string name="delete_account_messages">Your messages on this phone are deleted.</string>
+    <string name="delete_account_understood">I understand. Delete my account for good.</string>
+    <string name="delete_account_confirm">Delete account</string>
+    <string name="delete_account_deleting">Deleting your account… This can take a moment.</string>
+    <string name="delete_account_error_network">Couldn\'t delete your account. Check your internet and try again. Nothing was deleted.</string>
+    <string name="delete_account_error_busy">The server is busy right now. Wait a minute and try again. Nothing was deleted.</string>
+    <string name="delete_account_error_generic">Couldn\'t delete your account. Try again. Nothing was deleted.</string>
+    <string name="delete_account_done_title">Your account is deleted</string>
+    <string name="delete_account_unreachable_named">These servers couldn\'t be reached: %1$s. Your account there is removed on its own after a while.</string>
+    <plurals name="delete_account_unreachable_count">
+        <item quantity="one">%d server couldn\'t be reached. Your account there is removed on its own after a while.</item>
+        <item quantity="other">%d servers couldn\'t be reached. Your account there is removed on its own after a while.</item>
+    </plurals>
+    <string name="delete_account_ok">OK</string>
+
     <string name="appearance_title">Appearance</string>
     <string name="appearance_system">Use phone setting</string>
     <string name="appearance_light">Light</string>
