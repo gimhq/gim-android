@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spanish (es, neutral) -->
+<resources>
+    <string name="open_file_no_app">Ninguna app de tu móvil puede abrir este archivo.</string>
+    <string name="push_channel_messages">Mensajes</string>
+    <string name="push_channel_reactions">Reacciones</string>
+    <string name="push_channel_invites">Invitaciones a chats</string>
+    <string name="push_channel_other">Otras notificaciones</string>
+</resources>
