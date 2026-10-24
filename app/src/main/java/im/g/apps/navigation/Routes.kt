@@ -7,6 +7,7 @@ import im.g.apps.core.bridge.GimException
 object Routes {
     const val ONBOARDING = "onboarding"
     const val CHAT_LIST = "chatlist"
+    const val CHAT_LIST_ARCHIVED = "chatlist/archived"
     const val NEW_CHAT = "newChat"
     const val NEW_GROUP = "newGroup"
     const val LINK_DEVICE = "linkDevice"

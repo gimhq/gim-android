@@ -80,6 +80,7 @@ import im.g.apps.shareRecoveryKit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 /** App navigation graph; ViewModels are scoped to their back stack entries. */
 @Composable
@@ -120,11 +121,9 @@ fun GimNavHost(
         }
         composable(Routes.CHAT_LIST) {
             val current = client ?: return@composable
+            val context = LocalContext.current
             val vm: ChatListViewModel = viewModel(
-                factory = chatListViewModelFactory(
-                    client = current,
-                    thumbnailPath = { chatId, messageId -> container.mediaPaths.destFor(chatId, messageId, thumbnail = true) },
-                ),
+                factory = chatListViewModelFactory(client = current, avatarDir = File(context.cacheDir, AVATAR_DIR)),
             )
             // Re-read whenever the chat list re-enters composition, e.g. after a name change in Settings.
             // (Not produceState: its lint check misses the assignment after withContext.)
@@ -139,6 +138,24 @@ fun GimNavHost(
                 onNewChat = { navController.navigate(Routes.NEW_CHAT) },
                 onNewGroup = { navController.navigate(Routes.NEW_GROUP) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                onOpenArchived = { navController.navigate(Routes.CHAT_LIST_ARCHIVED) },
+            )
+        }
+        composable(Routes.CHAT_LIST_ARCHIVED) {
+            val current = client ?: return@composable
+            val context = LocalContext.current
+            val vm: ChatListViewModel = viewModel(
+                factory = chatListViewModelFactory(client = current, avatarDir = File(context.cacheDir, AVATAR_DIR)),
+            )
+            ChatListRoute(
+                viewModel = vm,
+                ownName = "",
+                onOpenChat = { navController.navigate(Routes.chat(it)) },
+                onNewChat = {},
+                onNewGroup = {},
+                onOpenSettings = {},
+                archived = true,
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Routes.SETTINGS) {
@@ -363,3 +380,6 @@ fun GimNavHost(
 /** Opens [chatId] in place of the new chat / new group screens, keeping the chat list below it. */
 private fun NavHostController.openChatReplacing(chatId: String) =
     navigate(Routes.chat(chatId)) { popUpTo(Routes.CHAT_LIST) }
+
+/** Downloaded profile and chat photos under the cache dir; Settings' profile photo uses the same folder. */
+private const val AVATAR_DIR = "gim/avatars"

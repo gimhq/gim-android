@@ -51,9 +51,11 @@ channels as `NotificationChannelItem`s, built in `GimNavHost` from the app's `Pu
 
 ## Extension points (step 6)
 
-This entry is built but hidden behind `ChatActions.AVAILABLE` in `:feature:contacts`; the strings exist, so showing it
-is turning the switch on and wiring its callbacks in `GimNavHost`. Nothing behind a switch fakes behaviour.
+Chat actions are live; there is no switch any more.
 
-- Chat actions: `ChatActionsGroup` in `feature/contacts/.../GroupInfoScreen.kt` (mute, pin, archive, block, report;
-  `GroupInfoActions.onChatAction`), behind `ChatActions.AVAILABLE`. Direct chats and the chat list long-press reuse the
-  `ChatAction` list.
+- Chat info: `ChatActionsGroup` in `feature/contacts/.../GroupInfoScreen.kt` shows mute, pin, archive, block and report
+  for groups and direct chats (`ChatAction` and `chatActions()` in `ChatActions.kt`; report only when
+  `AppContainer.reportAvailable`).
+- Chat list: a long press on a row offers mute, pin and archive (`ChatListAction` and `MuteOption` in
+  `feature/chatlist/.../ChatListActions.kt`, the same set and mute durations as chat info; feature modules do not
+  depend on each other). Archived chats are listed on `Routes.CHAT_LIST_ARCHIVED`.
