@@ -50,6 +50,8 @@ data class MessageActionsUi(
     val canRetry: Boolean,
     /** Delete a failed own message: removes it from the outbox and the timeline (`cancelSend`). */
     val canDiscard: Boolean = false,
+    /** The sender to report this message for; null when Report is not offered. */
+    val reportUserId: String? = null,
 )
 
 @Immutable

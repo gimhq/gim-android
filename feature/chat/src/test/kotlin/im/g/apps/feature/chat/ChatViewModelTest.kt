@@ -85,7 +85,9 @@ class ChatViewModelTest {
         FakeGimClient.withDemoData(backgroundScope, clock, zone, outboxDelays = null, pageSize = pageSize)
 
     private fun TestScope.viewModel(client: GimClient, chatId: String): ChatViewModel =
-        ChatViewModel(client, chatId, mediaPaths(), clock, zone, dispatcher, Locale.UK).also { runCurrent() }
+        ChatViewModel(client, chatId, mediaPaths(), avatarDir, clock, zone, dispatcher, Locale.UK).also { runCurrent() }
+
+    private val avatarDir by lazy { tmp.newFolder("avatars") }
 
     private fun mediaPaths(): MediaPathProvider {
         val mediaDir = tmp.newFolder()
@@ -163,6 +165,84 @@ class ChatViewModelTest {
         assertEquals("Lukas Berger", vm.uiState.value.header.title)
         assertFalse(vm.uiState.value.header.isGroup)
         assertNull(vm.uiState.value.header.subtitle)
+    }
+
+    @Test
+    fun header_directChat_showsThePeerPhotoOnlyWhileThePeerHasOne() = test {
+        val client = demoClient()
+        val vm = viewModel(client, DemoData.DIRECT_CHAT_ID)
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.header.avatarPath)
+
+        client.addDirectoryUser(DemoData.lukas.copy(hasAvatar = true))
+        client.simulateIncoming(DemoData.DIRECT_CHAT_ID, "New photo", from = DemoData.lukas.userId)
+        advanceUntilIdle()
+        val path = vm.uiState.value.header.avatarPath
+        assertEquals(File(avatarDir, DemoData.lukas.userId).path, path)
+        assertTrue(File(path!!).isFile)
+
+        client.addDirectoryUser(DemoData.lukas.copy(hasAvatar = false))
+        client.simulateIncoming(DemoData.DIRECT_CHAT_ID, "Removed it", from = DemoData.lukas.userId)
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.header.avatarPath)
+    }
+
+    @Test
+    fun header_group_showsItsAvatarFromTheAvatarDir() = test {
+        val client = demoClient()
+        val vm = viewModel(client, DemoData.GROUP_CHAT_ID)
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.header.avatarPath)
+
+        val avatar = tmp.newFile("crew.png").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        client.setGroupInfo(DemoData.GROUP_CHAT_ID, null, avatar.path)
+        advanceUntilIdle()
+
+        val path = vm.uiState.value.header.avatarPath
+        assertTrue(path != null && File(path).isFile)
+        assertEquals(avatarDir.canonicalPath, File(path!!).canonicalFile.parent)
+        assertTrue(File(path).name.startsWith("chat-${DemoData.GROUP_CHAT_ID}-"))
+    }
+
+    @Test
+    fun blockedDirectChat_isBlocked_untilUnblocked() = test {
+        val client = demoClient()
+        client.blockUser(DemoData.lukas.userId)
+        val vm = viewModel(client, DemoData.DIRECT_CHAT_ID)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.blocked)
+
+        vm.unblock()
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.blocked)
+        assertFalse(DemoData.lukas.userId in client.privacy().blockedUserIds)
+    }
+
+    @Test
+    fun unblockFailure_keepsTheChatBlocked_andShowsAnError() = test {
+        val client = demoClient()
+        client.blockUser(DemoData.lukas.userId)
+        val vm = viewModel(client, DemoData.DIRECT_CHAT_ID)
+        advanceUntilIdle()
+        client.failNext("unblockUser", GimException.Network("offline"))
+
+        vm.unblock()
+
+        assertEquals(ChatEvent.Error(UiText.Res(R.string.chat_error_unblock)), vm.events.first())
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.blocked)
+        assertTrue(DemoData.lukas.userId in client.privacy().blockedUserIds)
+    }
+
+    @Test
+    fun groupChat_isNeverBlocked() = test {
+        val client = demoClient()
+        client.blockUser(DemoData.lukas.userId)
+        val vm = viewModel(client, DemoData.GROUP_CHAT_ID)
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.blocked)
     }
 
     @Test
@@ -523,7 +603,7 @@ class ChatViewModelTest {
             runBlocking {
                 val client = FakeGimClient.withDemoData(clientScope, clock, zone, outboxDelays = null)
                 val vm = store.own(
-                    ChatViewModel(client, DemoData.DIRECT_CHAT_ID, mediaPaths(), clock, zone, default, Locale.UK),
+                    ChatViewModel(client, DemoData.DIRECT_CHAT_ID, mediaPaths(), avatarDir, clock, zone, default, Locale.UK),
                 )
                 vmJob = vm.viewModelScope.coroutineContext.job
                 val writers = Collections.synchronizedList(mutableListOf<String>())

@@ -49,6 +49,7 @@ import java.io.IOException
  * transition) for the signed-in user's [ChatMembership]: the composer is disabled while leaving and once left.
  *
  * @param clock epoch-millisecond time source for the typing throttle.
+ * @param reportAvailable others' messages offer Report (a backup server is configured).
  */
 class ComposerViewModel(
     private val client: GimClient,
@@ -57,6 +58,7 @@ class ComposerViewModel(
     private val clock: () -> Long = System::currentTimeMillis,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val reportAvailable: Boolean = false,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ComposerUiState())
@@ -164,7 +166,7 @@ class ComposerViewModel(
     /** Opens the actions sheet for [messageId]; ignored for messages not in the timeline. */
     fun onMessageLongPress(messageId: String) {
         val message = messages[messageId] ?: return
-        _uiState.update { it.copy(actions = actionsFor(message, it.isMember)) }
+        _uiState.update { it.copy(actions = actionsFor(message, it.isMember, reportAvailable)) }
     }
 
     fun dismissActions() = _uiState.update { it.copy(actions = null) }
@@ -294,8 +296,14 @@ class ComposerViewModel(
         const val TYPING_IDLE_MS = 5_000L
         const val MAX_ATTACHMENT_BYTES = 100L * 1024 * 1024
 
-        fun factory(client: GimClient, chatId: String, uriCopier: UriCopier): ViewModelProvider.Factory =
-            viewModelFactory { initializer { ComposerViewModel(client, chatId, uriCopier) } }
+        fun factory(
+            client: GimClient,
+            chatId: String,
+            uriCopier: UriCopier,
+            reportAvailable: Boolean = false,
+        ): ViewModelProvider.Factory = viewModelFactory {
+            initializer { ComposerViewModel(client, chatId, uriCopier, reportAvailable = reportAvailable) }
+        }
 
         /**
          * The membership for gim-core's [state] (null while the chat is not known locally: joined). A `Left` chat is
@@ -322,9 +330,14 @@ class ComposerViewModel(
         /**
          * Actions for [message]; a chat that is not [active] (leaving or left) is read-only: copy, and dropping an own
          * failed message, only. A failed message whose cause offers no retry
-         * ([im.g.apps.core.bridge.SendFailure.retryable]) can only be dropped.
+         * ([im.g.apps.core.bridge.SendFailure.retryable]) can only be dropped. With [reportAvailable], someone else's
+         * message that is not deleted offers Report, read-only chats included.
          */
-        internal fun actionsFor(message: MessageItem, active: Boolean = true): MessageActionsUi {
+        internal fun actionsFor(
+            message: MessageItem,
+            active: Boolean = true,
+            reportAvailable: Boolean = false,
+        ): MessageActionsUi {
             val content = message.content
             val deleted = content == MessageContent.Deleted
             val sendState = message.sendState
@@ -345,6 +358,7 @@ class ComposerViewModel(
                 ownReactions = message.reactions.filter { it.own }.map { it.emoji }.toImmutableSet(),
                 canRetry = failed && active && retryable,
                 canDiscard = failed,
+                reportUserId = message.sender.userId.takeIf { reportAvailable && !message.isOwn && !deleted },
             )
         }
 

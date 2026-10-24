@@ -41,9 +41,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,6 +76,7 @@ import im.g.apps.core.bridge.SendFailure
 import im.g.apps.core.designsystem.R as DesignR
 import im.g.apps.core.designsystem.component.Avatar
 import im.g.apps.core.designsystem.component.DateSeparator
+import im.g.apps.core.designsystem.component.GimConfirmDialog
 import im.g.apps.core.designsystem.component.GimSnackbarHost
 import im.g.apps.core.designsystem.component.GimTopBar
 import im.g.apps.core.designsystem.component.GimTopBarIconButton
@@ -97,6 +101,7 @@ import java.io.File
 internal const val TIMELINE_TEST_TAG = "chat-timeline"
 internal const val MEDIA_RETRY_TEST_TAG = "chat-media-retry"
 internal const val SENDER_AVATAR_TEST_TAG = "chat-sender-avatar"
+internal const val UNBLOCK_BUTTON_TEST_TAG = "chat-unblock"
 private val SenderAvatarSize = 32.dp
 private const val LOADING_OLDER_KEY = "loading-older"
 private const val LOAD_OLDER_THRESHOLD = 10
@@ -104,13 +109,15 @@ private const val MESSAGE_CONTENT_TYPE_PREFIX = "message-"
 
 /**
  * Chat timeline. [state] rows are newest first and rendered with `reverseLayout`, so the newest message
- * sits at the bottom. [composer] is the slot for the message composer. [onReply] and [onToggleReaction]
- * are the message sheet's reply and react callbacks, used by TalkBack actions and the reaction chips.
+ * sits at the bottom. [composer] is the slot for the message composer; while [ChatUiState.blocked] it gets
+ * `inputVisible = false` (keep its sheets, hide the input) and an Unblock bar calling [onUnblock] after a
+ * confirmation shows instead. [onReply] and [onToggleReaction] are the message sheet's reply and react
+ * callbacks, used by TalkBack actions and the reaction chips.
  */
 @Composable
 fun ChatScreen(
     state: ChatUiState,
-    composer: @Composable () -> Unit,
+    composer: @Composable (inputVisible: Boolean) -> Unit,
     onBack: () -> Unit,
     onOpenGroupInfo: () -> Unit,
     onLoadOlder: () -> Unit,
@@ -125,6 +132,7 @@ fun ChatScreen(
     onToggleReaction: ((messageId: String, emoji: String) -> Unit)? = null,
     listState: LazyListState = rememberLazyListState(),
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+    onUnblock: () -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier,
@@ -164,9 +172,45 @@ fun ChatScreen(
             state.typingLabel?.let {
                 TypingIndicator(label = it.asString(), modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
             }
+            if (state.blocked) UnblockBar(name = state.header.title, onUnblock = onUnblock)
             // Composer slot: the composer task supplies the real input bar.
-            composer()
+            composer(!state.blocked)
         }
+    }
+}
+
+/** Shown instead of the composer in a chat with a blocked person; Unblock asks first. */
+@Composable
+private fun UnblockBar(name: String, onUnblock: () -> Unit) {
+    var confirming by rememberSaveable { mutableStateOf(false) }
+    Surface(modifier = Modifier.fillMaxWidth(), tonalElevation = 2.dp) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.chat_blocked),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            TextButton(onClick = { confirming = true }, modifier = Modifier.testTag(UNBLOCK_BUTTON_TEST_TAG)) {
+                Text(stringResource(R.string.chat_unblock))
+            }
+        }
+    }
+    if (confirming) {
+        GimConfirmDialog(
+            title = stringResource(R.string.chat_unblock_title, name),
+            body = stringResource(R.string.chat_unblock_body),
+            confirmLabel = stringResource(R.string.chat_unblock),
+            dismissLabel = stringResource(R.string.chat_unblock_cancel),
+            onConfirm = {
+                confirming = false
+                onUnblock()
+            },
+            onDismiss = { confirming = false },
+        )
     }
 }
 

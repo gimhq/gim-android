@@ -39,6 +39,7 @@ class MessageActionCallbacks(
     val onReact: (messageId: String, emoji: String) -> Unit,
     val onRetry: (String) -> Unit,
     val onCancelSend: (String) -> Unit,
+    val onReport: (userId: String, messageId: String) -> Unit = { _, _ -> },
 )
 
 /** Bottom sheet listing the actions available for one message: quick reactions first, then Reply. */
@@ -84,6 +85,9 @@ internal fun MessageActionsContent(
         }
         if (actions.canDelete) {
             ActionRow(R.string.composer_action_delete, MaterialTheme.colorScheme.error) { callbacks.onDelete(id) }
+        }
+        actions.reportUserId?.let { userId ->
+            ActionRow(R.string.composer_action_report, MaterialTheme.colorScheme.error) { callbacks.onReport(userId, id) }
         }
     }
 }

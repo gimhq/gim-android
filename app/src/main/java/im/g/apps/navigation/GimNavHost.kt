@@ -281,14 +281,34 @@ fun GimNavHost(
             val current = client ?: return@composable
             val chatId = entry.arguments?.getString(Routes.CHAT_ID) ?: return@composable
             val context = LocalContext.current
-            val chatVm: ChatViewModel = viewModel(factory = ChatViewModel.factory(current, chatId, container.mediaPathProvider))
-            val composerVm: ComposerViewModel =
-                viewModel(factory = ComposerViewModel.factory(current, chatId, AndroidUriCopier(context)))
+            val chatVm: ChatViewModel = viewModel(
+                factory = ChatViewModel.factory(
+                    current,
+                    chatId,
+                    container.mediaPathProvider,
+                    avatarDir = File(context.cacheDir, AVATAR_DIR),
+                ),
+            )
+            val composerVm: ComposerViewModel = viewModel(
+                factory = ComposerViewModel.factory(
+                    current,
+                    chatId,
+                    AndroidUriCopier(context),
+                    reportAvailable = container.reportAvailable,
+                ),
+            )
             val snackbar = remember { SnackbarHostState() }
             val scope = rememberCoroutineScope()
             ChatRoute(
                 viewModel = chatVm,
-                composer = { ComposerRoute(composerVm, snackbar) },
+                composer = { inputVisible ->
+                    ComposerRoute(
+                        composerVm,
+                        snackbar,
+                        inputVisible = inputVisible,
+                        onReport = { userId, messageId -> navController.navigate(Routes.report(userId, chatId, messageId)) },
+                    )
+                },
                 onMessageLongPress = composerVm::onMessageLongPress,
                 snackbarHostState = snackbar,
                 onBack = { navController.popBackStack() },

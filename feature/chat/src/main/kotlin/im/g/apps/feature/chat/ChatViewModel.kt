@@ -9,7 +9,6 @@ import im.g.apps.core.bridge.ChatKind
 import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
-import im.g.apps.core.bridge.MediaRef
 import im.g.apps.core.bridge.MessageContent
 import im.g.apps.core.bridge.MessageItem
 import im.g.apps.core.bridge.SendState
@@ -39,11 +38,12 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -52,18 +52,21 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.File
 import java.time.ZoneId
 import java.util.Locale
 
 /**
  * Timeline of one chat. Subscribes to gim-core's timeline (oldest first), typing set and chat list row,
- * and builds [ChatUiState] (rows newest first) on [defaultDispatcher].
+ * and builds [ChatUiState] (rows newest first) on [defaultDispatcher]. The header photo (a chat's own avatar,
+ * else a direct chat peer's) is downloaded into [avatarDir].
  */
 @OptIn(FlowPreview::class)
 class ChatViewModel(
     private val client: GimClient,
     private val chatId: String,
     private val mediaPaths: MediaPathProvider,
+    private val avatarDir: File,
     private val clock: () -> Long = System::currentTimeMillis,
     zone: ZoneId = ZoneId.systemDefault(),
     defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
@@ -85,6 +88,15 @@ class ChatViewModel(
         val avatarPath: String?,
         val unavailableMedia: Set<String>,
     )
+
+    /** A header photo download target: a chat's avatar, or a user's profile photo. */
+    private sealed interface PhotoFile {
+        val file: File
+
+        data class Chat(override val file: File) : PhotoFile
+
+        data class User(val userId: String, override val file: File) : PhotoFile
+    }
 
     private val mapper = TimelineMapper(zone, locale)
 
@@ -152,8 +164,8 @@ class ChatViewModel(
             }
         }
         viewModelScope.launch {
-            summary.map { it?.avatar }.distinctUntilChanged().filterNotNull().collect { ref ->
-                fetchImage(ref)?.let { avatarPath.value = it }
+            summary.map { it?.photoFile() }.distinctUntilChanged().collectLatest { photo ->
+                avatarPath.value = photo?.let { fetchPhoto(it) }
             }
         }
     }
@@ -257,11 +269,29 @@ class ChatViewModel(
         }
     }
 
-    private suspend fun fetchImage(ref: MediaRef): String? = try {
-        if (ref.hasThumbnail) {
-            client.fetchThumbnail(ref.chatId, ref.messageId, mediaPaths.thumbnailPath(ref))
-        } else {
-            client.fetchMedia(ref.chatId, ref.messageId, mediaPaths.mediaPath(ref, null))
+    /** Unblocks the peer of this direct chat; the composer comes back when the chat list row says so. */
+    fun unblock() {
+        viewModelScope.launch {
+            val peer = summary.first()?.peer ?: return@launch
+            try {
+                client.unblockUser(peer.userId)
+            } catch (e: GimException) {
+                _events.send(ChatEvent.Error(e.toUiText(R.string.chat_error_unblock, client.suspendedHubName(e))))
+            }
+        }
+    }
+
+    /** Where the header photo goes: the chat's own avatar (one file per avatar message), else a direct chat peer's. */
+    private fun ChatSummary.photoFile(): PhotoFile? {
+        avatar?.let { return PhotoFile.Chat(File(avatarDir, "chat-$chatId-${it.messageId}")) }
+        return peer?.takeIf { kind == ChatKind.DIRECT && it.hasAvatar }
+            ?.let { PhotoFile.User(it.userId, File(avatarDir, it.userId)) }
+    }
+
+    private suspend fun fetchPhoto(photo: PhotoFile): String? = try {
+        when (photo) {
+            is PhotoFile.Chat -> client.fetchChatAvatar(chatId, photo.file.path)
+            is PhotoFile.User -> client.fetchUserAvatar(photo.userId, photo.file.path)
         }
     } catch (_: GimException) {
         null
@@ -303,6 +333,7 @@ class ChatViewModel(
             hasMoreOlder = extras.hasMoreOlder,
             typingLabel = typingLabel,
             unreadCount = summary?.unreadCount ?: 0,
+            blocked = summary?.kind == ChatKind.DIRECT && summary.blocked,
         )
     }
 
@@ -334,7 +365,13 @@ class ChatViewModel(
         const val PAGE_SIZE = 30
         const val MARK_READ_DEBOUNCE_MS = 500L
 
-        fun factory(client: GimClient, chatId: String, mediaPaths: MediaPathProvider): ViewModelProvider.Factory =
-            viewModelFactory { initializer { ChatViewModel(client, chatId, mediaPaths) } }
+        /** [avatarDir] holds the downloaded photos (the app's `cacheDir/gim/avatars`). */
+        fun factory(
+            client: GimClient,
+            chatId: String,
+            mediaPaths: MediaPathProvider,
+            avatarDir: File,
+        ): ViewModelProvider.Factory =
+            viewModelFactory { initializer { ChatViewModel(client, chatId, mediaPaths, avatarDir) } }
     }
 }
