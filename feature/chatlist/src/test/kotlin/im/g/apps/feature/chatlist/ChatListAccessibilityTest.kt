@@ -11,10 +11,12 @@ import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
@@ -96,6 +98,12 @@ class ChatListAccessibilityTest {
         assertBaseline(bodyTop) { text ->
             // Titles and previews are single-line by design and ellipsize.
             rows.any { text == it.title || text.endsWith(it.preview) }
+        }
+
+        // The avatar is decorative: the row's description names the chat, its initials are never read.
+        shown.forEach { row ->
+            val words = row.title.split(" ")
+            rule.onAllNodesWithText("${words.first().first()}${words.last().first()}".uppercase()).assertCountEquals(0)
         }
 
         val order = talkBackOrder()

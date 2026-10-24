@@ -1,5 +1,8 @@
 package im.g.apps.feature.settings
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -8,6 +11,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -43,6 +47,16 @@ class SettingsScreenTest {
         rule.onNodeWithText("Settings").assertExists()
         rule.onNodeWithText("Sofia Costa").assertExists()
         rule.onNodeWithText("@sofia").assertExists()
+    }
+
+    @Test
+    fun header_reads_the_name_once_without_the_initials() {
+        show(actions = SettingsActions(onOpenProfile = {}))
+
+        val header = rule.onNodeWithTag(SettingsTestTags.HEADER).fetchSemanticsNode()
+        assertEquals(listOf("Sofia Costa", "@sofia"), header.config[SemanticsProperties.Text].map { it.text })
+        assertEquals(null, header.config.getOrNull(SemanticsProperties.ContentDescription))
+        rule.onAllNodesWithText("SC").assertCountEquals(0)
     }
 
     @Test
