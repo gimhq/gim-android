@@ -1,7 +1,9 @@
 package im.g.apps.feature.chat
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import im.g.apps.core.bridge.MessageContent
 import im.g.apps.core.bridge.MessageItem
@@ -77,13 +79,14 @@ class ReplyQuoteLocaleTest {
             }
         }
 
-        rule.onNodeWithText("Foto", useUnmergedTree = true).assertExists()
-        rule.onNodeWithText("Archivo: informe.pdf", useUnmergedTree = true).assertExists()
-        rule.onNodeWithText("Archivo", useUnmergedTree = true).assertExists()
-        rule.onNodeWithText("Mensaje eliminado", useUnmergedTree = true).assertExists()
-        rule.onNodeWithText("Nos vemos a las nueve", useUnmergedTree = true).assertExists()
-        rule.onNodeWithText("Photo", useUnmergedTree = true).assertDoesNotExist()
-        rule.onNodeWithText("File: informe.pdf", useUnmergedTree = true).assertDoesNotExist()
-        rule.onNodeWithText("Message deleted", useUnmergedTree = true).assertDoesNotExist()
+        // Newest first; the small test screen fits two bubbles, so scroll each quote into view.
+        val expected = listOf("Nos vemos a las nueve", "Mensaje eliminado", "Archivo", "Archivo: informe.pdf", "Foto")
+        expected.forEachIndexed { index, text ->
+            rule.onNodeWithTag(TIMELINE_TEST_TAG).performScrollToIndex(index)
+            rule.onNodeWithText(text, useUnmergedTree = true).assertExists()
+        }
+        for (english in listOf("Photo", "File: informe.pdf", "File", "Message deleted")) {
+            rule.onNodeWithText(english, useUnmergedTree = true).assertDoesNotExist()
+        }
     }
 }
