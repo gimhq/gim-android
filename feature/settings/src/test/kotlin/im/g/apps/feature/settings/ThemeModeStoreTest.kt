@@ -1,6 +1,7 @@
 package im.g.apps.feature.settings
 
 import android.content.Context
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.After
@@ -47,5 +48,12 @@ class ThemeModeStoreTest {
         store.set(ThemeMode.DARK)
 
         assertEquals(ThemeMode.DARK, store.mode.value)
+    }
+
+    @Test
+    fun maps_to_the_appcompat_night_mode() {
+        assertEquals(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM, ThemeMode.SYSTEM.toNightMode())
+        assertEquals(AppCompatDelegate.MODE_NIGHT_NO, ThemeMode.LIGHT.toNightMode())
+        assertEquals(AppCompatDelegate.MODE_NIGHT_YES, ThemeMode.DARK.toNightMode())
     }
 }
