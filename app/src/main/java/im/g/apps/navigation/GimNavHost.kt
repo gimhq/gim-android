@@ -343,6 +343,7 @@ fun GimNavHost(
         }
         composable(Routes.NEW_CHAT) {
             val current = client ?: return@composable
+            val context = LocalContext.current
             NewChatRoute(
                 viewModel = viewModel(factory = newChatViewModelFactory(current, File(context.cacheDir, AVATAR_DIR))),
                 onOpenChat = { navController.openChatReplacing(it) },
@@ -352,6 +353,7 @@ fun GimNavHost(
         }
         composable(Routes.NEW_GROUP) {
             val current = client ?: return@composable
+            val context = LocalContext.current
             val vm: NewGroupViewModel =
                 viewModel(factory = newGroupViewModelFactory(current, File(context.cacheDir, AVATAR_DIR)))
             val state by vm.state.collectAsState()
@@ -366,6 +368,7 @@ fun GimNavHost(
         composable(Routes.GROUP_INFO) { entry ->
             val current = client ?: return@composable
             val chatId = entry.arguments?.getString(Routes.CHAT_ID) ?: return@composable
+            val context = LocalContext.current
             GroupInfoRoute(
                 viewModel = viewModel(
                     factory = groupInfoViewModelFactory(
