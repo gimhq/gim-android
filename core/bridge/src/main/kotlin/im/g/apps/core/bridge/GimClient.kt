@@ -2,7 +2,7 @@ package im.g.apps.core.bridge
 
 /**
  * Kotlin mirror of gim-core's UniFFI `GimClient` (gim-core `bindings/gim-ffi`, contract in
- * `docs/API.md` at gim-client-sdk commit b86283e).
+ * `docs/API.md` at gim-client-sdk commit 2b8b6b9).
  *
  * gim-core (Rust) owns storage, networking, sync, outbox, MLS and media crypto; this interface is the only
  * surface the UI layer sees. Features never import `im.g.gimcore`: the real adapter maps the generated
@@ -33,6 +33,7 @@ package im.g.apps.core.bridge
  * | `Session`, `UserProfile`, `ChatKind`, `ChatState`, `ChatSummary`, `MessagePreview` | same names | `UInt` -> `Int`, `ULong` -> `Long`; `ChatSummary.mutedUntilMs` saturates (`mutedForever()` = `u64::MAX` -> [Long.MAX_VALUE]) |
  * | `TimelineItem`, `MembershipChangeKind`, `MessageItem`, `MessageContent` | same names | `ULong` -> `Long`, `UInt?` -> `Int?` |
  * | `MediaRef`, `ReplyPreview`, `ReactionGroup`, `SendState`, `ConnectionState` | same names | `size: ULong` -> `Long`, `count: UInt` -> `Int` |
+ * | `PreviewKind` (`MessagePreview.kind`, `ReplyPreview.kind`) | [PreviewKind] | `Text`, `Photo`, `File(fileName)`, `Deleted`; `text` stays English, localized UI renders `kind` |
  * | `ClientConfig`, `ClientMode` | [ClientConfig], [ClientMode] | `mode: ClientMode?` -> non-null, default [ClientMode.APP] |
  * | `PrivacySettings`, `RecoveryRotation`, `ReportReason` | same names | |
  * | `mutedForever()` | [GimClient.mutedForever] | `u64::MAX` -> [Long.MAX_VALUE] |

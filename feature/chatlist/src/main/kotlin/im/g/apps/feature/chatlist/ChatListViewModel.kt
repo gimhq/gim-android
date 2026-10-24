@@ -10,6 +10,7 @@ import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.ConnectionState
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.PreviewKind
 import im.g.apps.core.bridge.SendState
 import im.g.apps.core.bridge.displayNameOrShortId
 import im.g.apps.core.bridge.flow.chatListFlow
@@ -179,6 +180,7 @@ class ChatListViewModel(
             pinned = pinned,
             archived = archived,
             tick = last?.takeIf { it.isOwn }?.sendState?.toTick(),
+            previewKind = last?.kind ?: PreviewKind.Text,
         )
     }
 

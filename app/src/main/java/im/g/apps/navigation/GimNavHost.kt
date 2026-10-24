@@ -343,8 +343,9 @@ fun GimNavHost(
         }
         composable(Routes.NEW_CHAT) {
             val current = client ?: return@composable
+            val context = LocalContext.current
             NewChatRoute(
-                viewModel = viewModel(factory = newChatViewModelFactory(current)),
+                viewModel = viewModel(factory = newChatViewModelFactory(current, File(context.cacheDir, AVATAR_DIR))),
                 onOpenChat = { navController.openChatReplacing(it) },
                 onBack = { navController.popBackStack() },
                 scanner = { onQrCode, onUnavailable, modifier -> QrScanner(onQrCode, onUnavailable, modifier) },
@@ -352,7 +353,9 @@ fun GimNavHost(
         }
         composable(Routes.NEW_GROUP) {
             val current = client ?: return@composable
-            val vm: NewGroupViewModel = viewModel(factory = newGroupViewModelFactory(current))
+            val context = LocalContext.current
+            val vm: NewGroupViewModel =
+                viewModel(factory = newGroupViewModelFactory(current, File(context.cacheDir, AVATAR_DIR)))
             val state by vm.state.collectAsState()
             // Same action as the toolbar back: from the name step return to member selection.
             BackHandler(enabled = state.step == NewGroupStep.NAME) { vm.back() }
@@ -365,8 +368,16 @@ fun GimNavHost(
         composable(Routes.GROUP_INFO) { entry ->
             val current = client ?: return@composable
             val chatId = entry.arguments?.getString(Routes.CHAT_ID) ?: return@composable
+            val context = LocalContext.current
             GroupInfoRoute(
-                viewModel = viewModel(factory = groupInfoViewModelFactory(current, chatId, container.reportAvailable)),
+                viewModel = viewModel(
+                    factory = groupInfoViewModelFactory(
+                        current,
+                        chatId,
+                        avatarDir = File(context.cacheDir, AVATAR_DIR),
+                        reportAvailable = container.reportAvailable,
+                    ),
+                ),
                 onBack = { navController.popBackStack() },
                 // Back to the chat, which shows "Leaving…" until the own `Left` change arrives.
                 onLeftChat = { navController.popBackStack() },

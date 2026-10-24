@@ -38,16 +38,20 @@ import im.g.apps.core.bridge.displayLabel
 import im.g.apps.core.bridge.shortUserId
 import im.g.apps.core.designsystem.component.Avatar
 import im.g.apps.core.designsystem.theme.GimTheme
+import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.collections.immutable.persistentMapOf
 
 /**
  * Handle search used by new chat, new group and the add-member dialog: a text field plus the result of
- * the lookup. [resultAction] renders the trailing action of a found user (e.g. "Start chat", "Add").
+ * the lookup, with its photo from [photos] (by user id). [resultAction] renders the trailing action of a found user
+ * (e.g. "Start chat", "Add").
  */
 @Composable
 internal fun UserSearchField(
     query: String,
     onQueryChange: (String) -> Unit,
     state: UserSearchState,
+    photos: ImmutableMap<String, String>,
     modifier: Modifier = Modifier,
     resultAction: @Composable (UserProfile) -> Unit,
 ) {
@@ -73,7 +77,11 @@ internal fun UserSearchField(
                 Spacer(Modifier.width(8.dp))
                 SearchNote(stringResource(R.string.contacts_search_searching))
             }
-            is UserSearchState.Found -> UserRow(user = state.user, trailing = { resultAction(state.user) })
+            is UserSearchState.Found -> UserRow(
+                user = state.user,
+                photoPath = photos[state.user.userId],
+                trailing = { resultAction(state.user) },
+            )
             is UserSearchState.NotFound -> SearchNote(stringResource(R.string.contacts_search_not_found, state.handle))
             is UserSearchState.Error -> Text(
                 text = state.error.message(),
@@ -90,13 +98,14 @@ private fun SearchNote(text: String) {
 }
 
 /**
- * Avatar, display name (with an optional "You" marker) and the handle, or a short user id for users without one,
- * plus a trailing slot.
+ * Avatar (the photo at [photoPath], else initials; decorative, the name is read instead), display name (with an
+ * optional "You" marker) and the handle, or a short user id for users without one, plus a trailing slot.
  */
 @Composable
 internal fun UserRow(
     user: UserProfile,
     modifier: Modifier = Modifier,
+    photoPath: String? = null,
     isSelf: Boolean = false,
     trailing: @Composable () -> Unit = {},
 ) {
@@ -106,7 +115,7 @@ internal fun UserRow(
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Avatar(name = user.displayLabel, imagePath = null, size = 40.dp)
+        Avatar(name = user.displayLabel, imagePath = photoPath, size = 40.dp)
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             val name = if (isSelf) "${user.displayLabel} (${stringResource(R.string.contacts_you)})" else user.displayLabel
@@ -185,6 +194,7 @@ private fun UserSearchFieldPreview() {
                 query = "ana",
                 onQueryChange = {},
                 state = UserSearchState.Found(UserProfile("u-ana", "ana", "Ana Kovač")),
+                photos = persistentMapOf(),
                 modifier = Modifier.padding(16.dp),
             ) { TextButton(onClick = {}) { Text(stringResource(R.string.contacts_start_chat)) } }
         }

@@ -8,6 +8,8 @@ import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.flow.chatListFlow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -18,6 +20,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
 
 private const val NOW = 1_760_000_000_000L
 
@@ -32,13 +36,101 @@ class GroupInfoViewModelTest {
     private lateinit var fake: FakeGimClient
     private lateinit var client: TestClient
 
+    @get:Rule
+    val tmp = TemporaryFolder()
+
+    private val avatarDir by lazy { tmp.newFolder("avatars") }
+
     private fun TestScope.newViewModel(
         chatId: String = DemoData.GROUP_CHAT_ID,
         reportAvailable: Boolean = false,
+        setup: (FakeGimClient) -> Unit = {},
     ): GroupInfoViewModel {
         fake = demoClient(backgroundScope).also { it.addDirectoryUser(marta) }
+        setup(fake)
         client = TestClient(fake)
-        return GroupInfoViewModel(client, chatId, reportAvailable, clock = { NOW })
+        return GroupInfoViewModel(
+            client,
+            chatId,
+            avatarDir,
+            reportAvailable,
+            clock = { NOW },
+            defaultDispatcher = StandardTestDispatcher(testScheduler),
+        )
+    }
+
+    /** The chat list row only picks up the new profile with the next change of the chat. */
+    private fun giveLukasAPhoto(fake: FakeGimClient) {
+        fake.addDirectoryUser(DemoData.lukas.copy(hasAvatar = true))
+        fake.simulateIncoming(DemoData.DIRECT_CHAT_ID, "New photo", from = DemoData.lukas.userId)
+    }
+
+    private fun TestScope.collectEvents(vm: GroupInfoViewModel): List<GroupInfoEvent> =
+        mutableListOf<GroupInfoEvent>().also { events -> backgroundScope.launch { vm.events.collect { events += it } } }
+
+    @Test
+    fun memberPhotos_areDownloadedOncePerUser() = runTest {
+        val martaWithPhoto = marta.copy(hasAvatar = true)
+        val vm = newViewModel { it.addDirectoryUser(martaWithPhoto) }
+        advanceUntilIdle()
+        assertTrue(client.avatarFetches.isEmpty())
+
+        vm.openAddMember()
+        vm.onAddMemberQueryChange("marta")
+        advanceUntilIdle()
+        vm.addMember(martaWithPhoto)
+        advanceUntilIdle()
+        fake.simulateIncoming(DemoData.GROUP_CHAT_ID, "Welcome", from = DemoData.ana.userId)
+        advanceUntilIdle()
+
+        assertTrue(vm.memberIds().contains(marta.userId))
+        assertEquals(File(avatarDir, marta.userId).path, vm.state.value.photos[marta.userId])
+        assertEquals(listOf(marta.userId), client.avatarFetches)
+        assertNull(vm.state.value.headerPhotoPath)
+    }
+
+    @Test
+    fun groupAvatar_isTheHeaderPhoto() = runTest {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        val avatar = tmp.newFile("crew.png").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        fake.setGroupInfo(DemoData.GROUP_CHAT_ID, null, avatar.path)
+        advanceUntilIdle()
+
+        val path = vm.state.value.headerPhotoPath
+        assertTrue(path != null && File(path).isFile)
+        assertEquals(avatarDir.canonicalPath, File(path!!).canonicalFile.parent)
+        assertEquals(listOf(DemoData.GROUP_CHAT_ID), client.avatarFetches)
+    }
+
+    @Test
+    fun directChat_headerShowsThePeerPhoto() = runTest {
+        val vm = newViewModel(DemoData.DIRECT_CHAT_ID, setup = ::giveLukasAPhoto)
+        advanceUntilIdle()
+        assertEquals(File(avatarDir, DemoData.lukas.userId).path, vm.state.value.headerPhotoPath)
+        assertEquals(listOf(DemoData.lukas.userId), client.avatarFetches)
+    }
+
+    @Test
+    fun directChat_peerWithoutAPhoto_fetchesNothing() = runTest {
+        val vm = newViewModel(DemoData.DIRECT_CHAT_ID)
+        advanceUntilIdle()
+        assertNull(vm.state.value.headerPhotoPath)
+        assertTrue(client.avatarFetches.isEmpty())
+    }
+
+    @Test
+    fun photoDownloadFailure_keepsTheInitialsWithoutAnError() = runTest {
+        val vm = newViewModel(DemoData.DIRECT_CHAT_ID) { fake ->
+            giveLukasAPhoto(fake)
+            fake.failNext("fetchUserAvatar", GimException.Network("offline"))
+        }
+        val events = collectEvents(vm)
+        advanceUntilIdle()
+        assertEquals(listOf(DemoData.lukas.userId), client.avatarFetches)
+        assertNull(vm.state.value.headerPhotoPath)
+        assertTrue(vm.state.value.photos.isEmpty())
+        assertTrue(events.isEmpty())
     }
 
     private fun GroupInfoViewModel.memberIds() = state.value.members.map { it.user.userId }

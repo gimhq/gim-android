@@ -3,9 +3,12 @@ package im.g.apps.feature.contacts
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.fake.DemoData
+import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.flow.chatListFlow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -17,6 +20,8 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class NewChatViewModelTest {
@@ -24,11 +29,17 @@ class NewChatViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
-    private fun TestScope.newViewModel(): Pair<NewChatViewModel, TestClient> {
+    @get:Rule
+    val tmp = TemporaryFolder()
+
+    private val avatarDir by lazy { tmp.newFolder("avatars") }
+
+    private fun TestScope.newViewModel(setup: (FakeGimClient) -> Unit = {}): Pair<NewChatViewModel, TestClient> {
         val fake = demoClient(backgroundScope)
         fake.addDirectoryUser(SCANNED_USER)
+        setup(fake)
         val client = TestClient(fake)
-        return NewChatViewModel(client) to client
+        return NewChatViewModel(client, avatarDir, StandardTestDispatcher(testScheduler)) to client
     }
 
     @Test
@@ -294,6 +305,51 @@ class NewChatViewModelTest {
         vm.onCameraUnavailable()
         assertFalse(vm.state.value.scannerOpen)
         assertEquals(ScanNotice.CAMERA_UNAVAILABLE, vm.state.value.scanNotice)
+    }
+
+    @Test
+    fun foundUserWithAPhoto_downloadsItOnce() = runTest {
+        val lukas = DemoData.lukas.copy(hasAvatar = true)
+        val (vm, client) = newViewModel { it.addDirectoryUser(lukas) }
+        vm.onQueryChange("lukas")
+        advanceUntilIdle()
+        val path = vm.state.value.photos[lukas.userId]
+        assertEquals(File(avatarDir, lukas.userId).path, path)
+        assertTrue(File(path!!).isFile)
+
+        vm.onQueryChange("nobody")
+        advanceUntilIdle()
+        vm.onQueryChange("lukas")
+        advanceUntilIdle()
+        assertEquals(UserSearchState.Found(lukas), vm.state.value.search)
+        assertEquals(listOf(lukas.userId), client.avatarFetches)
+    }
+
+    @Test
+    fun foundUserWithoutAPhoto_fetchesNothing() = runTest {
+        val (vm, client) = newViewModel()
+        vm.onQueryChange("lukas")
+        advanceUntilIdle()
+        assertEquals(UserSearchState.Found(DemoData.lukas), vm.state.value.search)
+        assertTrue(vm.state.value.photos.isEmpty())
+        assertTrue(client.avatarFetches.isEmpty())
+    }
+
+    @Test
+    fun photoDownloadFailure_keepsTheInitialsWithoutAnError() = runTest {
+        val lukas = DemoData.lukas.copy(hasAvatar = true)
+        val (vm, client) = newViewModel { fake ->
+            fake.addDirectoryUser(lukas)
+            fake.failNext("fetchUserAvatar", GimException.Network("offline"))
+        }
+        val events = mutableListOf<NewChatEvent>()
+        backgroundScope.launch { vm.events.collect { events += it } }
+        vm.onQueryChange("lukas")
+        advanceUntilIdle()
+        assertEquals(listOf(lukas.userId), client.avatarFetches)
+        assertEquals(UserSearchState.Found(lukas), vm.state.value.search)
+        assertTrue(vm.state.value.photos.isEmpty())
+        assertTrue(events.isEmpty())
     }
 
     private companion object {

@@ -2,6 +2,7 @@ package im.g.apps.feature.chatlist
 
 import androidx.compose.runtime.Immutable
 import im.g.apps.core.bridge.ChatState
+import im.g.apps.core.bridge.PreviewKind
 import im.g.apps.core.designsystem.component.TickState
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -35,7 +36,7 @@ data class ChatRowUi(
     val avatarPath: String?,
     /** Who sent the last message, shown before [preview]; null when no prefix is needed. */
     val sender: PreviewSender?,
-    /** Last message as rendered by gim-core ("Photo", "File: name", "Message deleted", ...). */
+    /** Last message as gim-core's English text; shown as is only for [PreviewKind.Text] (see [previewKind]). */
     val preview: String,
     /** When the chat last changed, relative to now. */
     val time: ChatTimeLabel,
@@ -48,6 +49,8 @@ data class ChatRowUi(
     val archived: Boolean = false,
     /** Delivery state of the last message when it is the signed-in user's own; null otherwise. */
     val tick: TickState? = null,
+    /** What the last message is; media and deleted messages are rendered from string resources. */
+    val previewKind: PreviewKind = PreviewKind.Text,
 ) {
     /** The long-press actions, in display order. */
     val actions: List<ChatListAction>

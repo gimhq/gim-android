@@ -18,8 +18,12 @@ import im.g.apps.core.bridge.flow.itemsFlow
 import im.g.apps.core.bridge.key
 import im.g.apps.core.bridge.suspendedHubName
 import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentList
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +34,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 
 @Immutable
 data class GroupMember(val user: UserProfile, val isSelf: Boolean)
@@ -64,6 +69,8 @@ data class GroupInfoUiState(
     val mutedForever: Boolean = false,
     /** The block (or, for a blocked peer, unblock) confirmation is open. */
     val confirmingBlock: Boolean = false,
+    /** Downloaded photos by user id, and the chat's avatar under [chatPhotoKey]. */
+    val photos: PersistentMap<String, String> = persistentMapOf(),
 ) {
     val isGroup: Boolean
         get() = chat?.kind == ChatKind.GROUP
@@ -82,6 +89,14 @@ data class GroupInfoUiState(
 
     val canRename: Boolean
         get() = renameDraft != null && renameDraft.trim().length in 1..MAX_GROUP_NAME_LENGTH && !busy
+
+    /** The photo the chat list shows for [chat]: its own avatar, else a direct chat peer's photo. */
+    val headerPhotoPath: String?
+        get() {
+            val chat = chat ?: return null
+            chat.avatar?.let { return photos[chatPhotoKey(chat.chatId, it.messageId)] }
+            return chat.peer?.takeIf { chat.kind == ChatKind.DIRECT && it.hasAvatar }?.let { photos[it.userId] }
+        }
 
     /** Whether [user] can be added: not a member already. */
     fun canAdd(user: UserProfile): Boolean = members.none { it.user.userId == user.userId }
@@ -104,12 +119,15 @@ sealed interface GroupInfoEvent {
  * Groups support rename, add/remove member and leave; direct chats are read-only. Whether a leave is in progress (or
  * done) comes from the row's [ChatState], which gim-core keeps across restarts. Both offer the [chatActions] of the row;
  * report only when [reportAvailable] (a meta server is configured). [clock] decides whether the chat is still muted.
+ * Photos (the chat's, members' and found users') are downloaded into [avatarDir].
  */
 class GroupInfoViewModel(
     private val client: GimClient,
     private val chatId: String,
+    avatarDir: File,
     private val reportAvailable: Boolean = false,
     private val clock: () -> Long = System::currentTimeMillis,
+    defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
     private val _state = MutableStateFlow(GroupInfoUiState())
     val state: StateFlow<GroupInfoUiState> = _state.asStateFlow()
@@ -120,8 +138,13 @@ class GroupInfoViewModel(
     private val memberRefreshes = Channel<Unit>(Channel.CONFLATED)
     private var selfUserId: String? = null
 
+    private val photos = ContactPhotos(client, avatarDir, viewModelScope, defaultDispatcher) { key, path ->
+        _state.update { it.copy(photos = it.photos.put(key, path)) }
+    }
+
     private val search = UserSearch(client, viewModelScope) { result ->
         _state.update { state -> state.copy(addMemberDialog = state.addMemberDialog?.copy(search = result)) }
+        if (result is UserSearchState.Found) photos.requestUser(result.user)
     }
 
     init {
@@ -308,10 +331,23 @@ class GroupInfoViewModel(
                             mutedForever = row?.let { row.mutedUntilMs == client.mutedForever() } ?: it.mutedForever,
                         )
                     }
-                    if (row != null) memberRefreshes.trySend(Unit)
+                    if (row != null) {
+                        requestHeaderPhoto(row)
+                        memberRefreshes.trySend(Unit)
+                    }
                 }
         } catch (e: GimException) {
             _events.send(GroupInfoEvent.ShowError(e.toContactsError(client.suspendedHubName(e))))
+        }
+    }
+
+    /** See [GroupInfoUiState.headerPhotoPath]. */
+    private fun requestHeaderPhoto(row: ChatSummary) {
+        val avatar = row.avatar
+        if (avatar != null) {
+            photos.requestChat(row.chatId, avatar.messageId)
+        } else if (row.kind == ChatKind.DIRECT) {
+            row.peer?.let(photos::requestUser)
         }
     }
 
@@ -333,6 +369,7 @@ class GroupInfoViewModel(
             val self = selfUserId
             val members = client.chatMembers(chatId).map { GroupMember(it, it.userId == self) }.toPersistentList()
             _state.update { it.copy(members = members, membersUnavailable = false) }
+            members.forEach { photos.requestUser(it.user) }
         } catch (e: GimException.NotImplemented) {
             _state.update { it.copy(members = persistentListOf(), membersUnavailable = true) }
         } catch (e: GimException.NotFound) {
@@ -343,10 +380,12 @@ class GroupInfoViewModel(
     }
 }
 
+/** [avatarDir] holds the downloaded photos (the app's `cacheDir/gim/avatars`). */
 fun groupInfoViewModelFactory(
     client: GimClient,
     chatId: String,
+    avatarDir: File,
     reportAvailable: Boolean = false,
 ): ViewModelProvider.Factory = viewModelFactory {
-    initializer { GroupInfoViewModel(client, chatId, reportAvailable) }
+    initializer { GroupInfoViewModel(client, chatId, avatarDir, reportAvailable) }
 }

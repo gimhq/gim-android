@@ -7,6 +7,10 @@
     <string name="chatlist_banner_updating">正在更新…</string>
     <string name="chatlist_preview_you">你：%1$s</string>
     <string name="chatlist_preview_member">%1$s：%2$s</string>
+    <string name="chatlist_preview_photo">照片</string>
+    <string name="chatlist_preview_file">文件：%1$s</string>
+    <string name="chatlist_preview_file_unnamed">文件</string>
+    <string name="chatlist_preview_deleted">消息已删除</string>
     <string name="chatlist_state_leaving">正在退出…</string>
     <string name="chatlist_state_left">你已不在这个聊天中</string>
     <string name="chatlist_empty_title">还没有聊天</string>

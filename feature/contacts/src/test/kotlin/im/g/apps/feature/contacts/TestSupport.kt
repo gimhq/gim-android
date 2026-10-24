@@ -36,6 +36,9 @@ class TestClient(private val delegate: GimClient) : GimClient by delegate {
     var setGroupInfoError: GimException? = null
     var createDirectChatCalls = 0
 
+    /** User ids and chat ids of [fetchUserAvatar] and [fetchChatAvatar] calls, in order. */
+    val avatarFetches = mutableListOf<String>()
+
     /** When set, replaces the signed-in user's id reported by [userId]. */
     var selfUserId: String? = null
 
@@ -66,6 +69,16 @@ class TestClient(private val delegate: GimClient) : GimClient by delegate {
     override suspend fun removeMember(chatId: String, userId: String) {
         removeMemberError?.let { throw it }
         delegate.removeMember(chatId, userId)
+    }
+
+    override suspend fun fetchUserAvatar(userId: String, destPath: String): String {
+        avatarFetches += userId
+        return delegate.fetchUserAvatar(userId, destPath)
+    }
+
+    override suspend fun fetchChatAvatar(chatId: String, destPath: String): String {
+        avatarFetches += chatId
+        return delegate.fetchChatAvatar(chatId, destPath)
     }
 
     override suspend fun setGroupInfo(chatId: String, name: String?, avatarFilePath: String?) {

@@ -10,7 +10,11 @@ import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.UserProfile
 import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 
 /** Longest group name accepted by the UI. */
 const val MAX_GROUP_NAME_LENGTH = 64
@@ -35,6 +40,8 @@ data class NewGroupUiState(
     val name: String = "",
     val selfUserId: String? = null,
     val creating: Boolean = false,
+    /** Downloaded photos by user id. */
+    val photos: PersistentMap<String, String> = persistentMapOf(),
 ) {
     val canProceed: Boolean
         get() = members.isNotEmpty()
@@ -52,15 +59,26 @@ sealed interface NewGroupEvent {
     data class ShowError(val error: ContactsError) : NewGroupEvent
 }
 
-/** Two-step group creation: pick members by handle, then name the group. */
-class NewGroupViewModel(private val client: GimClient) : ViewModel() {
+/** Two-step group creation: pick members by handle, then name the group. Photos are downloaded into [avatarDir]. */
+class NewGroupViewModel(
+    private val client: GimClient,
+    avatarDir: File,
+    defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
+) : ViewModel() {
     private val _state = MutableStateFlow(NewGroupUiState())
     val state: StateFlow<NewGroupUiState> = _state.asStateFlow()
 
     private val _events = Channel<NewGroupEvent>(Channel.BUFFERED)
     val events: Flow<NewGroupEvent> = _events.receiveAsFlow()
 
-    private val search = UserSearch(client, viewModelScope) { result -> _state.update { it.copy(search = result) } }
+    private val photos = ContactPhotos(client, avatarDir, viewModelScope, defaultDispatcher) { userId, path ->
+        _state.update { it.copy(photos = it.photos.put(userId, path)) }
+    }
+
+    private val search = UserSearch(client, viewModelScope) { result ->
+        _state.update { it.copy(search = result) }
+        if (result is UserSearchState.Found) photos.requestUser(result.user)
+    }
 
     init {
         viewModelScope.launch {
@@ -117,6 +135,7 @@ class NewGroupViewModel(private val client: GimClient) : ViewModel() {
     }
 }
 
-fun newGroupViewModelFactory(client: GimClient): ViewModelProvider.Factory = viewModelFactory {
-    initializer { NewGroupViewModel(client) }
+/** [avatarDir] holds the downloaded photos (the app's `cacheDir/gim/avatars`). */
+fun newGroupViewModelFactory(client: GimClient, avatarDir: File): ViewModelProvider.Factory = viewModelFactory {
+    initializer { NewGroupViewModel(client, avatarDir) }
 }

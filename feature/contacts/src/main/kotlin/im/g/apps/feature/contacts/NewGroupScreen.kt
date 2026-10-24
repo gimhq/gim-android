@@ -126,7 +126,12 @@ private fun MembersStep(
     onRemoveMember: (userId: String) -> Unit,
     onNext: () -> Unit,
 ) {
-    UserSearchField(query = state.query, onQueryChange = onQueryChange, state = state.search) { user ->
+    UserSearchField(
+        query = state.query,
+        onQueryChange = onQueryChange,
+        state = state.search,
+        photos = state.photos,
+    ) { user ->
         val selected = state.members.any { it.userId == user.userId }
         Button(onClick = { onAddMember(user) }, enabled = state.canAdd(user)) {
             Text(stringResource(if (selected) R.string.contacts_added else R.string.contacts_add))
@@ -178,7 +183,7 @@ private fun NameStep(
         text = pluralStringResource(R.plurals.contacts_member_count, state.members.size + 1, state.members.size + 1),
         style = MaterialTheme.typography.titleSmall,
     )
-    state.members.forEach { UserRow(user = it) }
+    state.members.forEach { UserRow(user = it, photoPath = state.photos[it.userId]) }
     Button(onClick = onCreate, enabled = state.canCreate, modifier = Modifier.fillMaxWidth()) {
         Text(stringResource(R.string.contacts_create_group))
     }

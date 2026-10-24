@@ -35,6 +35,8 @@
     <string name="chat_jump_to_bottom">转到最新消息</string>
     <string name="chat_loading_older">正在加载更早的消息…</string>
     <string name="chat_image">照片</string>
+    <string name="chat_reply_file">文件：%1$s</string>
+    <string name="chat_reply_file_unnamed">文件</string>
     <string name="chat_file_open">打开 %1$s</string>
     <string name="chat_composer_placeholder">消息</string>
     <string name="chat_composer_leaving">正在退出…</string>

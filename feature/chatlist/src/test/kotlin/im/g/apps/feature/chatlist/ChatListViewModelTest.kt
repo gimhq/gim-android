@@ -10,6 +10,7 @@ import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.ConnectionState
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.PreviewKind
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.DemoData.DIRECT_CHAT_ID
 import im.g.apps.core.bridge.fake.DemoData.GROUP_CHAT_ID
@@ -217,19 +218,23 @@ class ChatListViewModelTest {
         advanceUntilIdle()
         assertEquals(PreviewSender.You, vm.row(GROUP_CHAT_ID).sender)
         assertEquals("Photo", vm.row(GROUP_CHAT_ID).preview)
+        assertEquals(PreviewKind.Photo, vm.row(GROUP_CHAT_ID).previewKind)
 
         val fileId = client.sendMedia(GROUP_CHAT_ID, tmp.newFile("report.pdf").path, "application/pdf", null, null)
         advanceUntilIdle()
         assertEquals("File: report.pdf", vm.row(GROUP_CHAT_ID).preview)
+        assertEquals(PreviewKind.File("report.pdf"), vm.row(GROUP_CHAT_ID).previewKind)
 
         client.deleteMessage(GROUP_CHAT_ID, fileId)
         advanceUntilIdle()
         assertEquals("Message deleted", vm.row(GROUP_CHAT_ID).preview)
+        assertEquals(PreviewKind.Deleted, vm.row(GROUP_CHAT_ID).previewKind)
 
         client.sendText(DIRECT_CHAT_ID, "On my way", null)
         advanceUntilIdle()
         assertEquals(PreviewSender.You, vm.row(DIRECT_CHAT_ID).sender)
         assertEquals("On my way", vm.row(DIRECT_CHAT_ID).preview)
+        assertEquals(PreviewKind.Text, vm.row(DIRECT_CHAT_ID).previewKind)
     }
 
     @Test
