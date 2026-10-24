@@ -81,6 +81,7 @@ import im.g.apps.shareRecoveryKit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.Locale
 
 /** App navigation graph; ViewModels are scoped to their back stack entries. */
@@ -122,13 +123,14 @@ fun GimNavHost(
         }
         composable(Routes.CHAT_LIST) {
             val current = client ?: return@composable
+            val context = LocalContext.current
             // ViewModels outlive the activity recreation of an in-app language change: one per locale.
             val locale = currentLocale()
             val vm: ChatListViewModel = viewModel(
                 key = "chat-list-${locale.toLanguageTag()}",
                 factory = chatListViewModelFactory(
                     client = current,
-                    thumbnailPath = { chatId, messageId -> container.mediaPaths.destFor(chatId, messageId, thumbnail = true) },
+                    avatarDir = File(context.cacheDir, AVATAR_DIR),
                     locale = locale,
                 ),
             )
@@ -145,6 +147,30 @@ fun GimNavHost(
                 onNewChat = { navController.navigate(Routes.NEW_CHAT) },
                 onNewGroup = { navController.navigate(Routes.NEW_GROUP) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                onOpenArchived = { navController.navigate(Routes.CHAT_LIST_ARCHIVED) },
+            )
+        }
+        composable(Routes.CHAT_LIST_ARCHIVED) {
+            val current = client ?: return@composable
+            val context = LocalContext.current
+            val locale = currentLocale()
+            val vm: ChatListViewModel = viewModel(
+                key = "chat-list-archived-${locale.toLanguageTag()}",
+                factory = chatListViewModelFactory(
+                    client = current,
+                    avatarDir = File(context.cacheDir, AVATAR_DIR),
+                    locale = locale,
+                ),
+            )
+            ChatListRoute(
+                viewModel = vm,
+                ownName = "",
+                onOpenChat = { navController.navigate(Routes.chat(it)) },
+                onNewChat = {},
+                onNewGroup = {},
+                onOpenSettings = {},
+                archived = true,
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Routes.SETTINGS) {
@@ -273,15 +299,34 @@ fun GimNavHost(
             val locale = currentLocale()
             val chatVm: ChatViewModel = viewModel(
                 key = "chat-${locale.toLanguageTag()}",
-                factory = ChatViewModel.factory(current, chatId, container.mediaPathProvider, locale),
+                factory = ChatViewModel.factory(
+                    current,
+                    chatId,
+                    container.mediaPathProvider,
+                    avatarDir = File(context.cacheDir, AVATAR_DIR),
+                    locale = locale,
+                ),
             )
-            val composerVm: ComposerViewModel =
-                viewModel(factory = ComposerViewModel.factory(current, chatId, AndroidUriCopier(context)))
+            val composerVm: ComposerViewModel = viewModel(
+                factory = ComposerViewModel.factory(
+                    current,
+                    chatId,
+                    AndroidUriCopier(context),
+                    reportAvailable = container.reportAvailable,
+                ),
+            )
             val snackbar = remember { SnackbarHostState() }
             val scope = rememberCoroutineScope()
             ChatRoute(
                 viewModel = chatVm,
-                composer = { ComposerRoute(composerVm, snackbar) },
+                composer = { inputVisible ->
+                    ComposerRoute(
+                        composerVm,
+                        snackbar,
+                        inputVisible = inputVisible,
+                        onReport = { userId, messageId -> navController.navigate(Routes.report(userId, chatId, messageId)) },
+                    )
+                },
                 onMessageLongPress = composerVm::onMessageLongPress,
                 snackbarHostState = snackbar,
                 onBack = { navController.popBackStack() },
@@ -377,3 +422,6 @@ private fun NavHostController.openChatReplacing(chatId: String) =
 /** The configuration's locale, which follows the in-app language after the activity is recreated. */
 @Composable
 private fun currentLocale(): Locale = LocalConfiguration.current.locales[0] ?: Locale.getDefault()
+
+/** Downloaded profile and chat photos under the cache dir; Settings' profile photo uses the same folder. */
+private const val AVATAR_DIR = "gim/avatars"

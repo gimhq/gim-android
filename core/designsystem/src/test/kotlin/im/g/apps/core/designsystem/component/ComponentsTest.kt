@@ -40,6 +40,16 @@ class ComponentsTest {
             GimTheme { Avatar(name = "Ada Lovelace", imagePath = null, size = 48.dp) }
         }
         rule.onNodeWithText("AL").assertExists()
+        rule.onNodeWithTag(AvatarTestTags.PHOTO).assertDoesNotExist()
+    }
+
+    @Test
+    fun avatar_withImage_drawsThePhotoOverTheInitials() {
+        rule.setContent {
+            GimTheme { Avatar(name = "Ada Lovelace", imagePath = "/data/ada.jpg", size = 48.dp) }
+        }
+        rule.onNodeWithTag(AvatarTestTags.PHOTO).assertExists()
+        rule.onNodeWithText("AL").assertExists()
     }
 
     @Test

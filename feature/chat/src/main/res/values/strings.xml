@@ -50,6 +50,12 @@
     <string name="chat_media_retry">Download again</string>
     <string name="chat_message_options">Show options</string>
     <string name="chat_message_react">React</string>
+    <string name="chat_blocked">You blocked this person.</string>
+    <string name="chat_unblock">Unblock</string>
+    <string name="chat_unblock_title">Unblock %1$s?</string>
+    <string name="chat_unblock_body">They can send you messages again. Messages they sent while blocked won\'t come back.</string>
+    <string name="chat_unblock_cancel">Cancel</string>
+    <string name="chat_error_unblock">Couldn\'t unblock them. Check your internet and try again.</string>
     <string name="composer_send">Send message</string>
     <string name="composer_save">Save changes</string>
     <string name="composer_attach">Attach a photo or file</string>
@@ -62,6 +68,7 @@
     <string name="composer_action_edit">Edit</string>
     <string name="composer_action_delete">Delete</string>
     <string name="composer_action_retry">Try again</string>
+    <string name="composer_action_report">Report</string>
     <string name="composer_react">React with %1$s</string>
     <string name="composer_delete_title">Delete message?</string>
     <string name="composer_delete_body">It will be deleted for everyone in this chat.</string>
