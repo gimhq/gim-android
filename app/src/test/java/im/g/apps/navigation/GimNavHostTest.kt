@@ -32,6 +32,7 @@ import im.g.apps.core.bridge.InMemoryServerUrlStore
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakeGimClientFactory
+import im.g.apps.core.bridge.fake.FakeRecoveryKitCodec
 import im.g.apps.core.designsystem.theme.GimTheme
 import im.g.apps.feature.settings.ThemeMode
 import im.g.apps.push.PushChannel
@@ -143,6 +144,7 @@ class GimNavHostTest {
             clientFactory = GimClientFactory { config, hooks ->
                 DemoAccountClient(demo.create(config, hooks), registered = store.get() != null)
             },
+            recoveryKitCodec = FakeRecoveryKitCodec,
         )
         launch(container)
 
