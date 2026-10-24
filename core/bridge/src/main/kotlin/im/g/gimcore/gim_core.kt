@@ -8904,9 +8904,15 @@ data class MessagePreview (
     var `senderName`: kotlin.String
     , 
     /**
-     * Plain-text rendering ("Photo", "File: report.pdf" for media).
+     * Plain-text rendering in English ("Photo", "File: report.pdf" for
+     * media); apps that localize render `kind` instead.
      */
     var `text`: kotlin.String
+    , 
+    /**
+     * What the message is, for a rendering in the app's language.
+     */
+    var `kind`: PreviewKind
     , 
     var `sentAtMs`: kotlin.ULong
     , 
@@ -8935,6 +8941,7 @@ public object FfiConverterTypeMessagePreview: FfiConverterRustBuffer<MessagePrev
         return MessagePreview(
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
+            FfiConverterTypePreviewKind.read(buf),
             FfiConverterULong.read(buf),
             FfiConverterBoolean.read(buf),
             FfiConverterOptionalTypeSendState.read(buf),
@@ -8944,6 +8951,7 @@ public object FfiConverterTypeMessagePreview: FfiConverterRustBuffer<MessagePrev
     override fun allocationSize(value: MessagePreview) = (
             FfiConverterString.allocationSize(value.`senderName`) +
             FfiConverterString.allocationSize(value.`text`) +
+            FfiConverterTypePreviewKind.allocationSize(value.`kind`) +
             FfiConverterULong.allocationSize(value.`sentAtMs`) +
             FfiConverterBoolean.allocationSize(value.`isOwn`) +
             FfiConverterOptionalTypeSendState.allocationSize(value.`sendState`)
@@ -8952,6 +8960,7 @@ public object FfiConverterTypeMessagePreview: FfiConverterRustBuffer<MessagePrev
     override fun write(value: MessagePreview, buf: ByteBuffer) {
             FfiConverterString.write(value.`senderName`, buf)
             FfiConverterString.write(value.`text`, buf)
+            FfiConverterTypePreviewKind.write(value.`kind`, buf)
             FfiConverterULong.write(value.`sentAtMs`, buf)
             FfiConverterBoolean.write(value.`isOwn`, buf)
             FfiConverterOptionalTypeSendState.write(value.`sendState`, buf)
@@ -9392,7 +9401,12 @@ data class ReplyPreview (
     , 
     var `senderName`: kotlin.String
     , 
+    /**
+     * As `MessagePreview.text`.
+     */
     var `text`: kotlin.String
+    , 
+    var `kind`: PreviewKind
     
 ){
     
@@ -9412,19 +9426,22 @@ public object FfiConverterTypeReplyPreview: FfiConverterRustBuffer<ReplyPreview>
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
+            FfiConverterTypePreviewKind.read(buf),
         )
     }
 
     override fun allocationSize(value: ReplyPreview) = (
             FfiConverterString.allocationSize(value.`messageId`) +
             FfiConverterString.allocationSize(value.`senderName`) +
-            FfiConverterString.allocationSize(value.`text`)
+            FfiConverterString.allocationSize(value.`text`) +
+            FfiConverterTypePreviewKind.allocationSize(value.`kind`)
     )
 
     override fun write(value: ReplyPreview, buf: ByteBuffer) {
             FfiConverterString.write(value.`messageId`, buf)
             FfiConverterString.write(value.`senderName`, buf)
             FfiConverterString.write(value.`text`, buf)
+            FfiConverterTypePreviewKind.write(value.`kind`, buf)
     }
 }
 
@@ -10877,6 +10894,121 @@ public object FfiConverterTypeNotificationKind: FfiConverterRustBuffer<Notificat
 
     override fun write(value: NotificationKind, buf: ByteBuffer) {
         buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
+/**
+ * What a previewed message is. `Text` covers text messages and media with
+ * a caption (the preview's `text`, user content); the other kinds have a
+ * fixed English `text` an app may replace with its own string.
+ */
+sealed class PreviewKind {
+    
+    object Text : PreviewKind()
+    
+    
+    /**
+     * An image without a caption ("Photo").
+     */
+    object Photo : PreviewKind()
+    
+    
+    /**
+     * Another file without a caption ("File: <name>", or "File").
+     */
+    data class File(
+        val `fileName`: kotlin.String?) : PreviewKind()
+        
+    {
+        
+
+        companion object
+    }
+    
+    /**
+     * A deleted message ("Message deleted").
+     */
+    object Deleted : PreviewKind()
+    
+    
+
+    
+
+    
+    
+
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypePreviewKind : FfiConverterRustBuffer<PreviewKind>{
+    override fun read(buf: ByteBuffer): PreviewKind {
+        return when(buf.getInt()) {
+            1 -> PreviewKind.Text
+            2 -> PreviewKind.Photo
+            3 -> PreviewKind.File(
+                FfiConverterOptionalString.read(buf),
+                )
+            4 -> PreviewKind.Deleted
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: PreviewKind): ULong = when(value) {
+        is PreviewKind.Text -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+        is PreviewKind.Photo -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+        is PreviewKind.File -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterOptionalString.allocationSize(value.`fileName`)
+            )
+        }
+        is PreviewKind.Deleted -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+    }
+
+    override fun write(value: PreviewKind, buf: ByteBuffer) {
+        when(value) {
+            is PreviewKind.Text -> {
+                buf.putInt(1)
+                Unit
+            }
+            is PreviewKind.Photo -> {
+                buf.putInt(2)
+                Unit
+            }
+            is PreviewKind.File -> {
+                buf.putInt(3)
+                FfiConverterOptionalString.write(value.`fileName`, buf)
+                Unit
+            }
+            is PreviewKind.Deleted -> {
+                buf.putInt(4)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
     }
 }
 
