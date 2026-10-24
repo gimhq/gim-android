@@ -3,6 +3,8 @@ package im.g.apps.feature.contacts
 import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.UserProfile
+import im.g.apps.core.bridge.fake.DemoData
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -72,5 +74,35 @@ class ContactsErrorTest {
     @Test
     fun server_errors_stay_generic() {
         assertEquals(ContactsError.Server, GimException.Server(502, "peer_refused").toContactsError())
+    }
+
+    @Test
+    fun chatActionErrors_sayWhichActionFailed_unlessTheCauseIsKnown() {
+        assertEquals(
+            ContactsError.ChatActionFailed(ChatAction.MUTE),
+            GimException.Storage("disk full").toChatActionError(ChatAction.MUTE),
+        )
+        assertEquals(
+            ContactsError.ChatActionFailed(ChatAction.REPORT),
+            GimException.InvalidInput("note too long").toChatActionError(ChatAction.REPORT),
+        )
+        assertEquals(
+            ContactsError.ChatActionFailed(ChatAction.BLOCK),
+            GimException.Server(500, "oops").toChatActionError(ChatAction.BLOCK),
+        )
+        assertEquals(ContactsError.Network, GimException.Network("offline").toChatActionError(ChatAction.REPORT))
+        assertEquals(ContactsError.NotFound, GimException.NotFound("chat").toChatActionError(ChatAction.PIN))
+    }
+
+    @Test
+    fun inviteError_invalidInputForABlockedInvitee_isBlocked() = runTest {
+        val fake = demoClient(backgroundScope)
+        val invalid = GimException.InvalidInput("blocked")
+        assertEquals(ContactsError.InvalidInput, fake.inviteError(invalid, listOf(DemoData.ana)))
+
+        fake.blockUser(DemoData.ana.userId)
+        assertEquals(ContactsError.Blocked, fake.inviteError(invalid, listOf(DemoData.nikos, DemoData.ana)))
+        assertEquals(ContactsError.InvalidInput, fake.inviteError(invalid, listOf(DemoData.nikos)))
+        assertEquals(ContactsError.UserNotFound, fake.inviteError(GimException.NotFound("users"), listOf(DemoData.ana)))
     }
 }

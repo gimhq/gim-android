@@ -56,6 +56,14 @@ data class GroupInfoUiState(
     /** Draft of the rename dialog; null when it is closed. */
     val renameDraft: String? = null,
     val busy: Boolean = false,
+    /** The [chatActions] of [chat], in display order. */
+    val chatActions: PersistentList<ChatAction> = persistentListOf(),
+    /** The mute options dialog is open. */
+    val choosingMute: Boolean = false,
+    /** [chat] is muted until it is unmuted ([GimClient.mutedForever]). */
+    val mutedForever: Boolean = false,
+    /** The block (or, for a blocked peer, unblock) confirmation is open. */
+    val confirmingBlock: Boolean = false,
 ) {
     val isGroup: Boolean
         get() = chat?.kind == ChatKind.GROUP
@@ -84,6 +92,9 @@ sealed interface GroupInfoEvent {
 
     /** The leave was submitted; back to the chat, which shows "Leaving…" until the own `Left` change arrives. */
     data object LeftChat : GroupInfoEvent
+
+    /** Open the report about [userId], with messages from [chatId]. */
+    data class OpenReport(val userId: String, val chatId: String) : GroupInfoEvent
 }
 
 /**
@@ -91,11 +102,14 @@ sealed interface GroupInfoEvent {
  * gim-core has no members listener, so the member list is re-queried whenever the chat's row changes,
  * the chat's timeline gains a membership change, or after this screen's own add/remove calls.
  * Groups support rename, add/remove member and leave; direct chats are read-only. Whether a leave is in progress (or
- * done) comes from the row's [ChatState], which gim-core keeps across restarts.
+ * done) comes from the row's [ChatState], which gim-core keeps across restarts. Both offer the [chatActions] of the row;
+ * report only when [reportAvailable] (a meta server is configured). [clock] decides whether the chat is still muted.
  */
 class GroupInfoViewModel(
     private val client: GimClient,
     private val chatId: String,
+    private val reportAvailable: Boolean = false,
+    private val clock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
     private val _state = MutableStateFlow(GroupInfoUiState())
     val state: StateFlow<GroupInfoUiState> = _state.asStateFlow()
@@ -135,7 +149,7 @@ class GroupInfoViewModel(
     fun addMember(user: UserProfile) {
         if (!_state.value.canAdd(user)) return
         _state.update { it.copy(addMemberDialog = null) }
-        mutate(error = { e, hub -> e.toInviteError(hub, listOf(user)) }) { client.addMembers(chatId, listOf(user.userId)) }
+        mutate(error = { e -> client.inviteError(e, listOf(user)) }) { client.addMembers(chatId, listOf(user.userId)) }
     }
 
     // endregion
@@ -202,16 +216,68 @@ class GroupInfoViewModel(
 
     // endregion
 
+    // region Chat actions
+
+    /** Runs [action] if it is offered; mute and block ask first, report opens the report screen. */
+    fun onChatAction(action: ChatAction) {
+        val current = _state.value
+        val chat = current.chat ?: return
+        if (action !in current.chatActions) return
+        when (action) {
+            ChatAction.MUTE -> _state.update { it.copy(choosingMute = true) }
+            ChatAction.UNMUTE -> chatAction(action) { client.setChatMuted(chatId, 0) }
+            ChatAction.PIN -> chatAction(action) { client.setChatPinned(chatId, true) }
+            ChatAction.UNPIN -> chatAction(action) { client.setChatPinned(chatId, false) }
+            ChatAction.ARCHIVE -> chatAction(action) { client.setChatArchived(chatId, true) }
+            ChatAction.UNARCHIVE -> chatAction(action) { client.setChatArchived(chatId, false) }
+            ChatAction.BLOCK, ChatAction.UNBLOCK -> _state.update { it.copy(confirmingBlock = true) }
+            ChatAction.REPORT -> chat.peer?.let { peer ->
+                viewModelScope.launch { _events.send(GroupInfoEvent.OpenReport(peer.userId, chatId)) }
+            }
+        }
+    }
+
+    fun mute(option: MuteOption) {
+        if (!_state.value.choosingMute) return
+        _state.update { it.copy(choosingMute = false) }
+        chatAction(ChatAction.MUTE) { client.setChatMuted(chatId, option.mutedUntilMs(clock(), client.mutedForever())) }
+    }
+
+    /** Blocks the peer, or unblocks a blocked one; the new state arrives through the chat list row. */
+    fun confirmBlock() {
+        val current = _state.value
+        val peer = current.chat?.peer ?: return
+        if (!current.confirmingBlock) return
+        _state.update { it.copy(confirmingBlock = false) }
+        if (current.chat.blocked) {
+            chatAction(ChatAction.UNBLOCK) { client.unblockUser(peer.userId) }
+        } else {
+            chatAction(ChatAction.BLOCK) { client.blockUser(peer.userId) }
+        }
+    }
+
+    private fun chatAction(action: ChatAction, call: suspend () -> Unit) =
+        mutate(refreshMembers = false, error = { e -> e.toChatActionError(action, client.suspendedHubName(e)) }, action = call)
+
+    // endregion
+
     /** Closes whichever dialog is open. */
     fun dismissDialog() {
         _state.update {
-            it.copy(addMemberDialog = null, pendingRemoval = null, confirmingLeave = false, renameDraft = null)
+            it.copy(
+                addMemberDialog = null,
+                pendingRemoval = null,
+                confirmingLeave = false,
+                renameDraft = null,
+                choosingMute = false,
+                confirmingBlock = false,
+            )
         }
     }
 
     private fun mutate(
         refreshMembers: Boolean = true,
-        error: (GimException, String?) -> ContactsError = GimException::toContactsError,
+        error: suspend (GimException) -> ContactsError = { e -> e.toContactsError(client.suspendedHubName(e)) },
         action: suspend () -> Unit,
     ) {
         _state.update { it.copy(busy = true) }
@@ -220,7 +286,7 @@ class GroupInfoViewModel(
                 action()
                 if (refreshMembers) memberRefreshes.trySend(Unit)
             } catch (e: GimException) {
-                _events.send(GroupInfoEvent.ShowError(error(e, client.suspendedHubName(e))))
+                _events.send(GroupInfoEvent.ShowError(error(e)))
             } finally {
                 _state.update { it.copy(busy = false) }
             }
@@ -233,7 +299,15 @@ class GroupInfoViewModel(
                 .map { rows -> rows.firstOrNull { it.chatId == chatId } }
                 .distinctUntilChanged()
                 .collect { row ->
-                    _state.update { it.copy(chat = row ?: it.chat, missing = row == null) }
+                    _state.update {
+                        it.copy(
+                            chat = row ?: it.chat,
+                            missing = row == null,
+                            chatActions = row?.let { chatActions(row, clock(), reportAvailable).toPersistentList() }
+                                ?: it.chatActions,
+                            mutedForever = row?.let { row.mutedUntilMs == client.mutedForever() } ?: it.mutedForever,
+                        )
+                    }
                     if (row != null) memberRefreshes.trySend(Unit)
                 }
         } catch (e: GimException) {
@@ -269,6 +343,10 @@ class GroupInfoViewModel(
     }
 }
 
-fun groupInfoViewModelFactory(client: GimClient, chatId: String): ViewModelProvider.Factory = viewModelFactory {
-    initializer { GroupInfoViewModel(client, chatId) }
+fun groupInfoViewModelFactory(
+    client: GimClient,
+    chatId: String,
+    reportAvailable: Boolean = false,
+): ViewModelProvider.Factory = viewModelFactory {
+    initializer { GroupInfoViewModel(client, chatId, reportAvailable) }
 }

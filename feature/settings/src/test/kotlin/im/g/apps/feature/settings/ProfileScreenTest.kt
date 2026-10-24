@@ -1,5 +1,7 @@
 package im.g.apps.feature.settings
 
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -131,10 +133,34 @@ class ProfileScreenTest {
     }
 
     @Test
-    fun change_photo_is_hidden() {
-        show()
+    fun without_a_photo_offers_to_change_it_but_not_to_remove_it() {
+        var change = 0
+        show(actions = ProfileActions(onChangePhoto = { change++ }))
 
-        rule.onNodeWithText("Change photo").assertDoesNotExist()
+        rule.onNodeWithTag(ProfileTestTags.PHOTO).assertExists()
+        rule.onNodeWithTag(ProfileTestTags.PHOTO_CHANGE).assertTextContains("Change photo").performClick()
+        rule.onNodeWithTag(ProfileTestTags.PHOTO_REMOVE).assertDoesNotExist()
+
+        assertEquals(1, change)
+    }
+
+    @Test
+    fun with_a_photo_offers_to_remove_it() {
+        var remove = 0
+        show(state.copy(hasPhoto = true), ProfileActions(onRemovePhoto = { remove++ }))
+
+        rule.onNodeWithTag(ProfileTestTags.PHOTO_REMOVE).assertTextContains("Remove photo").performClick()
+
+        assertEquals(1, remove)
+    }
+
+    @Test
+    fun while_saving_a_photo_the_buttons_are_disabled() {
+        show(state.copy(hasPhoto = true, photoSaving = true))
+
+        rule.onNodeWithTag(ProfileTestTags.PHOTO_CHANGE).assertIsNotEnabled()
+        rule.onNodeWithTag(ProfileTestTags.PHOTO_REMOVE).assertIsNotEnabled()
+        rule.onNodeWithTag(ProfileTestTags.PHOTO_PROGRESS).assertExists()
     }
 
     companion object {
