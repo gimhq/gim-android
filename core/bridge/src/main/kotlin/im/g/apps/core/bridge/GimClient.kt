@@ -2,7 +2,7 @@ package im.g.apps.core.bridge
 
 /**
  * Kotlin mirror of gim-core's UniFFI `GimClient` (gim-core `bindings/gim-ffi`, contract in
- * `docs/API.md` at gim-core commit f8db42c).
+ * `docs/API.md` at gim-client-sdk commit b86283e).
  *
  * gim-core (Rust) owns storage, networking, sync, outbox, MLS and media crypto; this interface is the only
  * surface the UI layer sees. Features never import `im.g.gimcore`: the real adapter maps the generated
@@ -30,10 +30,13 @@ package im.g.apps.core.bridge
  * | `HubInfo`, `HubState` | [HubInfo], [HubState] | `priority: UByte` -> `Int` |
  * | `ChatListListener`, `TimelineListener`, `ConnectionStateListener`, `TypingListener`, `HubListListener`, `LocalTimeZone` | same names | `fun interface` |
  * | `ChatListDiff`, `TimelineDiff` | [ChatListDiff], [TimelineDiff] | `index`/`length: UInt` -> `Int` |
- * | `Session`, `UserProfile`, `ChatKind`, `ChatState`, `ChatSummary`, `MessagePreview` | same names | `UInt` -> `Int`, `ULong` -> `Long` |
+ * | `Session`, `UserProfile`, `ChatKind`, `ChatState`, `ChatSummary`, `MessagePreview` | same names | `UInt` -> `Int`, `ULong` -> `Long`; `ChatSummary.mutedUntilMs` saturates (`mutedForever()` = `u64::MAX` -> [Long.MAX_VALUE]) |
  * | `TimelineItem`, `MembershipChangeKind`, `MessageItem`, `MessageContent` | same names | `ULong` -> `Long`, `UInt?` -> `Int?` |
  * | `MediaRef`, `ReplyPreview`, `ReactionGroup`, `SendState`, `ConnectionState` | same names | `size: ULong` -> `Long`, `count: UInt` -> `Int` |
  * | `ClientConfig`, `ClientMode` | [ClientConfig], [ClientMode] | `mode: ClientMode?` -> non-null, default [ClientMode.APP] |
+ * | `PrivacySettings`, `RecoveryRotation`, `ReportReason` | same names | |
+ * | `mutedForever()` | [GimClient.mutedForever] | `u64::MAX` -> [Long.MAX_VALUE] |
+ * | `formatRecoveryKit`, `parseRecoveryKit`, `recoveryKeyEnding`, `matchesRecoveryKeyEnding`, `RecoveryKitLabels`, `ParsedRecoveryKit` | [RecoveryKitCodec] (`format`, `parse`, `keyEnding`, `matchesKeyEnding`), [RecoveryKitLabels], [ParsedRecoveryKit] | top-level functions behind an interface |
  * | `PushRegistration`, `NotificationKind`, `NotificationContent` | same names | `timestamp: ULong` -> `Long` |
  * | `GimException.<Variant>` | [GimException]`.<Variant>` | `status: UShort` -> `Int`, `retryAfterSecs: ULong` -> `Long`, `groupCount: UInt` -> `Int` |
  *
@@ -67,6 +70,13 @@ interface GimClient {
      * again with the same arguments.
      */
     suspend fun restoreFromRecovery(userId: String, recoveryCode: String, revokeOthers: Boolean)
+
+    /**
+     * Seals the root key with a new recovery code and replaces the backup on the home hub (required, else the call
+     * fails and nothing changes), then on every other listed hub this device reaches. The old code keeps working on
+     * the hubs in [RecoveryRotation.unsyncedHubIds]. [GimException.NotRegistered] without a session.
+     */
+    suspend fun rotateRecoveryCode(): RecoveryRotation
 
     /** New device: starts linking to an existing device; show [LinkSession.qrString] as a QR code. Synchronous. */
     fun startLink(hubs: List<String>): LinkSession
@@ -128,6 +138,18 @@ interface GimClient {
     /** Changes the display name; [GimException.InvalidInput] if empty. */
     suspend fun setDisplayName(name: String)
 
+    /** The signed-in user's name, handle and [UserProfile.hasAvatar], from local state; null without a session. */
+    suspend fun ownProfile(): UserProfile?
+
+    /**
+     * Sets the profile photo from [filePath] ([mime] its type); crop and scale it first, every member of every chat
+     * downloads it. It is encrypted and uploaded before this returns, then synced and announced like the display name.
+     */
+    suspend fun setAvatar(filePath: String, mime: String)
+
+    /** Removes the profile photo. */
+    suspend fun removeAvatar()
+
     /** Claims a handle in the hub directory; [GimException.Server] with status 409 if it is taken. */
     suspend fun claimHandle(handle: String)
 
@@ -139,6 +161,22 @@ interface GimClient {
      * session, local data and keystore secrets. Create a new client afterwards.
      */
     suspend fun signOut()
+
+    /**
+     * Deletes the account for good: its data on the meta server (if configured), leaves every chat, deletes the user
+     * on the home hub and then on the other hubs, and wipes this device like [signOut]. Returns the other hubs that
+     * could not be reached. If the meta server or the home hub step fails, nothing local is deleted and the call can be
+     * repeated. Create a new client afterwards.
+     */
+    suspend fun deleteAccount(): List<String>
+
+    /**
+     * Sends a report about [userId] with up to 50 [messageIds] from local history (text or media caption) and an
+     * optional [note] (at most 1000 characters) to the meta server's moderators, in plaintext; returns the report id.
+     * It does not block: offer [blockUser] alongside. [GimException.InvalidInput] for the signed-in user, too many
+     * messages, a long note or no meta server configured; [GimException.NotFound] for an unknown message id.
+     */
+    suspend fun reportUser(userId: String, reason: ReportReason, note: String?, messageIds: List<String>): String
 
     /**
      * Registers this device for push on every hub of the user and keeps the registration on the device; gim-core
@@ -263,7 +301,47 @@ interface GimClient {
     /** Like [fetchMedia] for the thumbnail; null if there is none. */
     suspend fun fetchThumbnail(chatId: String, messageId: String, destPath: String): String?
 
-    /** Subscribes to the chat list; the first callback is a `Reset`. */
+    /** The profile photo of a user (the signed-in user included) at [destPath]; [GimException.NotFound] if none. */
+    suspend fun fetchUserAvatar(userId: String, destPath: String): String
+
+    /** The avatar of a group chat set with [setGroupInfo] at [destPath]; [GimException.NotFound] if none. */
+    suspend fun fetchChatAvatar(chatId: String, destPath: String): String
+
+    /** The privacy settings; all on and empty by default. */
+    suspend fun privacy(): PrivacySettings
+
+    /** Off: [markRead] sends no receipt and others' read receipts are not shown ([SendState] stops at Delivered). */
+    suspend fun setReadReceipts(enabled: Boolean)
+
+    /** Off: [setTyping] sends nothing and others' typing is not shown. */
+    suspend fun setTypingIndicators(enabled: Boolean)
+
+    /**
+     * Blocks a user on this user's devices: their messages, reactions, receipts and typing are dropped and their
+     * invites refused; creating a chat with them or adding them fails with [GimException.InvalidInput]. Existing chats
+     * stay; a direct chat with them is [ChatSummary.blocked]. [GimException.InvalidInput] for the signed-in user.
+     */
+    suspend fun blockUser(userId: String)
+
+    /** Lets new messages of [userId] through again; dropped ones do not come back. */
+    suspend fun unblockUser(userId: String)
+
+    /**
+     * Mutes [chatId] until [mutedUntilMs] (Unix ms; [mutedForever] for good, 0 to unmute): [processPush] then returns
+     * `shouldDisplay = false` for it. [GimException.NotFound] for an unknown chat.
+     */
+    suspend fun setChatMuted(chatId: String, mutedUntilMs: Long)
+
+    /** The [ChatSummary.mutedUntilMs] of a chat muted until it is unmuted ([Long.MAX_VALUE]). Synchronous. */
+    fun mutedForever(): Long
+
+    /** Pinned chats come first in the chat list. [GimException.NotFound] for an unknown chat. */
+    suspend fun setChatPinned(chatId: String, pinned: Boolean)
+
+    /** Only sets [ChatSummary.archived]; a new message does not unarchive. [GimException.NotFound] for an unknown chat. */
+    suspend fun setChatArchived(chatId: String, archived: Boolean)
+
+    /** Subscribes to the chat list (pinned chats first, then the most recently updated); the first callback is a `Reset`. */
     suspend fun chatList(listener: ChatListListener): TaskHandle
 
     /** The timeline of one chat. Cheap; listeners are added on the result. */

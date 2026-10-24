@@ -6,11 +6,16 @@ import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -20,10 +25,13 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import im.g.apps.core.bridge.ReportReason
 import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.fake.DemoData
+import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.designsystem.R as DesignR
 import im.g.apps.core.designsystem.theme.GimTheme
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -46,6 +54,11 @@ class ContactsScreensTest {
 
     @After
     fun tearDown() = scope.cancel()
+
+    /** Scrolls the screen's lazy list until a node matching [matcher] is composed and visible. */
+    private fun scrollTo(matcher: SemanticsMatcher) = rule.onNode(hasScrollAction()).performScrollToNode(matcher)
+
+    private fun scrollToTag(tag: String) = scrollTo(hasTestTag(tag))
 
     @Test
     fun newChat_foundUser_showsUserAndStartChatTriggersCallback() {
@@ -197,14 +210,167 @@ class ContactsScreensTest {
     }
 
     @Test
-    fun groupInfo_hidesTheChatActionsGroup() {
-        val vm = GroupInfoViewModel(demoClient(scope), DemoData.GROUP_CHAT_ID)
+    fun groupInfo_showsTheChatActionsOfAGroup_withoutBlockOrReport() {
+        val vm = GroupInfoViewModel(demoClient(scope), DemoData.GROUP_CHAT_ID, reportAvailable = true)
         rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}) } }
 
         rule.onNodeWithText("Sofia Costa (You)").assertExists()
-        rule.onNodeWithTag(ChatActionsTestTags.GROUP).assertDoesNotExist()
-        rule.onNodeWithText("Chat actions").assertDoesNotExist()
-        rule.onNodeWithText("Mute").assertDoesNotExist()
+        scrollToTag(ChatActionsTestTags.action(ChatAction.ARCHIVE))
+        rule.onNodeWithTag(ChatActionsTestTags.GROUP).assertExists()
+        rule.onNodeWithText("Chat actions").assertExists()
+        rule.onNodeWithText("Mute").assertExists()
+        rule.onNodeWithText("Pin").assertExists()
+        rule.onNodeWithText("Archive").assertExists()
+        rule.onNodeWithText("Block").assertDoesNotExist()
         rule.onNodeWithText("Report").assertDoesNotExist()
+    }
+
+    @Test
+    fun directChatInfo_hidesReportWithoutAMetaServer() {
+        val fake = demoClient(scope)
+        val vm = GroupInfoViewModel(fake, DemoData.DIRECT_CHAT_ID, reportAvailable = false)
+        rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}) } }
+
+        scrollToTag(ChatActionsTestTags.action(ChatAction.BLOCK))
+        rule.onNodeWithTag(ChatActionsTestTags.action(ChatAction.BLOCK)).assertExists()
+        rule.onNodeWithTag(ChatActionsTestTags.action(ChatAction.REPORT)).assertDoesNotExist()
+        rule.onNodeWithText("Report").assertDoesNotExist()
+    }
+
+    @Test
+    fun directChatInfo_showsReportWithAMetaServer_andOpensItForThePeer() {
+        val fake = FakeGimClient.withDemoData(scope, outboxDelays = null, metaServerUrl = "https://meta.example.eu")
+        val vm = GroupInfoViewModel(fake, DemoData.DIRECT_CHAT_ID, reportAvailable = true)
+        var reported: Pair<String, String>? = null
+        rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}, onReport = { u, c -> reported = u to c }) } }
+
+        scrollToTag(ChatActionsTestTags.action(ChatAction.REPORT))
+        rule.onNodeWithText("Report").assertExists()
+        rule.onNodeWithTag(ChatActionsTestTags.action(ChatAction.REPORT)).performClick()
+        rule.waitUntil(5_000) { reported != null }
+        assertEquals(DemoData.lukas.userId to DemoData.DIRECT_CHAT_ID, reported)
+    }
+
+    @Test
+    fun chatInfo_muteForAnHour_showsUnmuteAndUntilWhen() {
+        val vm = GroupInfoViewModel(demoClient(scope), DemoData.DIRECT_CHAT_ID)
+        rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}) } }
+
+        scrollToTag(ChatActionsTestTags.action(ChatAction.MUTE))
+        rule.onNodeWithTag(ChatActionsTestTags.action(ChatAction.MUTE)).performClick()
+        rule.onNodeWithText("Mute this chat").assertExists()
+        rule.onNodeWithText("Always").assertExists()
+        rule.onNodeWithTag(ChatActionsTestTags.muteOption(MuteOption.ONE_HOUR)).performClick()
+        rule.onNodeWithText("Mute this chat").assertDoesNotExist()
+        rule.waitUntil(5_000) { vm.state.value.chatActions.firstOrNull() == ChatAction.UNMUTE }
+        rule.onNodeWithText("Unmute").assertExists()
+        rule.onNode(hasText("Muted until", substring = true)).assertExists()
+
+        rule.onNodeWithText("Unmute").performClick()
+        rule.waitUntil(5_000) { vm.state.value.chatActions.firstOrNull() == ChatAction.MUTE }
+        rule.onNode(hasText("Muted until", substring = true)).assertDoesNotExist()
+    }
+
+    @Test
+    fun chatInfo_muteAlways_saysUntilYouUnmute() {
+        val vm = GroupInfoViewModel(demoClient(scope), DemoData.GROUP_CHAT_ID)
+        rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}) } }
+
+        scrollToTag(ChatActionsTestTags.action(ChatAction.MUTE))
+        rule.onNodeWithTag(ChatActionsTestTags.action(ChatAction.MUTE)).performClick()
+        rule.onNodeWithTag(ChatActionsTestTags.muteOption(MuteOption.ALWAYS)).performClick()
+        rule.waitUntil(5_000) { vm.state.value.mutedForever }
+        rule.onNodeWithText("Muted until you unmute it").assertExists()
+    }
+
+    @Test
+    fun chatInfo_blockAsksWithAnExplanation_thenShowsUnblock() {
+        val fake = demoClient(scope)
+        val vm = GroupInfoViewModel(fake, DemoData.DIRECT_CHAT_ID)
+        rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}) } }
+
+        scrollToTag(ChatActionsTestTags.action(ChatAction.BLOCK))
+        rule.onNodeWithTag(ChatActionsTestTags.action(ChatAction.BLOCK)).performClick()
+        rule.onNodeWithText("Block Lukas Berger?").assertExists()
+        rule.onNode(hasText("They can't send you messages.", substring = true)).assertExists()
+        rule.onNodeWithText("Cancel").performClick()
+        rule.onNodeWithText("Block Lukas Berger?").assertDoesNotExist()
+
+        rule.onNodeWithTag(ChatActionsTestTags.action(ChatAction.BLOCK)).performClick()
+        rule.onNode(hasText("Block") and hasClickAction() and hasAnyAncestor(hasTestTag(ChatActionsTestTags.BLOCK_CONFIRM)))
+            .performClick()
+        rule.waitUntil(5_000) { vm.state.value.chat?.blocked == true }
+        scrollToTag(ChatActionsTestTags.action(ChatAction.UNBLOCK))
+        rule.onNodeWithTag(ChatActionsTestTags.action(ChatAction.UNBLOCK)).performClick()
+        rule.onNodeWithText("Unblock Lukas Berger?").assertExists()
+    }
+
+    @Test
+    fun blockedError_saysHowToUnblock() {
+        rule.setContent { GimTheme { Text(ContactsError.Blocked.message()) } }
+        rule.onNodeWithText("You blocked this person. Unblock them in Settings > Privacy to start a chat.").assertExists()
+    }
+
+    @Test
+    fun report_formShowsTheWarning_andSendIsEnabledOnceAReasonIsPicked() {
+        val fake = FakeGimClient.withDemoData(scope, outboxDelays = null, metaServerUrl = "https://meta.example.eu")
+        val vm = ReportViewModel(fake, DemoData.lukas.userId, DemoData.DIRECT_CHAT_ID)
+        rule.setContent { GimTheme { ReportRoute(vm, onBack = {}) } }
+
+        rule.onNodeWithText("Report Lukas Berger").assertExists()
+        rule.waitUntil(5_000) { vm.state.value.messages != null }
+        scrollToTag(ReportTestTags.SEND)
+        rule.onNodeWithTag(ReportTestTags.SEND).assertIsNotEnabled()
+        scrollToTag(ReportTestTags.WARNING)
+        rule.onNodeWithText(
+            "The messages you pick are sent to the moderators without encryption. The moderators can read them.",
+        ).assertExists()
+
+        scrollToTag(ReportTestTags.reason(ReportReason.SPAM))
+        rule.onNodeWithTag(ReportTestTags.reason(ReportReason.SPAM)).performClick()
+        scrollToTag(ReportTestTags.NOTE)
+        rule.onNodeWithText("0/1000").assertExists()
+        rule.onNodeWithTag(ReportTestTags.NOTE).performTextInput("Ads")
+        rule.onNodeWithText("3/1000").assertExists()
+        val first = vm.state.value.messages!!.first().messageId
+        scrollToTag(ReportTestTags.message(first))
+        rule.onNodeWithTag(ReportTestTags.message(first)).performClick()
+        rule.onNodeWithText("1/50 picked").assertExists()
+        scrollToTag(ReportTestTags.ALSO_BLOCK)
+        rule.onNodeWithTag(ReportTestTags.ALSO_BLOCK).performClick()
+        scrollToTag(ReportTestTags.SEND)
+        rule.onNodeWithTag(ReportTestTags.SEND).assertIsEnabled().performClick()
+
+        rule.waitUntil(5_000) { vm.state.value.sent }
+        rule.onNodeWithTag(ReportTestTags.SENT).assertExists()
+        rule.onNodeWithText("Thanks. Your report was sent.").assertExists()
+        rule.onNodeWithText("You also blocked them. They can't send you messages.").assertExists()
+        assertEquals(listOf(first), fake.reports.single().messageIds)
+    }
+
+    @Test
+    fun report_noMessages_saysThereIsNothingToAdd() {
+        rule.setContent {
+            GimTheme { ReportScreen(state = ReportUiState(name = "Nikos", messages = persistentListOf()), actions = ReportActions()) }
+        }
+        rule.onNodeWithText("Report Nikos").assertExists()
+        scrollTo(hasText("There are no messages from them to add."))
+        rule.onNodeWithText("There are no messages from them to add.").assertExists()
+    }
+
+    @Test
+    fun report_sentWithBlockFailure_saysHowToBlock() {
+        var done = 0
+        rule.setContent {
+            GimTheme {
+                ReportScreen(
+                    state = ReportUiState(sent = true, blockFailed = true),
+                    actions = ReportActions(onDone = { done++ }),
+                )
+            }
+        }
+        rule.onNodeWithText("Couldn't block them. You can block them in chat info.").assertExists()
+        rule.onNodeWithTag(ReportTestTags.DONE).performClick()
+        assertEquals(1, done)
     }
 }

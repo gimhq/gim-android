@@ -3,6 +3,7 @@ package im.g.apps
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import im.g.apps.core.bridge.ClientConfig
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimClientFactory
 import im.g.apps.core.bridge.GimException
@@ -70,6 +71,24 @@ class AppContainerTest {
 
         assertNotNull(container.manager.connect(DemoData.SERVER_URL))
         assertSame(container.hooks, received)
+    }
+
+    @Test
+    fun meta_server_url_defaults_to_the_build_config_and_reaches_the_client_config() = runTest {
+        assertNull(ApplicationProvider.getApplicationContext<GimApplication>().container.metaServerUrl)
+
+        var received: ClientConfig? = null
+        val container = AppContainer(
+            context,
+            scope,
+            serverUrlStore = InMemoryServerUrlStore(),
+            clientFactory = GimClientFactory { config, _ -> FakeGimClient(scope).also { received = config } },
+            metaServerUrl = "https://meta.example.eu",
+        )
+
+        assertEquals("https://meta.example.eu", container.metaServerUrl)
+        container.manager.connect(DemoData.SERVER_URL)
+        assertEquals("https://meta.example.eu", received?.metaServerUrl)
     }
 
     @Test
@@ -198,6 +217,45 @@ class AppContainerTest {
         assertNull(container.manager.client.value)
         assertFalse(secrets.exists())
         assertFalse(data.exists())
+    }
+
+    @Test
+    fun delete_account_wipes_local_state_and_returns_the_unreachable_hubs() = runTest {
+        val store = InMemoryServerUrlStore(DemoData.SERVER_URL)
+        val fake = FakeGimClient.withDemoData(scope).apply { unreachableHubsOnDelete = listOf("hub-two") }
+        val container = AppContainer(context, scope, serverUrlStore = store, clientFactory = GimClientFactory { _, _ -> fake })
+        container.manager.restore()
+        container.sync.onSignedIn()
+        val (secrets, data) = seedLocalState(container)
+
+        assertEquals(listOf("hub-two"), container.deleteAccount())
+
+        assertNull(fake.session())
+        assertNull(store.get())
+        assertNull(container.manager.client.value)
+        assertFalse(container.sync.signedIn.value)
+        assertFalse(secrets.exists())
+        assertFalse(data.exists())
+    }
+
+    @Test
+    fun a_failed_delete_account_keeps_the_client_and_local_state() = runTest {
+        val store = InMemoryServerUrlStore(DemoData.SERVER_URL)
+        val fake = FakeGimClient.withDemoData(scope).apply { failNext("deleteAccount", GimException.Network("offline")) }
+        val container = AppContainer(context, scope, serverUrlStore = store, clientFactory = GimClientFactory { _, _ -> fake })
+        container.manager.restore()
+        container.sync.onSignedIn()
+        val (secrets, data) = seedLocalState(container)
+
+        val error = runCatching { container.deleteAccount() }.exceptionOrNull()
+
+        assertTrue(error is GimException.Network)
+        assertEquals(DemoData.session, fake.session())
+        assertEquals(DemoData.SERVER_URL, store.get())
+        assertSame(fake, container.manager.client.value)
+        assertTrue(container.sync.signedIn.value)
+        assertTrue(secrets.exists())
+        assertTrue(data.exists())
     }
 
     private fun seedLocalState(container: AppContainer): Pair<File, File> {

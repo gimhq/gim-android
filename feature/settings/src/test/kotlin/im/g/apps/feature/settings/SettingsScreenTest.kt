@@ -1,6 +1,8 @@
 package im.g.apps.feature.settings
 
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
@@ -98,15 +100,45 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun hidden_account_safety_rows_are_not_shown() {
-        show()
+    fun new_recovery_key_and_delete_account_rows_call_their_callbacks() {
+        val calls = mutableListOf<String>()
+        show(actions = SettingsActions(onNewRecoveryKey = { calls += "new key" }, onDeleteAccount = { calls += "delete" }))
 
-        rule.onNodeWithText("Privacy").assertDoesNotExist()
-        rule.onNodeWithText("Read receipts").assertDoesNotExist()
-        rule.onNodeWithText("Typing indicator").assertDoesNotExist()
-        rule.onNodeWithText("Blocked people").assertDoesNotExist()
-        rule.onNodeWithText("Create a new recovery key").assertDoesNotExist()
-        rule.onNodeWithText("Delete account").assertDoesNotExist()
+        rule.onNodeWithTag(SettingsTestTags.NEW_RECOVERY_KEY).performScrollTo()
+            .assertTextContains("Create a new recovery key").performClick()
+        rule.onNodeWithTag(SettingsTestTags.DELETE_ACCOUNT).performScrollTo().assertTextContains("Delete account").performClick()
+
+        assertEquals(listOf("new key", "delete"), calls)
+    }
+
+    @Test
+    fun privacy_switches_show_the_current_values_and_explain_themselves() {
+        show(state.copy(readReceipts = false, typingIndicator = true))
+
+        rule.onNodeWithText("Privacy").performScrollTo().assertExists()
+        rule.onNodeWithTag(SettingsTestTags.READ_RECEIPTS).performScrollTo().assertIsOff()
+        rule.onNodeWithTag(SettingsTestTags.TYPING_INDICATOR).performScrollTo().assertIsOn()
+        rule.onNodeWithText("and you can't see theirs", substring = true).performScrollTo().assertExists()
+        rule.onNodeWithText("and you can't see when they are", substring = true).performScrollTo().assertExists()
+        rule.onNodeWithText("on all your devices", substring = true).performScrollTo().assertExists()
+    }
+
+    @Test
+    fun privacy_switches_and_blocked_people_call_their_callbacks() {
+        val calls = mutableListOf<String>()
+        show(
+            actions = SettingsActions(
+                onReadReceiptsChange = { calls += "receipts $it" },
+                onTypingIndicatorChange = { calls += "typing $it" },
+                onBlockedPeople = { calls += "blocked" },
+            ),
+        )
+
+        rule.onNodeWithTag(SettingsTestTags.READ_RECEIPTS).performScrollTo().performClick()
+        rule.onNodeWithTag(SettingsTestTags.TYPING_INDICATOR).performScrollTo().performClick()
+        rule.onNodeWithTag(SettingsTestTags.BLOCKED_PEOPLE).performScrollTo().assertTextContains("Blocked people").performClick()
+
+        assertEquals(listOf("receipts false", "typing false", "blocked"), calls)
     }
 
     @Test

@@ -115,6 +115,23 @@ class PushControllerTest {
     }
 
     @Test
+    fun a_push_for_a_muted_chat_shows_nothing_until_it_is_unmuted() = runTest(UnconfinedTestDispatcher()) {
+        val s = setUp()
+        s.manager.restore()
+        s.client.pushContent = { payload -> notificationContent(body = payload, chatId = DemoData.DIRECT_CHAT_ID) }
+        s.provider.registration.value = PushRegistration("mock-android", "token-1")
+        s.signedIn.value = true
+
+        s.client.setChatMuted(DemoData.DIRECT_CHAT_ID, s.client.mutedForever())
+        s.provider.payloads.send("""{"v":1,"type":"message","n":"muted"}""")
+        assertTrue(s.notifier.shown.isEmpty())
+
+        s.client.setChatMuted(DemoData.DIRECT_CHAT_ID, 0)
+        s.provider.payloads.send("""{"v":1,"type":"message","n":"unmuted"}""")
+        assertEquals(listOf("""{"v":1,"type":"message","n":"unmuted"}"""), s.notifier.shown.map { it.body })
+    }
+
+    @Test
     fun signing_out_unregisters_and_clears_notifications() = runTest(UnconfinedTestDispatcher()) {
         val s = setUp()
         val client = s.manager.restore()

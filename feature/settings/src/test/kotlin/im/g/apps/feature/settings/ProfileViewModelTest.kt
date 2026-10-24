@@ -12,17 +12,21 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProfileViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
+    @get:Rule
+    val tmp = TemporaryFolder()
+
     private suspend fun TestScope.signedIn(): FakeGimClient =
         FakeGimClient(backgroundScope, outboxDelays = null).apply { createIdentity("Sofia Costa") }
 
     private fun TestScope.viewModel(client: FakeGimClient) =
-        ProfileViewModel(client, ioDispatcher = main.dispatcher).also { advanceUntilIdle() }
+        ProfileViewModel(client, ProfilePhotos(client, tmp.root), ioDispatcher = main.dispatcher).also { advanceUntilIdle() }
 
     @Test
     fun loads_the_session_into_the_state() = runTest {

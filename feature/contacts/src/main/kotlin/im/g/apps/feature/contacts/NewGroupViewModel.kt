@@ -9,7 +9,6 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.UserProfile
-import im.g.apps.core.bridge.suspendedHubName
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.channels.Channel
@@ -110,7 +109,7 @@ class NewGroupViewModel(private val client: GimClient) : ViewModel() {
                 val chatId = client.createGroupChat(current.name.trim(), current.members.map { it.userId })
                 _events.send(NewGroupEvent.OpenChat(chatId))
             } catch (e: GimException) {
-                _events.send(NewGroupEvent.ShowError(e.toInviteError(client.suspendedHubName(e), current.members)))
+                _events.send(NewGroupEvent.ShowError(client.inviteError(e, current.members)))
             } finally {
                 _state.update { it.copy(creating = false) }
             }

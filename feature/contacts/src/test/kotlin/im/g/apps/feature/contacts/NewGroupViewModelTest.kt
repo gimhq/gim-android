@@ -164,6 +164,20 @@ class NewGroupViewModelTest {
     }
 
     @Test
+    fun create_withBlockedUser_saysTheyAreBlocked() = runTest {
+        val (vm, client) = newViewModel()
+        advanceUntilIdle()
+        client.blockUser(DemoData.ana.userId)
+        vm.addMember(DemoData.ana)
+        vm.next()
+        vm.onNameChange("Crew")
+        vm.create()
+        advanceUntilIdle()
+        assertEquals(NewGroupEvent.ShowError(ContactsError.Blocked), vm.events.first())
+        assertTrue(vm.state.value.canCreate)
+    }
+
+    @Test
     fun create_withOnlyUnknownUsers_showsUserNotFoundAndCreatesNothing() = runTest {
         val (vm, client) = newViewModel()
         advanceUntilIdle()

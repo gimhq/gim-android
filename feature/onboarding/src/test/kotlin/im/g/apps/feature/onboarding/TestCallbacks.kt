@@ -1,5 +1,7 @@
 package im.g.apps.feature.onboarding
 
+import im.g.apps.core.bridge.fake.FakeRecoveryKitCodec
+
 /** [OnboardingCallbacks] that do nothing unless overridden, for stateless screen tests. */
 internal fun testCallbacks(
     onFinishIntro: () -> Unit = {},
@@ -18,6 +20,7 @@ internal fun testCallbacks(
     onBack = {},
     onDisplayNameChange = {},
     onSubmitDisplayName = {},
+    formatRecoveryKit = FakeRecoveryKitCodec::format,
     onCopyRecoveryKit = onCopyRecoveryKit,
     onSaveToPasswordManager = onSaveToPasswordManager,
     onShareRecoveryKit = onShareRecoveryKit,
