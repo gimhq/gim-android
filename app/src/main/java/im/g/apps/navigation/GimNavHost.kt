@@ -47,17 +47,24 @@ import im.g.apps.feature.onboarding.OnboardingRoute
 import im.g.apps.feature.onboarding.OnboardingViewModel
 import im.g.apps.feature.onboarding.onboardingViewModelFactory
 import im.g.apps.feature.settings.AppearanceRoute
+import im.g.apps.feature.settings.BlockedPeopleRoute
+import im.g.apps.feature.settings.DeleteAccountRoute
 import im.g.apps.feature.settings.HelpScreen
 import im.g.apps.feature.settings.LanguageRoute
 import im.g.apps.feature.settings.LicencesScreen
+import im.g.apps.feature.settings.NewRecoveryKeyRoute
 import im.g.apps.feature.settings.NotificationChannelItem
 import im.g.apps.feature.settings.NotificationsRoute
 import im.g.apps.feature.settings.ProfileRoute
 import im.g.apps.feature.settings.RecoveryKeyScreen
 import im.g.apps.feature.settings.SettingsActions
 import im.g.apps.feature.settings.SettingsRoute
+import im.g.apps.feature.settings.SettingsViewModel
 import im.g.apps.feature.settings.appearanceViewModelFactory
+import im.g.apps.feature.settings.blockedPeopleViewModelFactory
+import im.g.apps.feature.settings.deleteAccountViewModelFactory
 import im.g.apps.feature.settings.languageViewModelFactory
+import im.g.apps.feature.settings.newRecoveryKeyViewModelFactory
 import im.g.apps.feature.settings.profileViewModelFactory
 import im.g.apps.feature.settings.settingsViewModelFactory
 import im.g.apps.feature.settings.supportedLanguageTags
@@ -86,7 +93,12 @@ fun GimNavHost(
         composable(Routes.ONBOARDING) {
             val vm: OnboardingViewModel = viewModel(
                 // A dropped link must also wipe the keystore and data dir, like sign-out.
-                factory = onboardingViewModelFactory(container.manager, container.defaultHubUrl, container::signOut),
+                factory = onboardingViewModelFactory(
+                    container.manager,
+                    container.recoveryKitCodec,
+                    container.defaultHubUrl,
+                    container::signOut,
+                ),
             )
             val state by vm.state.collectAsState()
             // Display name -> Welcome, link QR code -> cancel; on the recovery code and the link SAS back is swallowed.
@@ -128,15 +140,21 @@ fun GimNavHost(
         composable(Routes.SETTINGS) {
             val current = client ?: return@composable
             val themeMode by container.themeModeStore.mode.collectAsState()
+            val vm: SettingsViewModel = viewModel(factory = settingsViewModelFactory(current))
             SettingsRoute(
-                viewModel = viewModel(factory = settingsViewModelFactory(current)),
+                viewModel = vm,
                 actions = SettingsActions(
                     onBack = { navController.popBackStack() },
                     onOpenProfile = { navController.navigate(Routes.SETTINGS_PROFILE) },
                     onRecoveryKey = { navController.navigate(Routes.SETTINGS_RECOVERY_KEY) },
                     onDevices = { navController.navigate(Routes.DEVICES) },
                     onLinkDevice = { navController.navigate(Routes.LINK_DEVICE) },
+                    onNewRecoveryKey = { navController.navigate(Routes.SETTINGS_NEW_RECOVERY_KEY) },
+                    onDeleteAccount = { navController.navigate(Routes.SETTINGS_DELETE_ACCOUNT) },
                     onNotifications = { navController.navigate(Routes.SETTINGS_NOTIFICATIONS) },
+                    onReadReceiptsChange = vm::setReadReceipts,
+                    onTypingIndicatorChange = vm::setTypingIndicator,
+                    onBlockedPeople = { navController.navigate(Routes.SETTINGS_BLOCKED) },
                     onServers = { navController.navigate(Routes.HUBS) },
                     onAppearance = { navController.navigate(Routes.SETTINGS_APPEARANCE) },
                     onLanguage = { navController.navigate(Routes.SETTINGS_LANGUAGE) },
@@ -156,6 +174,32 @@ fun GimNavHost(
         }
         composable(Routes.SETTINGS_RECOVERY_KEY) {
             RecoveryKeyScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.SETTINGS_NEW_RECOVERY_KEY) {
+            val current = client ?: return@composable
+            val context = LocalContext.current
+            NewRecoveryKeyRoute(
+                viewModel = viewModel(factory = newRecoveryKeyViewModelFactory(current, container.recoveryKitCodec)),
+                onShareKit = { shareRecoveryKit(context, it) },
+                onDone = {
+                    deleteRecoveryKitFiles(context)
+                    navController.popBackStack()
+                },
+            )
+        }
+        composable(Routes.SETTINGS_DELETE_ACCOUNT) {
+            // Kept for the entry's lifetime: deleting drops the client while this screen still shows the result.
+            val current = remember { client } ?: return@composable
+            val context = LocalContext.current
+            DeleteAccountRoute(
+                viewModel = viewModel(factory = deleteAccountViewModelFactory(current, container::deleteAccount)),
+                onBack = { navController.popBackStack() },
+                // The container already wiped the phone like sign-out; onboarding creates a fresh client.
+                onDeleted = {
+                    deleteRecoveryKitFiles(context)
+                    navController.navigate(Routes.ONBOARDING) { popUpTo(navController.graph.id) { inclusive = true } }
+                },
+            )
         }
         composable(Routes.SETTINGS_NOTIFICATIONS) {
             val context = LocalContext.current
@@ -181,8 +225,16 @@ fun GimNavHost(
         }
         composable(Routes.SETTINGS_PROFILE) {
             val current = client ?: return@composable
+            val context = LocalContext.current
             ProfileRoute(
-                viewModel = viewModel(factory = profileViewModelFactory(current)),
+                viewModel = viewModel(factory = profileViewModelFactory(current, context.cacheDir)),
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(Routes.SETTINGS_BLOCKED) {
+            val current = client ?: return@composable
+            BlockedPeopleRoute(
+                viewModel = viewModel(factory = blockedPeopleViewModelFactory(current)),
                 onBack = { navController.popBackStack() },
             )
         }

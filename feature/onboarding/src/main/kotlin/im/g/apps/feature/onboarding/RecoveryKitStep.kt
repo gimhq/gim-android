@@ -34,6 +34,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import im.g.apps.core.bridge.RecoveryKitLabels
 import im.g.apps.core.designsystem.component.GimPreviews
 import im.g.apps.core.designsystem.theme.GimTheme
 import kotlinx.coroutines.launch
@@ -47,7 +48,7 @@ internal fun ColumnScope.RecoveryKitStep(state: OnboardingUiState, callbacks: On
     val accountId = state.accountId.orEmpty()
     // Shown exactly as gim-core returns it: blocks of four separated by '-'.
     val code = state.recoveryCode.orEmpty()
-    val kitText = formatRecoveryKit(
+    val kitText = callbacks.formatRecoveryKit(
         accountId,
         code,
         RecoveryKitLabels(

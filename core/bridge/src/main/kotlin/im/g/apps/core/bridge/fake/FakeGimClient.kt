@@ -23,9 +23,12 @@ import im.g.apps.core.bridge.MessagePreview
 import im.g.apps.core.bridge.NotificationContent
 import im.g.apps.core.bridge.NotificationKind
 import im.g.apps.core.bridge.PendingApproval
+import im.g.apps.core.bridge.PrivacySettings
 import im.g.apps.core.bridge.PushRegistration
 import im.g.apps.core.bridge.ReactionGroup
+import im.g.apps.core.bridge.RecoveryRotation
 import im.g.apps.core.bridge.ReplyPreview
+import im.g.apps.core.bridge.ReportReason
 import im.g.apps.core.bridge.SendFailure
 import im.g.apps.core.bridge.SendState
 import im.g.apps.core.bridge.Session
@@ -68,10 +71,16 @@ import java.time.ZoneId
  * confirmed, and a non-empty outbox ([GimException.HubNotDrained]); [setPrimaryHub] needs a session on every hub
  * whose priority changes ([simulateHubSharedByOtherDevice] lists one without).
  *
+ * Settings follow gim-core's privacy and chat settings: pinned chats first in the chat list, blocked users' messages
+ * dropped and chats with them refused, read receipts off stop own sends at [SendState.Delivered], a muted chat's push
+ * is not displayed. [reportUser] needs [metaServerUrl] and records [reports]; [deleteAccount] wipes like [signOut].
+ * [failNext] makes the next call of a method throw.
+ *
  * @param clock epoch-millisecond time source for timestamps.
  * @param pageSize number of newest history events (messages, membership changes) loaded before
  *   [Timeline.paginateBackwards].
  * @param discardedLocalState value of [localStateReset].
+ * @param metaServerUrl the client's [im.g.apps.core.bridge.ClientConfig.metaServerUrl]; null fails [reportUser].
  */
 class FakeGimClient(
     private val scope: CoroutineScope,
@@ -81,12 +90,22 @@ class FakeGimClient(
     private val pageSize: Int = DEFAULT_PAGE_SIZE,
     private val discardedLocalState: Boolean = false,
     private val homeHubUrl: String = DEFAULT_HOME_HUB_URL,
+    private val metaServerUrl: String? = null,
 ) : GimClient {
 
     data class OutboxDelays(
         val sentMs: Long = 400,
         val deliveredMs: Long = 800,
         val readMs: Long = 1_500,
+    )
+
+    /** A report sent with [reportUser]. */
+    data class Report(
+        val reportId: String,
+        val userId: String,
+        val reason: ReportReason,
+        val note: String?,
+        val messageIds: List<String>,
     )
 
     private class FakeChat(
@@ -97,6 +116,9 @@ class FakeGimClient(
         val createdAt: Long,
     ) {
         var avatar: MediaRef? = null
+        var mutedUntilMs = 0L
+        var pinned = false
+        var archived = false
 
         /** Messages and membership changes, oldest first; the newest [loaded] are in the timeline. */
         val events = mutableListOf<TimelineItem>()
@@ -204,6 +226,10 @@ class FakeGimClient(
     private val unverifiableHubUrls = HashSet<String>()
     private val notAdmittingHubUrls = HashSet<String>()
     private var pushRegistration: PushRegistration? = null
+    private var ownAvatarPath: String? = null
+    private var privacy = PrivacySettings()
+    private val sentReports = mutableListOf<Report>()
+    private val failures = HashMap<String, GimException>()
 
     private val chatListRegs = mutableListOf<Registration<ChatListListener>>()
     private val timelineRegs = mutableListOf<Registration<TimelineListener>>()
@@ -246,6 +272,15 @@ class FakeGimClient(
             signIn(Session(profile.userId, "d-${nextId++}", profile.handle, profile.displayName))
             ownDevices.addAll(0, previous.map { if (revokeOthers) it.copy(createdAtMs = 0, revoked = true) else it })
         }
+    }
+
+    override suspend fun rotateRecoveryCode(): RecoveryRotation = synchronized(lock) {
+        checkFailure("rotateRecoveryCode")
+        checkSuspended()
+        val me = me()
+        val code = validRecoveryCode(nextId++)
+        recoverable[me.userId]?.let { (profile, _) -> recoverable[me.userId] = profile to code }
+        RecoveryRotation(code, rotationUnsyncedHubIds)
     }
 
     override fun startLink(hubs: List<String>): LinkSession = synchronized(lock) {
@@ -380,6 +415,26 @@ class FakeGimClient(
         updateSession(me.copy(displayName = requireDisplayName(name)))
     }
 
+    override suspend fun ownProfile(): UserProfile? = synchronized(lock) { session?.let { me() } }
+
+    override suspend fun setAvatar(filePath: String, mime: String) = synchronized(lock) {
+        checkFailure("setAvatar")
+        checkSuspended()
+        val me = requireSession()
+        val file = File(filePath)
+        if (!file.isFile) throw GimException.InvalidInput("avatar file not found")
+        ownAvatarPath = file.absolutePath
+        updateSession(me)
+    }
+
+    override suspend fun removeAvatar() = synchronized(lock) {
+        checkFailure("removeAvatar")
+        checkSuspended()
+        val me = requireSession()
+        ownAvatarPath = null
+        updateSession(me)
+    }
+
     override suspend fun claimHandle(handle: String) = synchronized(lock) {
         checkSuspended()
         val me = requireSession()
@@ -400,7 +455,43 @@ class FakeGimClient(
     }
 
     override suspend fun signOut() = synchronized(lock) {
+        wipe(requireSession())
+    }
+
+    override suspend fun deleteAccount(): List<String> = synchronized(lock) {
         val me = requireSession()
+        checkFailure("deleteAccount")
+        recoverable.remove(me.userId)
+        wipe(me)
+        unreachableHubsOnDelete
+    }
+
+    override suspend fun reportUser(
+        userId: String,
+        reason: ReportReason,
+        note: String?,
+        messageIds: List<String>,
+    ): String = synchronized(lock) {
+        checkFailure("reportUser")
+        val me = me()
+        if (metaServerUrl == null) throw GimException.InvalidInput("no meta server configured")
+        if (userId == me.userId) throw GimException.InvalidInput("cannot report yourself")
+        if (messageIds.size > MAX_REPORT_MESSAGES) {
+            throw GimException.InvalidInput("at most $MAX_REPORT_MESSAGES messages per report")
+        }
+        if (note != null && note.length > MAX_REPORT_NOTE) {
+            throw GimException.InvalidInput("note: at most $MAX_REPORT_NOTE characters")
+        }
+        messageIds.firstOrNull { id ->
+            chats.values.none { chat -> chat.events.any { it is TimelineItem.Message && it.item.messageId == id } }
+        }?.let { throw GimException.NotFound("message $it") }
+        val report = Report("report-${nextId++}", userId, reason, note, messageIds.toList())
+        sentReports += report
+        report.reportId
+    }
+
+    /** Deletes the session and local state of [me] and notifies listeners, as gim-core's sign-out wipe. */
+    private fun wipe(me: Session) {
         directory.remove(me.userId)
         session = null
         ownDevices.clear()
@@ -418,6 +509,8 @@ class FakeGimClient(
         hubs.clear()
         chatOwners.clear()
         pushRegistration = null
+        ownAvatarPath = null
+        privacy = PrivacySettings()
         hubListRegs.toList().forEach { it.listener.onUpdate(emptyList()) }
         chatListRegs.toList().forEach { it.listener.onUpdate(listOf(ChatListDiff.Clear)) }
         timelineRegs.toList().forEach { it.listener.onUpdate(listOf(TimelineDiff.Clear)) }
@@ -440,7 +533,11 @@ class FakeGimClient(
         if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
             throw GimException.InvalidInput("payload: not a JSON object")
         }
-        pushContent?.let { return it(payload) }
+        pushContent?.let { content ->
+            val result = content(payload)
+            val muted = synchronized(lock) { result.chatId?.let { chats[it] }?.let { it.mutedUntilMs > clock() } == true }
+            return if (muted) result.copy(shouldDisplay = false) else result
+        }
         return NotificationContent(
             chatId = null,
             chatTitle = null,
@@ -490,6 +587,7 @@ class FakeGimClient(
         checkSuspended()
         val me = me()
         if (userId == me.userId) throw GimException.InvalidInput("cannot chat with yourself")
+        requireNotBlocked(listOf(userId))
         val other = user(userId)
         chats.values.firstOrNull { it.kind == ChatKind.DIRECT && it.members.any { m -> m.userId == userId } }
             ?.let { return@synchronized it.id }
@@ -506,6 +604,7 @@ class FakeGimClient(
         val trimmed = name.trim()
         if (trimmed.isEmpty()) throw GimException.InvalidInput("name must not be blank")
         val invitees = memberUserIds.filter { it != me.userId }.distinct()
+        requireNotBlocked(invitees)
         val refused = invitees.filter { it in refusingUsers }
         val others = invitees.mapNotNull { directory[it] }.filter { it.userId !in refusingUsers }
         if (invitees.isNotEmpty() && others.isEmpty()) {
@@ -527,6 +626,7 @@ class FakeGimClient(
         val chat = groupChat(chatId)
         requireActive(chatId)
         if (userIds.isEmpty()) throw GimException.InvalidInput("userIds must not be empty")
+        requireNotBlocked(userIds)
         checkPeerAdmits(chatId)
         val refused = userIds.distinct().filter { it in refusingUsers }
         val users = userIds.distinct().mapNotNull { directory[it] }.filter { it.userId !in refusingUsers }
@@ -706,7 +806,8 @@ class FakeGimClient(
     override suspend fun setTyping(chatId: String, active: Boolean) = synchronized(lock) {
         me()
         chat(chatId)
-        myTyping[chatId] = active
+        // Typing indicators off: nothing is sent.
+        myTyping[chatId] = active && privacy.typingIndicators
     }
 
     override suspend fun stopTyping(chatId: String) = setTyping(chatId, false)
@@ -737,6 +838,94 @@ class FakeGimClient(
             writePlaceholderPng(target, entry.width ?: 4, entry.height ?: 3, messageId.hashCode())
             target.path
         }
+
+    override suspend fun fetchUserAvatar(userId: String, destPath: String): String = synchronized(lock) {
+        checkFailure("fetchUserAvatar")
+        checkSuspended()
+        val me = me()
+        val user = if (userId == me.userId) me else directory[userId]
+        if (user == null || !user.hasAvatar) throw GimException.NotFound("avatar of $userId")
+        val target = File(destPath).absoluteFile
+        target.parentFile?.mkdirs()
+        val source = ownAvatarPath?.takeIf { userId == me.userId }?.let(::File)
+        if (source != null && source.isFile) {
+            source.copyTo(target, overwrite = true)
+        } else {
+            writePlaceholderPng(target, AVATAR_SIDE, AVATAR_SIDE, userId.hashCode())
+        }
+        target.path
+    }
+
+    override suspend fun fetchChatAvatar(chatId: String, destPath: String): String {
+        val avatar = synchronized(lock) {
+            checkFailure("fetchChatAvatar")
+            me()
+            chat(chatId).avatar ?: throw GimException.NotFound("avatar of $chatId")
+        }
+        return fetchMedia(chatId, avatar.messageId, destPath)
+    }
+
+    override suspend fun privacy(): PrivacySettings = synchronized(lock) {
+        checkFailure("privacy")
+        requireSession()
+        privacy
+    }
+
+    override suspend fun setReadReceipts(enabled: Boolean) = synchronized(lock) {
+        checkFailure("setReadReceipts")
+        requireSession()
+        privacy = privacy.copy(readReceipts = enabled)
+    }
+
+    override suspend fun setTypingIndicators(enabled: Boolean) = synchronized(lock) {
+        checkFailure("setTypingIndicators")
+        requireSession()
+        privacy = privacy.copy(typingIndicators = enabled)
+        if (!enabled) myTyping.clear()
+    }
+
+    override suspend fun blockUser(userId: String) = synchronized(lock) {
+        checkFailure("blockUser")
+        val me = requireSession()
+        if (userId == me.userId) throw GimException.InvalidInput("cannot block yourself")
+        if (userId in privacy.blockedUserIds) return@synchronized
+        privacy = privacy.copy(blockedUserIds = privacy.blockedUserIds + userId)
+        directChatsWith(userId).forEach { publishChat(it.id) }
+    }
+
+    override suspend fun unblockUser(userId: String) = synchronized(lock) {
+        checkFailure("unblockUser")
+        val me = requireSession()
+        if (userId == me.userId) throw GimException.InvalidInput("cannot unblock yourself")
+        if (userId !in privacy.blockedUserIds) return@synchronized
+        privacy = privacy.copy(blockedUserIds = privacy.blockedUserIds - userId)
+        directChatsWith(userId).forEach { publishChat(it.id) }
+    }
+
+    override suspend fun setChatMuted(chatId: String, mutedUntilMs: Long) = synchronized(lock) {
+        checkFailure("setChatMuted")
+        me()
+        val chat = chat(chatId)
+        if (mutedUntilMs < 0) throw GimException.InvalidInput("mutedUntilMs must not be negative")
+        chat.mutedUntilMs = mutedUntilMs
+        publishChat(chatId)
+    }
+
+    override fun mutedForever(): Long = MUTED_FOREVER
+
+    override suspend fun setChatPinned(chatId: String, pinned: Boolean) = synchronized(lock) {
+        checkFailure("setChatPinned")
+        me()
+        chat(chatId).pinned = pinned
+        publishChat(chatId)
+    }
+
+    override suspend fun setChatArchived(chatId: String, archived: Boolean) = synchronized(lock) {
+        checkFailure("setChatArchived")
+        me()
+        chat(chatId).archived = archived
+        publishChat(chatId)
+    }
 
     override suspend fun chatList(listener: ChatListListener): TaskHandle = synchronized(lock) {
         listener.onUpdate(listOf(ChatListDiff.Reset(chatList)))
@@ -897,6 +1086,19 @@ class FakeGimClient(
      */
     fun refuseContacts(vararg userIds: String) = synchronized(lock) { refusingUsers += userIds }
 
+    /** Makes the next call of the [GimClient] method named [method] (e.g. `"deleteAccount"`) throw [error]. */
+    fun failNext(method: String, error: GimException) = synchronized(lock) { failures[method] = error }
+
+    /** Reports sent with [reportUser], oldest first. */
+    val reports: List<Report>
+        get() = synchronized(lock) { sentReports.toList() }
+
+    /** What [rotateRecoveryCode] returns as [RecoveryRotation.unsyncedHubIds]. */
+    @Volatile var rotationUnsyncedHubIds: List<String> = emptyList()
+
+    /** What a successful [deleteAccount] returns: the other hubs that could not be reached. */
+    @Volatile var unreachableHubsOnDelete: List<String> = emptyList()
+
     /** Makes the next outbound send (or retry) end in [SendState.Failed] with [reason] and [cause]. */
     fun failNextSend(reason: String = "Simulated send failure", cause: SendFailure = SendFailure.OTHER) =
         synchronized(lock) { failNext = SendState.Failed(reason, cause) }
@@ -914,6 +1116,8 @@ class FakeGimClient(
             val sender = member(chat, from)
             val reply = replyTo?.let { replyPreview(chat, it) }
             val id = "m-${nextId++}"
+            // Messages of a blocked user are dropped.
+            if (from in privacy.blockedUserIds) return@synchronized id
             val item = MessageItem(
                 id, chatId, sender, isOwn = false, sentAtMs = clock(), content = MessageContent.Text(text),
                 replyTo = reply, reactions = emptyList(), edited = false, sendState = null,
@@ -928,6 +1132,8 @@ class FakeGimClient(
     /** Marks [userId] (a member) as typing or not in [chatId] and notifies that chat's typing listeners. */
     fun simulateTyping(chatId: String, userId: String, typing: Boolean) = synchronized(lock) {
         member(chat(chatId), userId)
+        // Typing indicators off, or a blocked user: not shown.
+        if (typing && (!privacy.typingIndicators || userId in privacy.blockedUserIds)) return@synchronized
         val current = typingUsers[chatId].orEmpty()
         val updated = if (typing) current.filter { it != userId } + userId else current.filter { it != userId }
         if (updated == current) return@synchronized
@@ -948,7 +1154,7 @@ class FakeGimClient(
         val home = normalizeHubUrl(homeHubUrl)
         hubs[fakeHubId(home)] = FakeHub(fakeHubId(home), home, HubState.VERIFIED, 0, signedIn = true)
         publishHubs()
-        directory[session.userId] = UserProfile(session.userId, session.handle, session.displayName)
+        directory[session.userId] = UserProfile(session.userId, session.handle, session.displayName, ownAvatarPath != null)
         ownDevices.clear()
         ownDevices += DeviceInfo(session.deviceId, clock(), isCurrent = true, revoked = false)
     }
@@ -1012,7 +1218,7 @@ class FakeGimClient(
 
     private fun updateSession(updated: Session) {
         session = updated
-        directory[updated.userId] = UserProfile(updated.userId, updated.handle, updated.displayName)
+        directory[updated.userId] = UserProfile(updated.userId, updated.handle, updated.displayName, ownAvatarPath != null)
     }
 
     private fun homeHubId(): String = fakeHubId(homeHubUrl)
@@ -1045,7 +1251,20 @@ class FakeGimClient(
         hubListRegs.toList().forEach { it.listener.onUpdate(current) }
     }
 
-    private fun me(): UserProfile = requireSession().let { UserProfile(it.userId, it.handle, it.displayName) }
+    private fun me(): UserProfile =
+        requireSession().let { UserProfile(it.userId, it.handle, it.displayName, ownAvatarPath != null) }
+
+    private fun checkFailure(method: String) {
+        failures.remove(method)?.let { throw it }
+    }
+
+    /** gim-core refuses chats with blocked users and adding them. */
+    private fun requireNotBlocked(userIds: List<String>) {
+        userIds.firstOrNull { it in privacy.blockedUserIds }?.let { throw GimException.InvalidInput("$it is blocked") }
+    }
+
+    private fun directChatsWith(userId: String): List<FakeChat> =
+        chats.values.filter { chat -> chat.kind == ChatKind.DIRECT && chat.members.any { it.userId == userId } }
 
     private fun user(userId: String): UserProfile = directory[userId] ?: throw GimException.NotFound("user $userId")
 
@@ -1164,10 +1383,12 @@ class FakeGimClient(
             failure != null -> failure
             message.sendState == SendState.Pending -> SendState.Sent
             message.sendState == SendState.Sent -> SendState.Delivered
-            message.sendState == SendState.Delivered -> SendState.Read
+            message.sendState == SendState.Delivered && privacy.readReceipts -> SendState.Read
             else -> null
         }
         if (next == null || next is SendState.Failed || next == SendState.Read) outbox.remove(key)
+        // With read receipts off, Delivered is final.
+        if (next == SendState.Delivered && !privacy.readReceipts) outbox.remove(key)
         if (next != null) updateMessage(key.chatId, key.messageId) { it.copy(sendState = next) }
         return key in outbox
     }
@@ -1235,18 +1456,31 @@ class FakeGimClient(
             chat.name
         }
         val last = chat.events.lastOrNull { it is TimelineItem.Message } as TimelineItem.Message?
+        val peer = if (chat.kind == ChatKind.DIRECT) {
+            chat.members.firstOrNull { it.userId != me }?.let { directory[it.userId] ?: it }
+        } else {
+            null
+        }
         return ChatSummary(
             chatId = chat.id,
             kind = chat.kind,
             name = name,
             avatar = chat.avatar,
             lastMessage = last?.item?.let {
-                MessagePreview(it.sender.displayName, previewText(it.content), it.sentAtMs, it.isOwn)
+                MessagePreview(
+                    it.sender.displayName, previewText(it.content), it.sentAtMs, it.isOwn,
+                    sendState = if (it.isOwn) it.sendState else null,
+                )
             },
             unreadCount = chat.unread,
             updatedAtMs = maxOf(chat.createdAt, chat.events.lastOrNull()?.let(::eventTime) ?: chat.createdAt),
             memberCount = chat.members.size,
             state = state(chat.id),
+            peer = peer,
+            mutedUntilMs = chat.mutedUntilMs,
+            pinned = chat.pinned,
+            archived = chat.archived,
+            blocked = peer != null && peer.userId in privacy.blockedUserIds,
         )
     }
 
@@ -1254,7 +1488,7 @@ class FakeGimClient(
     private fun publishChat(chatId: String) {
         val old = chatList
         val new = chats.values.map(::summary)
-            .sortedWith(compareByDescending<ChatSummary> { it.updatedAtMs }.thenBy { it.chatId })
+            .sortedWith(CHAT_ORDER)
         chatList = new
         val from = old.indexOfFirst { it.chatId == chatId }
         val to = new.indexOfFirst { it.chatId == chatId }
@@ -1288,6 +1522,16 @@ class FakeGimClient(
         private val HUB_ORDER = compareBy<FakeHub>({ it.priority }, { it.hubId })
         private const val DAY_MS = 86_400_000L
 
+        /** gim-core's chat list order: pinned chats first, then the most recently updated. */
+        private val CHAT_ORDER =
+            compareByDescending<ChatSummary> { it.pinned }.thenByDescending { it.updatedAtMs }.thenBy { it.chatId }
+
+        /** [mutedForever]: gim-core's `u64::MAX` as the bridge maps it. */
+        private const val MUTED_FOREVER = Long.MAX_VALUE
+        private const val MAX_REPORT_MESSAGES = 50
+        private const val MAX_REPORT_NOTE = 1000
+        private const val AVATAR_SIDE = 64
+
         private val HANDLE_PATTERN = Regex("[a-z0-9_]{3,32}")
         private const val LINK_PREFIX = "gimlink:fake:"
         private const val CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -1300,6 +1544,17 @@ class FakeGimClient(
         fun fakeRecoveryCode(number: Int): String =
             (0 until RECOVERY_CODE_CHARS).map { CROCKFORD[(number * 7 + it * 11) % CROCKFORD.length] }
                 .chunked(4).joinToString("-") { it.joinToString("") }
+
+        /**
+         * A recovery code that also passes gim-core's padding check (the last symbol's 3 padding bits zero), unlike
+         * [fakeRecoveryCode]; [rotateRecoveryCode] returns these.
+         */
+        private fun validRecoveryCode(number: Int): String {
+            val symbols = (0 until RECOVERY_CODE_CHARS).map { CROCKFORD[(number * 7 + it * 11) % CROCKFORD.length] }
+                .toMutableList()
+            symbols[symbols.lastIndex] = CROCKFORD[CROCKFORD.indexOf(symbols.last()) / 8 * 8]
+            return symbols.chunked(4).joinToString("-") { it.joinToString("") }
+        }
 
         /** Like gim-core's parser: case-insensitive, I/L -> 1, O -> 0, `-` and whitespace ignored; null if invalid. */
         private fun normalizeRecoveryCode(code: String): String? {
@@ -1335,7 +1590,9 @@ class FakeGimClient(
             zone: ZoneId = ZoneId.systemDefault(),
             outboxDelays: OutboxDelays? = OutboxDelays(),
             pageSize: Int = DEFAULT_PAGE_SIZE,
-        ): FakeGimClient = FakeGimClient(scope, clock, zone, outboxDelays, pageSize).also { DemoData.seed(it, clock()) }
+            metaServerUrl: String? = null,
+        ): FakeGimClient = FakeGimClient(scope, clock, zone, outboxDelays, pageSize, metaServerUrl = metaServerUrl)
+            .also { DemoData.seed(it, clock()) }
     }
 }
 

@@ -5,6 +5,7 @@ import android.util.Log
 import im.g.apps.core.bridge.GimClientFactory
 import im.g.apps.core.bridge.GimClientManager
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.RecoveryKitCodec
 import im.g.apps.core.bridge.ServerUrlStore
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakeGimClientFactory
@@ -13,6 +14,7 @@ import im.g.apps.core.bridge.platform.AndroidPlatformHooks
 import im.g.apps.core.bridge.platform.AndroidReachabilityMonitor
 import im.g.apps.core.bridge.platform.SharedPrefsServerUrlStore
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
+import im.g.apps.core.bridge.uniffi.UniffiRecoveryKitCodec
 import im.g.apps.feature.settings.AppCompatAppLocales
 import im.g.apps.feature.settings.AppLocales
 import im.g.apps.feature.settings.SharedPrefsThemeModeStore
@@ -45,6 +47,10 @@ class AppContainer(
     val themeModeStore: ThemeModeStore = SharedPrefsThemeModeStore(context),
     /** The in-app language; kept across restarts and sign-out. */
     val appLocales: AppLocales = AppCompatAppLocales(),
+    /** Build-time gim meta server URL (settings backup, user reports); null when not configured (feature off). */
+    val metaServerUrl: String? = BuildConfig.META_SERVER_URL.ifBlank { null },
+    /** gim-core's recovery-kit functions; JVM tests pass the fake. */
+    val recoveryKitCodec: RecoveryKitCodec = UniffiRecoveryKitCodec,
 ) {
     private val appContext = context.applicationContext
 
@@ -65,6 +71,7 @@ class AppContainer(
         },
         hooks = hooks,
         serverUrlStore = serverUrlStore,
+        metaServerUrl = metaServerUrl,
     )
 
     val sync = SyncController(manager, reachability.reachable, appScope)
@@ -90,6 +97,20 @@ class AppContainer(
             Log.w(TAG, "gim-core sign-out failed; wiping local state anyway", e)
         }
         withContext(Dispatchers.IO) { hooks.wipe() }
+    }
+
+    /**
+     * Deletes the account ([GimClientManager.deleteAccount], which drops the client) and returns the other hubs that
+     * could not be reached; then stops sync and push and wipes the platform state like [signOut]. On failure nothing
+     * changes, sync keeps running and the error is rethrown.
+     */
+    suspend fun deleteAccount(): List<String> {
+        val unreachable = manager.deleteAccount()
+        sync.onSignedOut()
+        // gim-core's deletion already removed the push registration from the hubs.
+        push.onSigningOut(null)
+        withContext(Dispatchers.IO) { hooks.wipe() }
+        return unreachable
     }
 
     companion object {

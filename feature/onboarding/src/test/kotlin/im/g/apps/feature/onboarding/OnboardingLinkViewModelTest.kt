@@ -9,6 +9,7 @@ import im.g.apps.core.bridge.InMemoryServerUrlStore
 import im.g.apps.core.bridge.LinkSession
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakePlatformHooks
+import im.g.apps.core.bridge.fake.FakeRecoveryKitCodec
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -92,7 +93,7 @@ class OnboardingLinkViewModelTest {
         store,
     )
 
-    private fun viewModel(manager: GimClientManager) = OnboardingViewModel(manager, SERVER_URL) {
+    private fun viewModel(manager: GimClientManager) = OnboardingViewModel(manager, FakeRecoveryKitCodec, SERVER_URL) {
         discarded++
         // Like AppContainer.signOut: the client may hold no session (cancelled) or be wiped already (rejected).
         runCatching { manager.signOut() }
@@ -340,7 +341,7 @@ class OnboardingLinkViewModelTest {
     @Test
     fun default_discard_signs_out_quietly_even_without_a_session() = runTest(dispatcher) {
         val manager = manager { it.waitGate = CompletableDeferred() }
-        val vm = OnboardingViewModel(manager, SERVER_URL)
+        val vm = OnboardingViewModel(manager, FakeRecoveryKitCodec, SERVER_URL)
         vm.finishIntro()
         vm.linkDevice()
         runCurrent()

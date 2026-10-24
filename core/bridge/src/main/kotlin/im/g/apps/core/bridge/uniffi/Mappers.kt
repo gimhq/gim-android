@@ -18,9 +18,14 @@ import im.g.apps.core.bridge.MessageItem
 import im.g.apps.core.bridge.MessagePreview
 import im.g.apps.core.bridge.NotificationContent
 import im.g.apps.core.bridge.NotificationKind
+import im.g.apps.core.bridge.ParsedRecoveryKit
+import im.g.apps.core.bridge.PrivacySettings
 import im.g.apps.core.bridge.PushRegistration
 import im.g.apps.core.bridge.ReactionGroup
+import im.g.apps.core.bridge.RecoveryKitLabels
+import im.g.apps.core.bridge.RecoveryRotation
 import im.g.apps.core.bridge.ReplyPreview
+import im.g.apps.core.bridge.ReportReason
 import im.g.apps.core.bridge.SendFailure
 import im.g.apps.core.bridge.SendState
 import im.g.apps.core.bridge.Session
@@ -43,6 +48,7 @@ internal fun im.g.gimcore.UserProfile.toMirror() = UserProfile(
     userId = userId,
     handle = handle,
     displayName = displayName,
+    hasAvatar = hasAvatar,
 )
 
 internal fun im.g.gimcore.DeviceInfo.toMirror() = DeviceInfo(
@@ -83,7 +89,52 @@ internal fun im.g.gimcore.ChatSummary.toMirror() = ChatSummary(
     updatedAtMs = updatedAtMs.toLong(),
     memberCount = memberCount.toInt(),
     state = state.toMirror(),
+    peer = peer?.toMirror(),
+    mutedUntilMs = mutedUntilMs.toMirrorMutedUntil(),
+    pinned = pinned,
+    archived = archived,
+    blocked = blocked,
 )
+
+/**
+ * `muted_until_ms` saturates instead of converting bit-for-bit: gim-core's `mutedForever()` is `u64::MAX`, which must
+ * stay later than any time ([Long.MAX_VALUE]) so that `mutedUntilMs > now` holds.
+ */
+internal fun ULong.toMirrorMutedUntil(): Long = if (this > Long.MAX_VALUE.toULong()) Long.MAX_VALUE else toLong()
+
+/** Reverse of [toMirrorMutedUntil]: [Long.MAX_VALUE] is gim-core's `mutedForever()`; negative values are rejected. */
+internal fun Long.toCoreMutedUntil(): ULong {
+    if (this < 0) throw GimException.InvalidInput("mutedUntilMs: must not be negative")
+    return if (this == Long.MAX_VALUE) ULong.MAX_VALUE else toULong()
+}
+
+internal fun im.g.gimcore.PrivacySettings.toMirror() = PrivacySettings(
+    readReceipts = readReceipts,
+    typingIndicators = typingIndicators,
+    blockedUserIds = blockedUserIds,
+)
+
+internal fun im.g.gimcore.RecoveryRotation.toMirror() = RecoveryRotation(
+    recoveryCode = recoveryCode,
+    unsyncedHubIds = unsyncedHubIds,
+)
+
+internal fun ReportReason.toCore(): im.g.gimcore.ReportReason = when (this) {
+    ReportReason.SPAM -> im.g.gimcore.ReportReason.SPAM
+    ReportReason.HARASSMENT -> im.g.gimcore.ReportReason.HARASSMENT
+    ReportReason.INAPPROPRIATE -> im.g.gimcore.ReportReason.INAPPROPRIATE
+    ReportReason.SCAM -> im.g.gimcore.ReportReason.SCAM
+    ReportReason.OTHER -> im.g.gimcore.ReportReason.OTHER
+}
+
+internal fun RecoveryKitLabels.toCore() = im.g.gimcore.RecoveryKitLabels(
+    title = title,
+    accountId = accountId,
+    recoveryKey = recoveryKey,
+    note = note,
+)
+
+internal fun im.g.gimcore.ParsedRecoveryKit.toMirror() = ParsedRecoveryKit(userId = userId, recoveryCode = recoveryCode)
 
 internal fun im.g.gimcore.ChatState.toMirror(): ChatState = when (this) {
     im.g.gimcore.ChatState.ACTIVE -> ChatState.ACTIVE
@@ -102,6 +153,7 @@ internal fun im.g.gimcore.MessagePreview.toMirror() = MessagePreview(
     text = text,
     sentAtMs = sentAtMs.toLong(),
     isOwn = isOwn,
+    sendState = sendState?.toMirror(),
 )
 
 internal fun im.g.gimcore.TimelineItem.toMirror(): TimelineItem = when (this) {
@@ -201,7 +253,8 @@ internal fun im.g.gimcore.ConnectionState.toMirror(): ConnectionState = when (th
     im.g.gimcore.ConnectionState.SYNCING -> ConnectionState.SYNCING
 }
 
-internal fun ClientConfig.toCore() = im.g.gimcore.ClientConfig(serverUrl = serverUrl, mode = mode.toCore())
+internal fun ClientConfig.toCore() =
+    im.g.gimcore.ClientConfig(serverUrl = serverUrl, mode = mode.toCore(), metaServerUrl = metaServerUrl)
 
 internal fun ClientMode.toCore(): im.g.gimcore.ClientMode = when (this) {
     ClientMode.APP -> im.g.gimcore.ClientMode.APP

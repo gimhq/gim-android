@@ -1,7 +1,10 @@
 package im.g.apps.navigation
 
 import android.app.Application
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
@@ -32,6 +35,7 @@ import im.g.apps.core.bridge.InMemoryServerUrlStore
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakeGimClientFactory
+import im.g.apps.core.bridge.fake.FakeRecoveryKitCodec
 import im.g.apps.core.designsystem.theme.GimTheme
 import im.g.apps.feature.settings.ThemeMode
 import im.g.apps.push.PushChannel
@@ -143,6 +147,7 @@ class GimNavHostTest {
             clientFactory = GimClientFactory { config, hooks ->
                 DemoAccountClient(demo.create(config, hooks), registered = store.get() != null)
             },
+            recoveryKitCodec = FakeRecoveryKitCodec,
         )
         launch(container)
 
@@ -162,6 +167,104 @@ class GimNavHostTest {
 
         rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
         rule.runOnIdle { assertNull(nav.previousBackStackEntry) }
+    }
+
+    /** A container restoring the demo account, which registers again after the stored URL is forgotten. */
+    private fun demoAccountContainer(store: InMemoryServerUrlStore, unreachableHubsOnDelete: List<String> = emptyList()) =
+        AppContainer(
+            context = ApplicationProvider.getApplicationContext(),
+            appScope = scope,
+            serverUrlStore = store,
+            clientFactory = GimClientFactory { _, _ ->
+                val demo = FakeGimClient.withDemoData(scope, outboxDelays = null)
+                demo.unreachableHubsOnDelete = unreachableHubsOnDelete
+                DemoAccountClient(demo, registered = store.get() != null)
+            },
+            recoveryKitCodec = FakeRecoveryKitCodec,
+        )
+
+    /** Settings -> "Delete account" -> tick the box -> delete. */
+    private fun deleteAccount() {
+        openSettingsRow("Delete account")
+        rule.waitUntilAtLeastOneExists(hasTestTag("delete_account_understood"), TIMEOUT)
+        rule.onNodeWithTag("delete_account_understood").performScrollTo().performClick()
+        rule.onNodeWithTag("delete_account_confirm").performScrollTo().performClick()
+    }
+
+    @Test
+    fun delete_account_returns_to_onboarding_with_a_fresh_client_and_allows_registering_again() {
+        val store = InMemoryServerUrlStore(DemoData.SERVER_URL)
+        val container = demoAccountContainer(store)
+        launch(container)
+        val deleted = container.manager.client.value!!
+
+        deleteAccount()
+
+        skipIntro()
+        rule.runOnIdle {
+            assertEquals(Routes.ONBOARDING, nav.currentDestination?.route)
+            assertNull(nav.previousBackStackEntry)
+        }
+        assertNull(store.get())
+        assertNull(container.manager.client.value)
+        assertNull(runBlocking { deleted.session() })
+
+        register(claimHandle = false)
+
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+        rule.runOnIdle { assertNull(nav.previousBackStackEntry) }
+    }
+
+    @Test
+    fun delete_account_names_unreachable_servers_before_onboarding() {
+        val store = InMemoryServerUrlStore(DemoData.SERVER_URL)
+        val container = demoAccountContainer(store, unreachableHubsOnDelete = listOf("hub-gone"))
+        launch(container)
+
+        deleteAccount()
+
+        rule.waitUntilAtLeastOneExists(hasText("Your account is deleted"), TIMEOUT)
+        rule.onNodeWithText("1 server couldn't be reached", substring = true).assertExists()
+        rule.onNodeWithText("OK").performClick()
+
+        skipIntro()
+        rule.runOnIdle { assertNull(nav.previousBackStackEntry) }
+        assertNull(container.manager.client.value)
+    }
+
+    @Test
+    fun new_recovery_key_shows_the_kit_checks_it_and_returns_to_settings() {
+        val container = testContainer(scope = scope)
+        launch(container)
+
+        openSettingsRow("Create a new recovery key")
+        rule.onNodeWithTag("new_key_create").performScrollTo().performClick()
+        rule.waitUntilAtLeastOneExists(hasTestTag("new_key_recovery_key"), TIMEOUT)
+        val code = rule.onNodeWithTag("new_key_recovery_key").fetchSemanticsNode()
+            .config[SemanticsProperties.Text].joinToString("")
+        rule.onNodeWithText(container.manager.client.value!!.userId()!!).assertExists()
+        rule.onNodeWithTag("new_key_saved").performScrollTo().performClick()
+        rule.onNodeWithTag("new_key_check").performTextInput(FakeRecoveryKitCodec.keyEnding(code))
+        rule.onNodeWithTag("new_key_check_confirm").performClick()
+        rule.onNodeWithTag("new_key_done").performScrollTo().performClick()
+
+        rule.waitUntilAtLeastOneExists(hasText("Settings"), TIMEOUT)
+        rule.runOnIdle { assertEquals(Routes.SETTINGS, nav.currentDestination?.route) }
+    }
+
+    @Test
+    fun leaving_the_new_key_before_the_check_asks_first() {
+        launch(testContainer(scope = scope))
+
+        openSettingsRow("Create a new recovery key")
+        rule.onNodeWithTag("new_key_create").performScrollTo().performClick()
+        rule.waitUntilAtLeastOneExists(hasTestTag("new_key_recovery_key"), TIMEOUT)
+        rule.onNodeWithContentDescription("Go back").performClick()
+        rule.onNodeWithText("Leave without checking?").assertExists()
+        rule.onNodeWithText("Leave").performClick()
+
+        rule.waitUntilAtLeastOneExists(hasText("Settings"), TIMEOUT)
+        rule.runOnIdle { assertEquals(Routes.SETTINGS, nav.currentDestination?.route) }
     }
 
     @Test
@@ -203,6 +306,38 @@ class GimNavHostTest {
         val accountId = container.manager.client.value!!.userId()!!
         rule.waitUntilAtLeastOneExists(hasText(accountId), TIMEOUT)
         rule.runOnIdle { assertEquals(Routes.SETTINGS_PROFILE, nav.currentDestination?.route) }
+    }
+
+    @Test
+    fun settings_read_receipts_switch_saves_the_privacy_setting() {
+        val container = testContainer(scope = scope)
+        launch(container)
+
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+        rule.onNodeWithTag("chatlist_settings").performClick()
+        rule.onNodeWithTag("settings_read_receipts").performScrollTo().assertIsOn().performClick()
+
+        rule.waitUntil(TIMEOUT) { runBlocking { !container.manager.client.value!!.privacy().readReceipts } }
+        rule.onNodeWithTag("settings_read_receipts").assertIsOff()
+    }
+
+    @Test
+    fun settings_opens_blocked_people_and_unblocks_by_name() {
+        val container = testContainer(scope = scope)
+        launch(container)
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+        val client = container.manager.client.value!!
+        runBlocking { client.blockUser(DemoData.lukas.userId) }
+
+        openSettingsRow("Blocked people")
+
+        rule.waitUntilAtLeastOneExists(hasText(DemoData.lukas.displayName), TIMEOUT)
+        rule.runOnIdle { assertEquals(Routes.SETTINGS_BLOCKED, nav.currentDestination?.route) }
+        rule.onNodeWithTag("settings_blocked_unblock_${DemoData.lukas.userId}").performClick()
+        rule.onNodeWithTag("settings_blocked_unblock_confirm").performClick()
+
+        rule.waitUntilAtLeastOneExists(hasText("You haven't blocked anyone."), TIMEOUT)
+        assertEquals(emptyList<String>(), runBlocking { client.privacy().blockedUserIds })
     }
 
     @Test
