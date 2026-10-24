@@ -17,6 +17,7 @@ object Routes {
     const val HUBS = "hubs"
     const val SETTINGS = "settings"
     const val SETTINGS_PROFILE = "settings/profile"
+    const val SETTINGS_BLOCKED = "settings/blocked"
     const val SETTINGS_RECOVERY_KEY = "settings/recovery-key"
     const val SETTINGS_NOTIFICATIONS = "settings/notifications"
     const val SETTINGS_APPEARANCE = "settings/appearance"

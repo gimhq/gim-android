@@ -6,10 +6,13 @@ import im.g.apps.core.bridge.GimClientFactory
 import im.g.apps.core.bridge.GimClientManager
 import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.InMemoryServerUrlStore
+import im.g.apps.core.bridge.RecoveryKitCodec
+import im.g.apps.core.bridge.RecoveryKitLabels
 import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakeGimClientFactory
 import im.g.apps.core.bridge.fake.FakePlatformHooks
+import im.g.apps.core.bridge.fake.FakeRecoveryKitCodec
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -106,7 +109,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun initial_state_is_intro_and_cannot_create() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()))
+        val vm = OnboardingViewModel(manager(fakeFactory()), FakeRecoveryKitCodec)
         val state = vm.state.value
         assertEquals(OnboardingUiState(), state)
         assertEquals(OnboardingStep.INTRO, state.step)
@@ -130,7 +133,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun valid_default_server_url_is_prefilled_trimmed_and_usable() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()), defaultServerUrl = " $EMULATOR_URL ")
+        val vm = OnboardingViewModel(manager(fakeFactory()), FakeRecoveryKitCodec, defaultServerUrl = " $EMULATOR_URL ")
         vm.finishIntro()
         assertEquals(EMULATOR_URL, vm.state.value.serverUrl)
         assertNull(vm.state.value.serverUrlError)
@@ -141,7 +144,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun valid_default_server_goes_straight_to_the_display_name() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()), SERVER_URL)
+        val vm = OnboardingViewModel(manager(fakeFactory()), FakeRecoveryKitCodec, SERVER_URL)
         vm.finishIntro()
         vm.createAccount()
         assertEquals(OnboardingStep.DISPLAY_NAME, vm.state.value.step)
@@ -151,7 +154,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun another_server_shows_the_field_prefilled_and_an_invalid_edit_blocks_create() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()), SERVER_URL)
+        val vm = OnboardingViewModel(manager(fakeFactory()), FakeRecoveryKitCodec, SERVER_URL)
         vm.useAnotherServer()
         assertFalse("ignored on the intro", vm.state.value.showServerField)
         vm.finishIntro()
@@ -175,7 +178,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun blank_default_server_shows_the_field() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()), defaultServerUrl = "  ")
+        val vm = OnboardingViewModel(manager(fakeFactory()), FakeRecoveryKitCodec, defaultServerUrl = "  ")
         vm.finishIntro()
         assertFalse(vm.state.value.hasDefaultServer)
         assertTrue(vm.state.value.showServerField)
@@ -186,7 +189,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun invalid_default_server_url_is_shown_and_flagged() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()), defaultServerUrl = "gim.example.eu")
+        val vm = OnboardingViewModel(manager(fakeFactory()), FakeRecoveryKitCodec, defaultServerUrl = "gim.example.eu")
         vm.finishIntro()
         assertFalse(vm.state.value.hasDefaultServer)
         assertTrue(vm.state.value.showServerField)
@@ -200,7 +203,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun server_url_validation_matrix() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()))
+        val vm = OnboardingViewModel(manager(fakeFactory()), FakeRecoveryKitCodec)
         vm.finishIntro()
         val valid = listOf("https://gim.example.eu", "http://10.0.2.2:8080", "HTTPS://gim.example.eu/path", " https://gim.example.eu ")
         val invalid = listOf("gim.example.eu", "ftp://gim.example.eu", "https://", "https://exa mple.eu", "https:///path")
@@ -218,7 +221,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun back_returns_from_display_name_to_welcome() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()), SERVER_URL)
+        val vm = OnboardingViewModel(manager(fakeFactory()), FakeRecoveryKitCodec, SERVER_URL)
         vm.finishIntro()
         vm.createAccount()
         assertEquals(OnboardingStep.DISPLAY_NAME, vm.state.value.step)
@@ -229,7 +232,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun display_name_validation_matrix() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()), SERVER_URL)
+        val vm = OnboardingViewModel(manager(fakeFactory()), FakeRecoveryKitCodec, SERVER_URL)
         vm.finishIntro()
         vm.createAccount()
         for (name in listOf("S", "  Sofia  ", "x".repeat(64), "  " + "x".repeat(64) + "  ")) {
@@ -247,7 +250,7 @@ class OnboardingViewModelTest {
     @Test
     fun create_shows_recovery_kit_then_check_then_claims_handle_and_finishes() = runTest(dispatcher) {
         val factory = fakeFactory()
-        val vm = OnboardingViewModel(manager(factory))
+        val vm = OnboardingViewModel(manager(factory), FakeRecoveryKitCodec)
         vm.finishIntro()
         vm.onServerUrlChange(" $SERVER_URL ")
         vm.createAccount()
@@ -297,7 +300,7 @@ class OnboardingViewModelTest {
     @Test
     fun skip_finishes_without_a_handle() = runTest(dispatcher) {
         val factory = fakeFactory()
-        val vm = OnboardingViewModel(manager(factory))
+        val vm = OnboardingViewModel(manager(factory), FakeRecoveryKitCodec)
         vm.finishIntro()
         toHandle(vm)
         vm.events.test {
@@ -309,7 +312,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun handle_validation_matrix() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()))
+        val vm = OnboardingViewModel(manager(fakeFactory()), FakeRecoveryKitCodec)
         vm.finishIntro()
         toHandle(vm)
         val valid = listOf("abc", "sofia_costa", "a1b2c3", "x".repeat(32))
@@ -332,6 +335,7 @@ class OnboardingViewModelTest {
     fun taken_handle_maps_to_field_error_until_the_handle_changes() = runTest(dispatcher) {
         val vm = OnboardingViewModel(
             manager(fakeFactory { it.addDirectoryUser(UserProfile("u-other", "sofia", "Sofia")) }),
+            FakeRecoveryKitCodec,
         )
         vm.finishIntro()
         toHandle(vm)
@@ -363,6 +367,7 @@ class OnboardingViewModelTest {
                 gate.await()
                 FakeGimClient(backgroundScope, outboxDelays = null)
             },
+            FakeRecoveryKitCodec,
             SERVER_URL,
         )
         vm.finishIntro()
@@ -386,7 +391,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun network_error_on_create_maps_to_cannot_reach_server_and_allows_retry() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(failingFactory(createIdentity = GimException.Network("timeout"))), SERVER_URL)
+        val vm = OnboardingViewModel(manager(failingFactory(createIdentity = GimException.Network("timeout"))), FakeRecoveryKitCodec, SERVER_URL)
         vm.finishIntro()
         vm.createAccount()
         vm.onDisplayNameChange("Sofia")
@@ -401,7 +406,7 @@ class OnboardingViewModelTest {
     @Test
     fun retry_after_network_error_on_create_shows_the_recovery_code() = runTest(dispatcher) {
         val local = CoreLocalState(mutableSetOf(SERVER_URL))
-        val vm = OnboardingViewModel(manager(coreFactory(local)), SERVER_URL)
+        val vm = OnboardingViewModel(manager(coreFactory(local)), FakeRecoveryKitCodec, SERVER_URL)
         vm.finishIntro()
         vm.createAccount()
         vm.onDisplayNameChange("Sofia")
@@ -423,7 +428,7 @@ class OnboardingViewModelTest {
     @Test
     fun retry_with_another_server_url_after_network_error_shows_the_recovery_code() = runTest(dispatcher) {
         val local = CoreLocalState(mutableSetOf(UNREACHABLE_URL))
-        val vm = OnboardingViewModel(manager(coreFactory(local)), UNREACHABLE_URL)
+        val vm = OnboardingViewModel(manager(coreFactory(local)), FakeRecoveryKitCodec, UNREACHABLE_URL)
         vm.finishIntro()
         vm.createAccount()
         vm.onDisplayNameChange("Sofia")
@@ -455,6 +460,7 @@ class OnboardingViewModelTest {
                     if (config.serverUrl == refusing) it.simulateNotAdmitted("")
                 }
             }),
+            FakeRecoveryKitCodec,
             refusing,
         )
         vm.finishIntro()
@@ -481,7 +487,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun network_error_while_connecting_maps_to_cannot_reach_server() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager { _, _ -> throw GimException.Network("unreachable") }, SERVER_URL)
+        val vm = OnboardingViewModel(manager { _, _ -> throw GimException.Network("unreachable") }, FakeRecoveryKitCodec, SERVER_URL)
         vm.finishIntro()
         vm.createAccount()
         vm.onDisplayNameChange("Sofia")
@@ -492,7 +498,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun invalid_input_from_connect_returns_to_welcome_with_server_url_error() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager { _, _ -> throw GimException.InvalidInput("server_url: rejected") }, SERVER_URL)
+        val vm = OnboardingViewModel(manager { _, _ -> throw GimException.InvalidInput("server_url: rejected") }, FakeRecoveryKitCodec, SERVER_URL)
         vm.finishIntro()
         vm.createAccount()
         vm.onDisplayNameChange("Sofia")
@@ -507,7 +513,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun invalid_input_from_create_maps_to_display_name_error() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(failingFactory(createIdentity = GimException.InvalidInput("display_name"))), SERVER_URL)
+        val vm = OnboardingViewModel(manager(failingFactory(createIdentity = GimException.InvalidInput("display_name"))), FakeRecoveryKitCodec, SERVER_URL)
         vm.finishIntro()
         vm.createAccount()
         vm.onDisplayNameChange("Sofia")
@@ -519,7 +525,7 @@ class OnboardingViewModelTest {
     @Test
     fun retry_later_maps_to_try_again_later_on_create_and_on_claim() = runTest(dispatcher) {
         val throttled = GimException.RetryLater(429, 30, "rate_limited")
-        val create = OnboardingViewModel(manager(failingFactory(createIdentity = throttled)), SERVER_URL)
+        val create = OnboardingViewModel(manager(failingFactory(createIdentity = throttled)), FakeRecoveryKitCodec, SERVER_URL)
         create.finishIntro()
         create.createAccount()
         create.onDisplayNameChange("Sofia")
@@ -527,7 +533,7 @@ class OnboardingViewModelTest {
         advanceUntilIdle()
         assertEquals(OnboardingError.TryAgainLater(30), create.state.value.error)
 
-        val claim = OnboardingViewModel(manager(failingFactory(claimHandle = GimException.RetryLater(503, 0, "peer"))))
+        val claim = OnboardingViewModel(manager(failingFactory(claimHandle = GimException.RetryLater(503, 0, "peer"))), FakeRecoveryKitCodec)
         claim.finishIntro()
         toHandle(claim)
         claim.onHandleChange("sofia")
@@ -547,7 +553,7 @@ class OnboardingViewModelTest {
             GimException.NotRegistered() to (null to OnboardingError.Generic),
         )
         for ((error, expected) in cases) {
-            val vm = OnboardingViewModel(manager(failingFactory(claimHandle = error)))
+            val vm = OnboardingViewModel(manager(failingFactory(claimHandle = error)), FakeRecoveryKitCodec)
             vm.finishIntro()
             toHandle(vm)
             vm.onHandleChange("sofia")
@@ -568,7 +574,7 @@ class OnboardingViewModelTest {
             GimException.Storage("keystore locked"),
         )
         for (error in errors) {
-            val vm = OnboardingViewModel(manager(failingFactory(createIdentity = error)), SERVER_URL)
+            val vm = OnboardingViewModel(manager(failingFactory(createIdentity = error)), FakeRecoveryKitCodec, SERVER_URL)
             vm.finishIntro()
             vm.createAccount()
             vm.onDisplayNameChange("Sofia")
@@ -583,7 +589,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun unverified_hub_asks_to_check_the_address() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(failingFactory(createIdentity = GimException.HubNotVerified("relay"))), SERVER_URL)
+        val vm = OnboardingViewModel(manager(failingFactory(createIdentity = GimException.HubNotVerified("relay"))), FakeRecoveryKitCodec, SERVER_URL)
         vm.finishIntro()
         vm.createAccount()
         vm.onDisplayNameChange("Sofia")
@@ -595,7 +601,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun actions_outside_their_step_are_ignored() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()), SERVER_URL)
+        val vm = OnboardingViewModel(manager(fakeFactory()), FakeRecoveryKitCodec, SERVER_URL)
         vm.finishIntro()
         vm.submitDisplayName()
         vm.continueFromKit()
@@ -613,7 +619,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun wrong_kit_check_stays_until_the_text_changes() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()))
+        val vm = OnboardingViewModel(manager(fakeFactory()), FakeRecoveryKitCodec)
         vm.finishIntro()
         toRecoveryKit(vm)
         val code = vm.state.value.recoveryCode!!
@@ -631,8 +637,33 @@ class OnboardingViewModelTest {
     }
 
     @Test
+    fun kit_text_and_kit_check_go_through_the_codec() = runTest(dispatcher) {
+        val checked = mutableListOf<Pair<String, String>>()
+        val codec = object : RecoveryKitCodec by FakeRecoveryKitCodec {
+            override fun format(userId: String, recoveryCode: String, labels: RecoveryKitLabels) =
+                "kit:$userId:$recoveryCode:${labels.title}"
+
+            override fun matchesKeyEnding(recoveryCode: String, typed: String): Boolean {
+                checked += recoveryCode to typed
+                return typed == "ZZZZ"
+            }
+        }
+        val vm = OnboardingViewModel(manager(fakeFactory()), codec)
+        vm.finishIntro()
+        toRecoveryKit(vm)
+        val code = vm.state.value.recoveryCode!!
+        assertEquals("kit:u1:$code:Kit", vm.formatRecoveryKit("u1", code, RecoveryKitLabels("Kit", "", "", "")))
+
+        vm.continueFromKit()
+        vm.onKitCheckChange("ZZZZ")
+        vm.confirmKitCheck()
+        assertEquals(listOf(code to "ZZZZ"), checked)
+        assertEquals(OnboardingStep.HANDLE, vm.state.value.step)
+    }
+
+    @Test
     fun kit_check_needs_exactly_four_symbols() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()))
+        val vm = OnboardingViewModel(manager(fakeFactory()), FakeRecoveryKitCodec)
         vm.finishIntro()
         toRecoveryKit(vm)
         vm.continueFromKit()
@@ -651,7 +682,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun back_from_the_kit_check_shows_the_kit_again() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()))
+        val vm = OnboardingViewModel(manager(fakeFactory()), FakeRecoveryKitCodec)
         vm.finishIntro()
         toRecoveryKit(vm)
         val kit = vm.state.value

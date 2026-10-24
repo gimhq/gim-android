@@ -18,6 +18,8 @@ data class UserProfile(
     val userId: String,
     val handle: String,
     val displayName: String,
+    /** Whether the user has a profile photo; download it with [GimClient.fetchUserAvatar]. */
+    val hasAvatar: Boolean = false,
 )
 
 /** A gim user id: "u" + 55 base32 characters. */
@@ -52,6 +54,16 @@ data class ChatSummary(
     val updatedAtMs: Long,
     val memberCount: Int,
     val state: ChatState = ChatState.ACTIVE,
+    /** The other user of a direct chat (show their photo when [avatar] is absent); null for groups. */
+    val peer: UserProfile? = null,
+    /** Muted until this Unix time in ms; [GimClient.mutedForever] for good, 0 when not muted. Compare with now. */
+    val mutedUntilMs: Long = 0,
+    /** Pinned chats come first in the chat list. */
+    val pinned: Boolean = false,
+    /** Show archived chats apart; a new message does not unarchive a chat. */
+    val archived: Boolean = false,
+    /** A direct chat whose [peer] is blocked. */
+    val blocked: Boolean = false,
 )
 
 /** Where this device stands in a chat; read from local state, so right from the first callback after a restart. */
@@ -73,6 +85,8 @@ data class MessagePreview(
     val text: String,
     val sentAtMs: Long,
     val isOwn: Boolean,
+    /** Delivery state of an own message (the row's ticks), as [MessageItem.sendState]; null for others' messages. */
+    val sendState: SendState? = null,
 )
 
 /** One row of a chat timeline. */
@@ -220,7 +234,43 @@ data class ClientConfig(
     val serverUrl: String,
     /** The process kind; the app always creates [ClientMode.APP] clients. */
     val mode: ClientMode = ClientMode.APP,
+    /**
+     * Base URL of the gim meta server, which backs up the privacy settings and takes [GimClient.reportUser] reports;
+     * null: no backup, and reports fail with [GimException.InvalidInput].
+     */
+    val metaServerUrl: String? = null,
 )
+
+/**
+ * Privacy settings, synced to the user's other devices and backed up on the meta server; all on and empty by default.
+ */
+data class PrivacySettings(
+    /** Off: [GimClient.markRead] sends no receipt and others' receipts are not shown (sends stop at Delivered). */
+    val readReceipts: Boolean = true,
+    /** Off: [GimClient.setTyping] sends nothing and others' typing is not shown. */
+    val typingIndicators: Boolean = true,
+    /** Users whose messages, reactions, receipts, typing and invites are dropped. */
+    val blockedUserIds: List<String> = emptyList(),
+)
+
+/** Result of [GimClient.rotateRecoveryCode]. */
+data class RecoveryRotation(
+    /** The new recovery code; stored nowhere, so show it once. */
+    val recoveryCode: String,
+    /** Hubs that still hold the backup sealed with the old code, which keeps working there until a later rotation. */
+    val unsyncedHubIds: List<String>,
+)
+
+/** Why a user is reported with [GimClient.reportUser]. */
+enum class ReportReason {
+    SPAM,
+    HARASSMENT,
+
+    /** Content not suitable for the user (sexual, violent, ...). */
+    INAPPROPRIATE,
+    SCAM,
+    OTHER,
+}
 
 /** What the process creating the client is; gim-core's `ClientMode`. */
 enum class ClientMode {

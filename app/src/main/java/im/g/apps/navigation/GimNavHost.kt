@@ -47,6 +47,7 @@ import im.g.apps.feature.onboarding.OnboardingRoute
 import im.g.apps.feature.onboarding.OnboardingViewModel
 import im.g.apps.feature.onboarding.onboardingViewModelFactory
 import im.g.apps.feature.settings.AppearanceRoute
+import im.g.apps.feature.settings.BlockedPeopleRoute
 import im.g.apps.feature.settings.HelpScreen
 import im.g.apps.feature.settings.LanguageRoute
 import im.g.apps.feature.settings.LicencesScreen
@@ -56,7 +57,9 @@ import im.g.apps.feature.settings.ProfileRoute
 import im.g.apps.feature.settings.RecoveryKeyScreen
 import im.g.apps.feature.settings.SettingsActions
 import im.g.apps.feature.settings.SettingsRoute
+import im.g.apps.feature.settings.SettingsViewModel
 import im.g.apps.feature.settings.appearanceViewModelFactory
+import im.g.apps.feature.settings.blockedPeopleViewModelFactory
 import im.g.apps.feature.settings.languageViewModelFactory
 import im.g.apps.feature.settings.profileViewModelFactory
 import im.g.apps.feature.settings.settingsViewModelFactory
@@ -86,7 +89,12 @@ fun GimNavHost(
         composable(Routes.ONBOARDING) {
             val vm: OnboardingViewModel = viewModel(
                 // A dropped link must also wipe the keystore and data dir, like sign-out.
-                factory = onboardingViewModelFactory(container.manager, container.defaultHubUrl, container::signOut),
+                factory = onboardingViewModelFactory(
+                    container.manager,
+                    container.recoveryKitCodec,
+                    container.defaultHubUrl,
+                    container::signOut,
+                ),
             )
             val state by vm.state.collectAsState()
             // Display name -> Welcome, link QR code -> cancel; on the recovery code and the link SAS back is swallowed.
@@ -128,8 +136,9 @@ fun GimNavHost(
         composable(Routes.SETTINGS) {
             val current = client ?: return@composable
             val themeMode by container.themeModeStore.mode.collectAsState()
+            val vm: SettingsViewModel = viewModel(factory = settingsViewModelFactory(current))
             SettingsRoute(
-                viewModel = viewModel(factory = settingsViewModelFactory(current)),
+                viewModel = vm,
                 actions = SettingsActions(
                     onBack = { navController.popBackStack() },
                     onOpenProfile = { navController.navigate(Routes.SETTINGS_PROFILE) },
@@ -137,6 +146,9 @@ fun GimNavHost(
                     onDevices = { navController.navigate(Routes.DEVICES) },
                     onLinkDevice = { navController.navigate(Routes.LINK_DEVICE) },
                     onNotifications = { navController.navigate(Routes.SETTINGS_NOTIFICATIONS) },
+                    onReadReceiptsChange = vm::setReadReceipts,
+                    onTypingIndicatorChange = vm::setTypingIndicator,
+                    onBlockedPeople = { navController.navigate(Routes.SETTINGS_BLOCKED) },
                     onServers = { navController.navigate(Routes.HUBS) },
                     onAppearance = { navController.navigate(Routes.SETTINGS_APPEARANCE) },
                     onLanguage = { navController.navigate(Routes.SETTINGS_LANGUAGE) },
@@ -181,8 +193,16 @@ fun GimNavHost(
         }
         composable(Routes.SETTINGS_PROFILE) {
             val current = client ?: return@composable
+            val context = LocalContext.current
             ProfileRoute(
-                viewModel = viewModel(factory = profileViewModelFactory(current)),
+                viewModel = viewModel(factory = profileViewModelFactory(current, context.cacheDir)),
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(Routes.SETTINGS_BLOCKED) {
+            val current = client ?: return@composable
+            BlockedPeopleRoute(
+                viewModel = viewModel(factory = blockedPeopleViewModelFactory(current)),
                 onBack = { navController.popBackStack() },
             )
         }
