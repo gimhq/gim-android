@@ -22,4 +22,5 @@
     <string name="gim_error_user_not_admitted">這個伺服器還沒有讓你的帳號加入。請向伺服器管理員申請權限。</string>
     <string name="gim_error_user_not_admitted_on_hub">%1$s 還沒有讓你的帳號加入。請向伺服器管理員申請權限。</string>
     <string name="gim_error_not_admitted_by_peer">這個聊天所在的伺服器不接受你的訊息。</string>
+    <string name="designsystem_link_existing_device">連結到你已經在用的裝置</string>
 </resources>

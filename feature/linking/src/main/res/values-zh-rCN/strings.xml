@@ -3,7 +3,7 @@
 <resources>
     <string name="linking_title">关联新设备</string>
     <string name="linking_back">返回</string>
-    <string name="linking_scan_explanation">在你的另一台设备上，选择“关联到已有设备”。它会显示一个代码。在这里扫描这个代码。</string>
+    <string name="linking_scan_explanation">在你的另一台设备上，选择“%1$s”。它会显示一个代码。在这里扫描这个代码。</string>
     <string name="linking_camera_request">gim 需要使用摄像头来扫描代码。只有在这个页面打开时才会使用摄像头。</string>
     <string name="linking_camera_rationale">没有摄像头，gim 就无法扫描代码。请允许使用摄像头，或在下方粘贴代码。</string>
     <string name="linking_camera_denied">gim 的摄像头权限已关闭。请在应用设置中打开，或在下方粘贴代码。</string>

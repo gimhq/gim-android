@@ -59,6 +59,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import im.g.apps.core.designsystem.R as DesignR
 import im.g.apps.core.designsystem.component.GimPreviews
 import im.g.apps.core.designsystem.component.userNotAdmittedMessage
 import im.g.apps.core.designsystem.component.userSuspendedMessage
@@ -254,7 +255,7 @@ private fun ColumnScope.WelcomeStep(state: OnboardingUiState, callbacks: Onboard
             .fillMaxWidth()
             .testTag(OnboardingTestTags.LINK_DEVICE),
     ) {
-        Text(stringResource(R.string.onboarding_link_device))
+        Text(stringResource(DesignR.string.designsystem_link_existing_device))
     }
     TextButton(
         onClick = {

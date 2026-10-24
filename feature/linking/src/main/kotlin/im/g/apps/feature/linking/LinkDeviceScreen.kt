@@ -69,6 +69,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import im.g.apps.core.designsystem.R as DesignR
 import im.g.apps.core.designsystem.component.GimPreviews
 import im.g.apps.core.designsystem.component.userNotAdmittedMessage
 import im.g.apps.core.designsystem.component.userSuspendedMessage
@@ -237,7 +238,7 @@ private fun ColumnScope.ScanStep(
     callbacks: LinkDeviceCallbacks,
     scanner: @Composable (Modifier) -> Unit,
 ) {
-    Explanation(R.string.linking_scan_explanation)
+    Explanation(R.string.linking_scan_explanation, stringResource(DesignR.string.designsystem_link_existing_device))
     when (camera) {
         CameraAccess.GRANTED -> scanner(
             Modifier
@@ -381,9 +382,9 @@ private fun ColumnScope.Progress(@StringRes label: Int) {
 }
 
 @Composable
-private fun Explanation(@StringRes text: Int) {
+private fun Explanation(@StringRes text: Int, vararg formatArgs: Any) {
     Text(
-        text = stringResource(text),
+        text = stringResource(text, *formatArgs),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )

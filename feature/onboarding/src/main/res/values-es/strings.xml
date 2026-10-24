@@ -10,7 +10,6 @@
     <string name="onboarding_server_url_label">Dirección del servidor</string>
     <string name="onboarding_server_url_supporting">El servidor que usa tu cuenta.</string>
     <string name="onboarding_create_account">Crear cuenta nueva</string>
-    <string name="onboarding_link_device">Vincular a un dispositivo que ya usas</string>
     <string name="onboarding_restore">Restaurar con tu kit de recuperación</string>
     <string name="onboarding_use_another_server">Usar otro servidor</string>
     <string name="onboarding_back">Atrás</string>

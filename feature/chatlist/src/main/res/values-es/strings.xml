@@ -29,4 +29,5 @@
         <item quantity="other">%d mensajes sin leer</item>
     </plurals>
     <string name="chatlist_open_chat">Abrir chat</string>
+    <string name="chatlist_row_description_separator">", "</string>
 </resources>
