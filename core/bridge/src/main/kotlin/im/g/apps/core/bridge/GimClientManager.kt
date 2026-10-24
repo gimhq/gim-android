@@ -24,12 +24,14 @@ class InMemoryServerUrlStore(@Volatile private var url: String? = null) : Server
 
 /**
  * Owns the process-wide [GimClient]: one client per server URL, created through [factory] and
- * remembered in [serverUrlStore] so it can be [restore]d on the next launch. Calls are serialized.
+ * remembered in [serverUrlStore] so it can be [restore]d on the next launch. Calls are serialized. Every client is
+ * created with [metaServerUrl] ([ClientConfig.metaServerUrl]; null: none configured).
  */
 class GimClientManager(
     private val factory: GimClientFactory,
     private val hooks: PlatformHooks,
     private val serverUrlStore: ServerUrlStore,
+    private val metaServerUrl: String? = null,
 ) {
     private val mutex = Mutex()
     private var clientUrl: String? = null
@@ -97,8 +99,22 @@ class GimClientManager(
         }
     }
 
+    /**
+     * Deletes the account of the current client ([GimClient.deleteAccount]) and returns the hubs that could not be
+     * reached; then forgets the server URL and drops the client, as [signOut]. On failure nothing changes and the call
+     * can be repeated. [GimException.NotRegistered] without a client.
+     */
+    suspend fun deleteAccount(): List<String> = mutex.withLock {
+        val client = _client.value ?: throw GimException.NotRegistered()
+        client.deleteAccount().also {
+            serverUrlStore.set(null)
+            clientUrl = null
+            _client.value = null
+        }
+    }
+
     private suspend fun create(url: String): GimClient =
-        factory.create(ClientConfig(url), hooks).also {
+        factory.create(ClientConfig(url, metaServerUrl = metaServerUrl), hooks).also {
             clientUrl = url
             _client.value = it
         }
