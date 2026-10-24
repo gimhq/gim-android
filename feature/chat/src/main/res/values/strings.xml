@@ -42,7 +42,10 @@
     <string name="chat_composer_removed">You were removed from this group</string>
     <string name="chat_error_not_active">You\'re no longer in this group, so you can\'t send messages here.</string>
     <string name="chat_error_open_file">Couldn\'t open the file. Try again.</string>
-    <string name="chat_error_retry_later">Couldn\'t do that right now. Try again in %1$s seconds.</string>
+    <plurals name="chat_error_retry_later">
+        <item quantity="one">Couldn\'t do that right now. Try again in %d second.</item>
+        <item quantity="other">Couldn\'t do that right now. Try again in %d seconds.</item>
+    </plurals>
     <string name="chat_error_media_unavailable">Couldn\'t download this. The sender\'s server can\'t be reached right now. Try again later.</string>
     <string name="chat_media_retry">Download again</string>
     <string name="chat_message_options">Show options</string>

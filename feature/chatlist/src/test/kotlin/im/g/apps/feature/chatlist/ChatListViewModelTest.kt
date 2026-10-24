@@ -47,6 +47,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -92,6 +93,7 @@ class ChatListViewModelTest {
         client: GimClient,
         clock: Clock = this@ChatListViewModelTest.clock,
         ticker: Flow<Unit> = flowOf(Unit),
+        locale: Locale = Locale.UK,
     ): ChatListViewModel {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val thumbDir = tmp.newFolder()
@@ -100,7 +102,7 @@ class ChatListViewModelTest {
             clock = clock,
             thumbnailPath = { chatId, messageId -> File(thumbDir, "$chatId-$messageId.png").path },
             defaultDispatcher = dispatcher,
-            locale = Locale.UK,
+            locale = locale,
             ticker = ticker,
         )
         backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
@@ -129,6 +131,23 @@ class ChatListViewModelTest {
         assertEquals(PreviewSender.You, direct.sender)
         assertEquals("See you then!", direct.preview)
         assertEquals(0, direct.unreadCount)
+    }
+
+    @Test
+    fun row_times_follow_the_locale_the_view_model_was_created_with() = runTest {
+        val client = demo()
+        // Four days later the latest demo chat shows a short weekday.
+        val later = Clock.fixed(now.plus(Duration.ofDays(4)), zone)
+        val uk = viewModel(client, clock = later, locale = Locale.UK)
+        val zh = viewModel(client, clock = later, locale = Locale.SIMPLIFIED_CHINESE)
+        advanceUntilIdle()
+
+        val ukDays = uk.uiState.value.rows.map { it.time }.filterIsInstance<ChatTimeLabel.Weekday>()
+        val zhDays = zh.uiState.value.rows.map { it.time }.filterIsInstance<ChatTimeLabel.Weekday>()
+        assertTrue(ukDays.isNotEmpty())
+        assertTrue(ukDays.all { it.text.first().isLetter() && it.text.all { c -> c.code < 128 } })
+        assertEquals(ukDays.size, zhDays.size)
+        assertTrue(zhDays.all { it.text.startsWith("周") })
     }
 
     @Test
