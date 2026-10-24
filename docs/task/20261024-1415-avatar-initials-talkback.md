@@ -1,6 +1,6 @@
 # 20261024-1415-avatar-initials-talkback Stop TalkBack reading avatar initials in contacts and group info
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P2
 - **owner**: bkd-l1/eynzhrra
 - **createdAt**: 2026-10-24 14:15
@@ -23,3 +23,5 @@ Hiding avatar initials from TalkBack
 ## Notes
 
 (none)
+
+- complete: 2026-10-24: done in bkd/6m90xifz, merged into main as 99a9f68; gate and full device suite green on main.

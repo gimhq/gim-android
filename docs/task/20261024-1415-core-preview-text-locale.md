@@ -1,6 +1,6 @@
 # 20261024-1415-core-preview-text-locale Localize chat preview text produced by gim-core
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P2
 - **owner**: bkd-l1/eynzhrra
 - **createdAt**: 2026-10-24 14:15
@@ -23,3 +23,5 @@ Localizing gim-core preview text
 ## Notes
 
 (none)
+
+- complete: 2026-10-24: done in bkd/xhooiknu, merged into main as 99a9f68; gate and full device suite green on main.

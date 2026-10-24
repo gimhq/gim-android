@@ -1,6 +1,6 @@
 # 20261024-1415-contacts-peer-photos Show peer photos in contacts rows
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P3
 - **owner**: bkd-l1/eynzhrra
 - **createdAt**: 2026-10-24 14:15
@@ -23,3 +23,5 @@ Showing peer photos in contacts rows
 ## Notes
 
 (none)
+
+- complete: 2026-10-24: done in bkd/6m90xifz, merged into main as 99a9f68; gate and full device suite green on main.

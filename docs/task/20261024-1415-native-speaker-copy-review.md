@@ -23,3 +23,6 @@ Reviewing translated copy with native speakers
 ## Notes
 
 (none)
+- 2026-10-24: also review the chat preview strings added by the UI follow-ups
+  (chatlist_preview_photo, chatlist_preview_file, chatlist_preview_file_unnamed,
+  chatlist_preview_deleted, chat_reply_file, chat_reply_file_unnamed).

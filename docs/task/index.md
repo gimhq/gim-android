@@ -35,9 +35,9 @@ Each task is a single line linking to its detail file. All detailed information 
 
 - [x] [**20261023-0755-product-ui-i18n-settings Product-grade UI, languages, account and settings**](20261023-0755-product-ui-i18n-settings.md) `P1`
 - [ ] [**20261024-1415-native-speaker-copy-review Native-speaker review of zh-CN, zh-TW and es copy**](20261024-1415-native-speaker-copy-review.md) `P2`
-- [-] [**20261024-1415-core-preview-text-locale Localize chat preview text produced by gim-core**](20261024-1415-core-preview-text-locale.md) `P2`
-- [-] [**20261024-1415-avatar-initials-talkback Stop TalkBack reading avatar initials in contacts and group info**](20261024-1415-avatar-initials-talkback.md) `P2`
-- [-] [**20261024-1415-settings-e2e-flake Fix occasional SettingsE2eTest failure**](20261024-1415-settings-e2e-flake.md) `P2`
-- [-] [**20261024-1415-contacts-peer-photos Show peer photos in contacts rows**](20261024-1415-contacts-peer-photos.md) `P3`
-- [-] [**20261024-1415-forced-theme-cold-start Apply forced light or dark theme from the first frame**](20261024-1415-forced-theme-cold-start.md) `P3`
+- [x] [**20261024-1415-core-preview-text-locale Localize chat preview text produced by gim-core**](20261024-1415-core-preview-text-locale.md) `P2`
+- [x] [**20261024-1415-avatar-initials-talkback Stop TalkBack reading avatar initials in contacts and group info**](20261024-1415-avatar-initials-talkback.md) `P2`
+- [x] [**20261024-1415-settings-e2e-flake Fix occasional SettingsE2eTest failure**](20261024-1415-settings-e2e-flake.md) `P2`
+- [x] [**20261024-1415-contacts-peer-photos Show peer photos in contacts rows**](20261024-1415-contacts-peer-photos.md) `P3`
+- [x] [**20261024-1415-forced-theme-cold-start Apply forced light or dark theme from the first frame**](20261024-1415-forced-theme-cold-start.md) `P3`
 - [ ] [**20261024-1415-new-chat-camera-real-phone Check the New chat QR scanner camera on real phones**](20261024-1415-new-chat-camera-real-phone.md) `P3`
