@@ -30,8 +30,8 @@ import kotlin.math.roundToLong
  * change are reused by key, so unchanged rows keep their instances across updates. Not thread-safe: call
  * [map] from one coroutine at a time.
  */
-internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
-    private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm", locale)
+internal class TimelineMapper(private val zone: ZoneId, private val locale: Locale) {
+    private val timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale)
     private val weekdayFormatter = DateTimeFormatter.ofPattern("EEEE", locale)
     private val dayMonthFormatter = DateTimeFormatter.ofPattern(
         dayMonthPattern(
@@ -140,7 +140,7 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
             },
             file = (content as? MessageContent.File)?.let {
                 val name = it.fileName ?: it.media.messageId
-                FileUi(name, formatSize(it.media.size), it.media.mime, typeLabel(name, it.media.mime))
+                FileUi(name, formatSize(it.media.size, locale), it.media.mime, typeLabel(name, it.media.mime))
             },
             replyPreview = message.replyTo?.let { ReplyPreviewUi(displayNameOrShortId(it.senderName), it.text) },
             reactions = message.reactions.map { ReactionChipModel(it.emoji, it.count, it.own) }.toImmutableList(),
@@ -243,21 +243,26 @@ internal class TimelineMapper(private val zone: ZoneId, locale: Locale) {
             name.substringAfterLast('.', "").takeIf { it.isNotEmpty() && it.length <= 4 }?.uppercase(Locale.ROOT)
                 ?: mime.substringAfter('/').take(4).uppercase(Locale.ROOT)
 
-        fun formatSize(bytes: Long): String {
-            if (bytes < 1024) return "$bytes B"
-            val units = listOf("KB", "MB", "GB")
-            var value = bytes / 1024.0
-            var unit = 0
-            while (value >= 1024 && unit < units.lastIndex) {
-                value /= 1024
-                unit++
-            }
-            return if (value >= 10) "${value.roundToLong()} ${units[unit]}" else String.format(Locale.ROOT, "%.1f %s", value, units[unit])
-        }
-
         const val DEFAULT_ASPECT_RATIO = 4f / 3f
         const val MIN_ASPECT_RATIO = 0.5f
         const val MAX_ASPECT_RATIO = 2f
+    }
+}
+
+/** [bytes] in B/KB/MB/GB; the number follows [locale] ("1.5 MB" in en, "1,5 MB" in es). */
+internal fun formatSize(bytes: Long, locale: Locale): String {
+    if (bytes < 1024) return String.format(locale, "%d B", bytes)
+    val units = listOf("KB", "MB", "GB")
+    var value = bytes / 1024.0
+    var unit = 0
+    while (value >= 1024 && unit < units.lastIndex) {
+        value /= 1024
+        unit++
+    }
+    return if (value >= 10) {
+        String.format(locale, "%d %s", value.roundToLong(), units[unit])
+    } else {
+        String.format(locale, "%.1f %s", value, units[unit])
     }
 }
 
