@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spanish (es, neutral) -->
+<resources>
+    <string name="gim_tick_pending">Enviando</string>
+    <string name="gim_tick_sent">Enviado</string>
+    <string name="gim_tick_delivered">Entregado</string>
+    <string name="gim_tick_read">Leído</string>
+    <string name="gim_tick_failed">No enviado</string>
+    <plurals name="gim_unread_count">
+        <item quantity="one">%d mensaje sin leer</item>
+        <item quantity="many">%d mensajes sin leer</item>
+        <item quantity="other">%d mensajes sin leer</item>
+    </plurals>
+    <string name="gim_unread_count_muted">%1$s, silenciado</string>
+    <string name="gim_unread_overflow">Más de 99 mensajes sin leer</string>
+    <string name="gim_reply_close">Cancelar respuesta</string>
+    <string name="gim_reply_to">Respondiendo a %1$s: %2$s</string>
+    <plurals name="gim_reaction">
+        <item quantity="one">%1$s, %2$d reacción</item>
+        <item quantity="many">%1$s, %2$d reacciones</item>
+        <item quantity="other">%1$s, %2$d reacciones</item>
+    </plurals>
+    <string name="gim_reaction_mine">%1$s, incluida la tuya</string>
+    <string name="gim_error_user_suspended">Tu cuenta está suspendida en este servidor. Pide ayuda a quien administra el servidor.</string>
+    <string name="gim_error_user_suspended_on_hub">Tu cuenta está suspendida en %1$s. Pide ayuda a quien administra el servidor.</string>
+    <string name="gim_error_user_not_admitted">Este servidor aún no ha aceptado tu cuenta. Pide acceso a quien administra el servidor.</string>
+    <string name="gim_error_user_not_admitted_on_hub">%1$s aún no ha aceptado tu cuenta. Pide acceso a quien administra el servidor.</string>
+    <string name="gim_error_not_admitted_by_peer">El servidor de este chat no acepta tus mensajes.</string>
+    <string name="designsystem_link_existing_device">Vincular a un dispositivo que ya usas</string>
+</resources>

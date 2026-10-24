@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simplified Chinese (zh-CN). -->
+<resources>
+    <string name="hubs_title">服务器</string>
+    <string name="hubs_back">返回</string>
+    <string name="hubs_add">添加服务器</string>
+    <string name="hubs_removed_section">已移除</string>
+    <string name="hubs_unknown_address">未知地址</string>
+    <string name="hubs_state_unverified">未检查</string>
+    <string name="hubs_state_verified">已连接</string>
+    <string name="hubs_state_removed">已移除</string>
+    <string name="hubs_signed_in">已登录</string>
+    <string name="hubs_not_signed_in">未登录</string>
+    <string name="hubs_state_line">%1$s · %2$s</string>
+    <string name="hubs_badge_home">你的账号</string>
+    <string name="hubs_badge_primary">主服务器</string>
+    <string name="hubs_make_primary">设为主服务器</string>
+    <string name="hubs_remove">移除</string>
+    <string name="hubs_empty_title">没有可显示的服务器</string>
+    <string name="hubs_add_title">添加服务器</string>
+    <string name="hubs_add_url_label">服务器地址</string>
+    <string name="hubs_add_confirm">添加</string>
+    <string name="hubs_cancel">取消</string>
+    <string name="hubs_ok">好的</string>
+    <string name="hubs_owned_title">要移除这个服务器吗？</string>
+    <plurals name="hubs_owned_body">
+        <item quantity="other">这个服务器上有你的 %1$d 个群聊。它们会留在那里。你仍然可以通过你的其他服务器访问它们。</item>
+    </plurals>
+    <string name="hubs_owned_confirm">移除服务器</string>
+    <string name="hubs_error_invalid_url">这不是 gim 服务器地址。请检查后重试。</string>
+    <string name="hubs_error_unreachable">无法连接服务器。请检查地址和网络，然后重试。</string>
+    <string name="hubs_error_not_verified">无法检查这个服务器。它的地址对不上。请检查地址后重试。</string>
+    <string name="hubs_error_retry_later">服务器繁忙。请在 %1$d 秒后重试。</string>
+    <string name="hubs_error_home_hub">你的账号在这个服务器上，所以暂时不能移除它。请先把另一个服务器设为主服务器。</string>
+    <string name="hubs_error_last_hub">你至少需要一个服务器。请先添加另一个服务器。</string>
+    <string name="hubs_error_not_drained">还有消息正在发送。请稍后重试。</string>
+    <string name="hubs_error_cannot_make_primary">无法更改主服务器。请先在这台设备上登录所有服务器，然后重试。</string>
+    <string name="hubs_error_not_listed">这个服务器已经不在你的列表中了。请刷新后重试。</string>
+    <string name="hubs_error_not_registered">这台设备已退出登录。请重新登录后再管理服务器。</string>
+    <string name="hubs_error_server">服务器没能完成操作。请稍后重试。</string>
+    <string name="hubs_error_unknown">出了点问题。请重试。</string>
+</resources>

@@ -2,7 +2,7 @@
 <resources>
     <string name="linking_title">Link a new device</string>
     <string name="linking_back">Go back</string>
-    <string name="linking_scan_explanation">On your other device, choose “Link to existing device”. It shows a code. Scan that code here.</string>
+    <string name="linking_scan_explanation">On your other device, choose “%1$s”. It shows a code. Scan that code here.</string>
     <string name="linking_camera_request">gim needs your camera to scan the code. It only uses the camera while this screen is open.</string>
     <string name="linking_camera_rationale">Without the camera, gim cannot scan the code. Allow camera access, or paste the code below.</string>
     <string name="linking_camera_denied">Camera access is turned off for gim. Turn it on in the app settings, or paste the code below.</string>

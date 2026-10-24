@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Traditional Chinese (zh-TW, Taiwan) -->
+<resources>
+    <string name="gim_tick_pending">傳送中</string>
+    <string name="gim_tick_sent">已傳送</string>
+    <string name="gim_tick_delivered">已送達</string>
+    <string name="gim_tick_read">已讀</string>
+    <string name="gim_tick_failed">未傳送</string>
+    <plurals name="gim_unread_count">
+        <item quantity="other">%d 則未讀訊息</item>
+    </plurals>
+    <string name="gim_unread_count_muted">%1$s，已設為靜音</string>
+    <string name="gim_unread_overflow">超過 99 則未讀訊息</string>
+    <string name="gim_reply_close">取消回覆</string>
+    <string name="gim_reply_to">回覆 %1$s：%2$s</string>
+    <plurals name="gim_reaction">
+        <item quantity="other">%1$s，%2$d 個回應</item>
+    </plurals>
+    <string name="gim_reaction_mine">%1$s，包括你的回應</string>
+    <string name="gim_error_user_suspended">你的帳號在這個伺服器上已被停用。請向伺服器管理員求助。</string>
+    <string name="gim_error_user_suspended_on_hub">你的帳號在 %1$s 上已被停用。請向伺服器管理員求助。</string>
+    <string name="gim_error_user_not_admitted">這個伺服器還沒有讓你的帳號加入。請向伺服器管理員申請權限。</string>
+    <string name="gim_error_user_not_admitted_on_hub">%1$s 還沒有讓你的帳號加入。請向伺服器管理員申請權限。</string>
+    <string name="gim_error_not_admitted_by_peer">這個聊天所在的伺服器不接受你的訊息。</string>
+    <string name="designsystem_link_existing_device">連結到你已經在用的裝置</string>
+</resources>

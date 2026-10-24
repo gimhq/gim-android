@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Traditional Chinese (zh-TW, Taiwan) -->
+<resources>
+    <string name="hubs_title">伺服器</string>
+    <string name="hubs_back">返回</string>
+    <string name="hubs_add">新增伺服器</string>
+    <string name="hubs_removed_section">已移除</string>
+    <string name="hubs_unknown_address">未知的地址</string>
+    <string name="hubs_state_unverified">尚未檢查</string>
+    <string name="hubs_state_verified">已連線</string>
+    <string name="hubs_state_removed">已移除</string>
+    <string name="hubs_signed_in">已登入</string>
+    <string name="hubs_not_signed_in">未登入</string>
+    <string name="hubs_state_line">%1$s · %2$s</string>
+    <string name="hubs_badge_home">你的帳號</string>
+    <string name="hubs_badge_primary">主要伺服器</string>
+    <string name="hubs_make_primary">設為主要伺服器</string>
+    <string name="hubs_remove">移除</string>
+    <string name="hubs_empty_title">沒有可顯示的伺服器</string>
+    <string name="hubs_add_title">新增伺服器</string>
+    <string name="hubs_add_url_label">伺服器地址</string>
+    <string name="hubs_add_confirm">新增</string>
+    <string name="hubs_cancel">取消</string>
+    <string name="hubs_ok">確定</string>
+    <string name="hubs_owned_title">要移除這個伺服器嗎？</string>
+    <plurals name="hubs_owned_body">
+        <item quantity="other">你有 %1$d 個群組聊天由這個伺服器管理。這些聊天會留在那裡。你仍然可以透過其他伺服器使用它們。</item>
+    </plurals>
+    <string name="hubs_owned_confirm">移除伺服器</string>
+    <string name="hubs_error_invalid_url">這不是 gim 伺服器地址。請檢查後再試一次。</string>
+    <string name="hubs_error_unreachable">無法連線到伺服器。請檢查地址和網路連線，然後再試一次。</string>
+    <string name="hubs_error_not_verified">無法檢查這個伺服器，因為它的地址不符。請檢查地址後再試一次。</string>
+    <string name="hubs_error_retry_later">伺服器忙碌中。請在 %1$d 秒後再試一次。</string>
+    <string name="hubs_error_home_hub">你的帳號在這個伺服器上，所以現在還不能移除它。請先把另一個伺服器設為主要伺服器。</string>
+    <string name="hubs_error_last_hub">你至少需要一個伺服器。請先新增另一個伺服器。</string>
+    <string name="hubs_error_not_drained">還有訊息正在傳送。請稍後再試。</string>
+    <string name="hubs_error_cannot_make_primary">無法變更主要伺服器。請先在這台裝置上登入每個伺服器，然後再試一次。</string>
+    <string name="hubs_error_not_listed">這個伺服器已經不在你的列表上了。請重新整理後再試一次。</string>
+    <string name="hubs_error_not_registered">這台裝置已登出。請重新登入來管理伺服器。</string>
+    <string name="hubs_error_server">伺服器無法完成這項操作。請稍後再試。</string>
+    <string name="hubs_error_unknown">發生錯誤。請再試一次。</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spanish (es, neutral) -->
+<resources>
+    <string name="push_mock_channel">Notificaciones de prueba</string>
+    <string name="push_mock_polling">Buscando notificaciones de prueba</string>
+</resources>

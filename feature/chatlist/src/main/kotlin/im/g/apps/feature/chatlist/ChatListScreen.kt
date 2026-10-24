@@ -176,7 +176,8 @@ private fun ChatRow(row: ChatRowUi, onClick: () -> Unit) {
     } else {
         null
     }
-    val description = listOfNotNull(row.title, unread, preview, time).joinToString(", ")
+    val description = listOfNotNull(row.title, unread, preview, time)
+        .joinToString(stringResource(R.string.chatlist_row_description_separator))
     Row(
         modifier = Modifier
             .fillMaxWidth()

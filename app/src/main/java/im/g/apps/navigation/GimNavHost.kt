@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -69,6 +70,7 @@ import im.g.apps.shareRecoveryKit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 /** App navigation graph; ViewModels are scoped to their back stack entries. */
 @Composable
@@ -104,10 +106,14 @@ fun GimNavHost(
         }
         composable(Routes.CHAT_LIST) {
             val current = client ?: return@composable
+            // ViewModels outlive the activity recreation of an in-app language change: one per locale.
+            val locale = currentLocale()
             val vm: ChatListViewModel = viewModel(
+                key = "chat-list-${locale.toLanguageTag()}",
                 factory = chatListViewModelFactory(
                     client = current,
                     thumbnailPath = { chatId, messageId -> container.mediaPaths.destFor(chatId, messageId, thumbnail = true) },
+                    locale = locale,
                 ),
             )
             // Re-read whenever the chat list re-enters composition, e.g. after a name change in Settings.
@@ -208,7 +214,11 @@ fun GimNavHost(
             val current = client ?: return@composable
             val chatId = entry.arguments?.getString(Routes.CHAT_ID) ?: return@composable
             val context = LocalContext.current
-            val chatVm: ChatViewModel = viewModel(factory = ChatViewModel.factory(current, chatId, container.mediaPathProvider))
+            val locale = currentLocale()
+            val chatVm: ChatViewModel = viewModel(
+                key = "chat-${locale.toLanguageTag()}",
+                factory = ChatViewModel.factory(current, chatId, container.mediaPathProvider, locale),
+            )
             val composerVm: ComposerViewModel =
                 viewModel(factory = ComposerViewModel.factory(current, chatId, AndroidUriCopier(context)))
             val snackbar = remember { SnackbarHostState() }
@@ -287,3 +297,7 @@ fun GimNavHost(
 /** Opens [chatId] in place of the new chat / new group screens, keeping the chat list below it. */
 private fun NavHostController.openChatReplacing(chatId: String) =
     navigate(Routes.chat(chatId)) { popUpTo(Routes.CHAT_LIST) }
+
+/** The configuration's locale, which follows the in-app language after the activity is recreated. */
+@Composable
+private fun currentLocale(): Locale = LocalConfiguration.current.locales[0] ?: Locale.getDefault()

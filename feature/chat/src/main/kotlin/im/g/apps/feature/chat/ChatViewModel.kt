@@ -334,7 +334,13 @@ class ChatViewModel(
         const val PAGE_SIZE = 30
         const val MARK_READ_DEBOUNCE_MS = 500L
 
-        fun factory(client: GimClient, chatId: String, mediaPaths: MediaPathProvider): ViewModelProvider.Factory =
-            viewModelFactory { initializer { ChatViewModel(client, chatId, mediaPaths) } }
+        /** [locale] is read once; key the ViewModel on it so a language change gets new formatters. */
+        fun factory(
+            client: GimClient,
+            chatId: String,
+            mediaPaths: MediaPathProvider,
+            locale: Locale = Locale.getDefault(),
+        ): ViewModelProvider.Factory =
+            viewModelFactory { initializer { ChatViewModel(client, chatId, mediaPaths, locale = locale) } }
     }
 }

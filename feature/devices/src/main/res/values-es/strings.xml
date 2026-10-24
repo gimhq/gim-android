@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spanish (es, neutral) -->
+<resources>
+    <string name="devices_title">Dispositivos vinculados</string>
+    <string name="devices_back">Volver</string>
+    <string name="devices_refresh">Actualizar lista</string>
+    <string name="devices_user_id_label">Tu ID de cuenta</string>
+    <string name="devices_user_id_hint">Guárdalo bien. Lo necesitas junto con tu clave de recuperación para recuperar tu cuenta.</string>
+    <string name="devices_copy">Copiar</string>
+    <string name="devices_this_device">Este dispositivo</string>
+    <string name="devices_other_device">Dispositivo %1$s</string>
+    <string name="devices_added">Añadido el %1$s</string>
+    <string name="devices_revoked">Quitado</string>
+    <string name="devices_revoke">Quitar dispositivo</string>
+    <string name="devices_revoke_title">¿Quitar este dispositivo?</string>
+    <string name="devices_revoke_body">El dispositivo %1$s saldrá de todos tus chats y no podrá volver a iniciar sesión. No se puede deshacer.</string>
+    <string name="devices_revoke_confirm">Quitar</string>
+    <string name="devices_cancel">Cancelar</string>
+    <string name="devices_empty_title">No hay dispositivos para mostrar</string>
+    <string name="devices_retry">Reintentar</string>
+    <string name="devices_removed_title">Este dispositivo se quitó</string>
+    <string name="devices_removed_body">Quitaste este dispositivo desde otro dispositivo. Sus mensajes se borrarán de aquí. Vuelve a configurarlo para seguir usándolo.</string>
+    <string name="devices_removed_ok">Aceptar</string>
+    <string name="devices_error_network">No se puede conectar con el servidor. Revisa tu conexión a internet e inténtalo de nuevo.</string>
+    <string name="devices_error_retry_later">El servidor está ocupado. Inténtalo de nuevo en %1$d s.</string>
+    <string name="devices_error_current_device">No puedes quitar el dispositivo que estás usando. Quítalo desde otro dispositivo.</string>
+    <string name="devices_error_not_found">Ese dispositivo ya no está. Actualiza la lista e inténtalo de nuevo.</string>
+    <string name="devices_error_server">El servidor no pudo terminar esto. Inténtalo de nuevo en un momento.</string>
+    <string name="devices_error_unknown">Algo salió mal. Inténtalo de nuevo.</string>
+</resources>
