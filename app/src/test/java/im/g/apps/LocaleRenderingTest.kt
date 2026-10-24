@@ -2,6 +2,10 @@ package im.g.apps
 
 import android.app.Application
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasContentDescription
@@ -11,12 +15,18 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.core.app.ApplicationProvider
 import im.g.apps.core.bridge.GimClientFactory
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakeGimClientFactory
+import im.g.apps.core.bridge.platform.AndroidMediaPaths
 import im.g.apps.core.designsystem.theme.GimTheme
+import im.g.apps.feature.chat.ChatRoute
+import im.g.apps.feature.chat.ChatViewModel
+import im.g.apps.feature.chatlist.ChatListRoute
+import im.g.apps.feature.chatlist.ChatListViewModel
 import im.g.apps.navigation.GimNavHost
 import im.g.apps.navigation.resolveStartDestination
 import kotlinx.coroutines.CoroutineScope
@@ -33,9 +43,11 @@ import org.junit.runners.model.Statement
 import org.robolectric.ParameterizedRobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
-import java.time.Instant
+import java.time.Clock
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import im.g.apps.feature.chat.R as ChatR
@@ -45,7 +57,7 @@ import im.g.apps.feature.settings.R as SettingsR
 
 /**
  * Key screens rendered under each shipped locale: text comes from that locale's resources (plus one literal
- * per locale), plurals use its rules, and times use its formatter.
+ * per locale), plurals use its rules, and times use its formatter. Chat screens run on a fixed clock and zone.
  */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(ParameterizedRobolectricTestRunner::class)
@@ -80,12 +92,6 @@ class LocaleRenderingTest(
         compose.setContent { GimTheme { GimNavHost(container, start) } }
     }
 
-    /** A demo container whose fake client's clock is fixed at [now]. */
-    private fun demo(now: Long) = testContainer(
-        scope = scope,
-        factory = FakeGimClientFactory { _, _ -> FakeGimClient.withDemoData(scope, clock = { now }, outboxDelays = null) },
-    )
-
     /** [text] is shown as text or as part of a description somewhere on screen. */
     private fun assertShown(text: String) {
         val matcher: SemanticsMatcher = hasText(text, substring = true) or hasContentDescription(text, substring = true)
@@ -110,11 +116,46 @@ class LocaleRenderingTest(
     }
 
     @Test
-    fun chat_list_and_timeline_use_the_locale_plurals_and_formatters() {
-        val now = System.currentTimeMillis()
-        launch(demo(now))
+    fun chat_list_and_timeline_use_the_locale_plurals_and_formatters_at_1am() = assertChatScreens(hour = 1)
+
+    @Test
+    fun chat_list_and_timeline_use_the_locale_plurals_and_formatters_at_1pm() = assertChatScreens(hour = 13)
+
+    /**
+     * The chat list and the direct chat's timeline at [hour]:00 in [ZONE], with the fake client and both
+     * ViewModels on that one fixed clock and zone, so relative times and date chips do not follow the wall clock.
+     */
+    private fun assertChatScreens(hour: Int) {
+        val now = ZonedDateTime.of(DAY, LocalTime.of(hour, 0), ZONE).toInstant()
+        val client = FakeGimClient.withDemoData(scope, clock = { now.toEpochMilli() }, zone = ZONE, outboxDelays = null)
         val res = context.resources
         val locale = res.configuration.locales[0]
+        val chatList = ChatListViewModel(client, Clock.fixed(now, ZONE), { _, _ -> "" }, locale = locale)
+        val mediaPaths = AppMediaPathProvider(AndroidMediaPaths(context))
+        val clock = { now.toEpochMilli() }
+        compose.setContent {
+            GimTheme {
+                var chatId by remember { mutableStateOf<String?>(null) }
+                when (val id = chatId) {
+                    null -> ChatListRoute(
+                        viewModel = chatList,
+                        ownName = "",
+                        onOpenChat = { chatId = it },
+                        onNewChat = {},
+                        onNewGroup = {},
+                        onOpenSettings = {},
+                    )
+                    else -> ChatRoute(
+                        viewModel = remember(id) { ChatViewModel(client, id, mediaPaths, clock, ZONE, locale = locale) },
+                        composer = {},
+                        onBack = {},
+                        onOpenGroupInfo = {},
+                        onOpenFile = { _, _ -> },
+                        onMessageLongPress = {},
+                    )
+                }
+            }
+        }
 
         compose.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
         // The group has three unread messages and its last event was two minutes ago; the direct chat 25.
@@ -126,15 +167,17 @@ class LocaleRenderingTest(
 
         compose.onNodeWithText(DemoData.lukas.displayName).performClick()
         compose.waitUntilAtLeastOneExists(hasText("See you then!"), TIMEOUT)
-        val last = Instant.ofEpochMilli(now - 25 * MINUTE).atZone(ZoneId.systemDefault())
+        // The last message, 25 minutes ago, is today; the chip sits above all of today's messages.
+        val last = now.minusSeconds(25 * 60).atZone(ZONE)
         assertShown(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale).format(last))
-        val chip = if (last.toLocalDate() == LocalDate.now()) ChatR.string.chat_today else ChatR.string.chat_yesterday
-        assertShown(context.getString(chip))
+        val today = context.getString(ChatR.string.chat_today)
+        compose.onNodeWithTag(TIMELINE_TAG).performScrollToNode(hasText(today))
+        assertShown(today)
     }
 
     @Test
     fun settings_home_uses_the_locale() {
-        launch(demo(System.currentTimeMillis()))
+        launch(testContainer(scope = scope))
 
         compose.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
         compose.onNodeWithTag("chatlist_settings").performClick()
@@ -145,7 +188,11 @@ class LocaleRenderingTest(
 
     companion object {
         private const val TIMEOUT = 5_000L
-        private const val MINUTE = 60_000L
+
+        /** ChatScreen's TIMELINE_TEST_TAG (internal to :feature:chat). */
+        private const val TIMELINE_TAG = "chat-timeline"
+        private val ZONE: ZoneId = ZoneId.of("Europe/Madrid")
+        private val DAY: LocalDate = LocalDate.of(2026, 3, 10)
 
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
