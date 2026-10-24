@@ -14,9 +14,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import im.g.apps.AppContainer
 import im.g.apps.BuildConfig
 import im.g.apps.R
@@ -33,9 +35,11 @@ import im.g.apps.feature.contacts.NewChatRoute
 import im.g.apps.feature.contacts.NewGroupRoute
 import im.g.apps.feature.contacts.NewGroupStep
 import im.g.apps.feature.contacts.NewGroupViewModel
+import im.g.apps.feature.contacts.ReportRoute
 import im.g.apps.feature.contacts.groupInfoViewModelFactory
 import im.g.apps.feature.contacts.newChatViewModelFactory
 import im.g.apps.feature.contacts.newGroupViewModelFactory
+import im.g.apps.feature.contacts.reportViewModelFactory
 import im.g.apps.feature.devices.DevicesRoute
 import im.g.apps.feature.devices.devicesViewModelFactory
 import im.g.apps.feature.hubs.HubsRoute
@@ -306,10 +310,30 @@ fun GimNavHost(
             val current = client ?: return@composable
             val chatId = entry.arguments?.getString(Routes.CHAT_ID) ?: return@composable
             GroupInfoRoute(
-                viewModel = viewModel(factory = groupInfoViewModelFactory(current, chatId)),
+                viewModel = viewModel(factory = groupInfoViewModelFactory(current, chatId, container.reportAvailable)),
                 onBack = { navController.popBackStack() },
                 // Back to the chat, which shows "Leaving…" until the own `Left` change arrives.
                 onLeftChat = { navController.popBackStack() },
+                onReport = { userId, reportChatId -> navController.navigate(Routes.report(userId, reportChatId)) },
+            )
+        }
+        composable(
+            Routes.REPORT,
+            arguments = listOf(
+                navArgument(Routes.MESSAGE_ID) {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+        ) { entry ->
+            val current = client ?: return@composable
+            val userId = entry.arguments?.getString(Routes.USER_ID) ?: return@composable
+            val chatId = entry.arguments?.getString(Routes.CHAT_ID) ?: return@composable
+            val messageId = entry.arguments?.getString(Routes.MESSAGE_ID)
+            ReportRoute(
+                viewModel = viewModel(factory = reportViewModelFactory(current, userId, chatId, messageId)),
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Routes.DEVICES) {

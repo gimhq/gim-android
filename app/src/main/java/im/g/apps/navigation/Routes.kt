@@ -13,6 +13,9 @@ object Routes {
     const val CHAT_ID = "chatId"
     const val CHAT = "chat/{$CHAT_ID}"
     const val GROUP_INFO = "groupInfo/{$CHAT_ID}"
+    const val USER_ID = "userId"
+    const val MESSAGE_ID = "messageId"
+    const val REPORT = "report/{$USER_ID}/{$CHAT_ID}?$MESSAGE_ID={$MESSAGE_ID}"
     const val DEVICES = "devices"
     const val HUBS = "hubs"
     const val SETTINGS = "settings"
@@ -30,6 +33,10 @@ object Routes {
     fun chat(chatId: String) = "chat/${Uri.encode(chatId)}"
 
     fun groupInfo(chatId: String) = "groupInfo/${Uri.encode(chatId)}"
+
+    /** The report about [userId] with messages from [chatId]; [messageId] is picked to start with. */
+    fun report(userId: String, chatId: String, messageId: String? = null) =
+        "report/${Uri.encode(userId)}/${Uri.encode(chatId)}" + messageId?.let { "?$MESSAGE_ID=${Uri.encode(it)}" }.orEmpty()
 }
 
 /**

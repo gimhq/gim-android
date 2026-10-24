@@ -1,6 +1,6 @@
 package im.g.apps.feature.contacts
 
-import androidx.annotation.StringRes
+import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -44,45 +45,38 @@ import im.g.apps.core.bridge.displayLabel
 import im.g.apps.core.bridge.displayNameOrShortId
 import im.g.apps.core.designsystem.component.Avatar
 import im.g.apps.core.designsystem.component.EmptyState
+import im.g.apps.core.designsystem.component.GimConfirmDialog
 import im.g.apps.core.designsystem.theme.GimTheme
 import kotlinx.collections.immutable.persistentListOf
 
-/**
- * Hidden step-6 extension point: the "Chat actions" group (mute, pin, archive, block, report). Flip once the SDK has
- * the APIs, then wire [GroupInfoActions.onChatAction]; direct chats and the chat list long-press will reuse
- * [ChatAction]. See `feature/settings/README.md`, "Extension points (step 6)".
- */
-internal object ChatActions {
-    const val AVAILABLE = false
-}
-
-/** One entry of the hidden "Chat actions" group, in display order. */
-enum class ChatAction(@StringRes val label: Int) {
-    MUTE(R.string.contacts_chat_action_mute),
-    PIN(R.string.contacts_chat_action_pin),
-    ARCHIVE(R.string.contacts_chat_action_archive),
-    BLOCK(R.string.contacts_chat_action_block),
-    REPORT(R.string.contacts_chat_action_report),
-}
-
-internal object ChatActionsTestTags {
+/** Test tags of the "Chat actions" group and its dialogs. */
+object ChatActionsTestTags {
     const val GROUP = "chat_actions"
+    const val BLOCK_CONFIRM = "chat_actions_block_confirm"
+
+    fun action(action: ChatAction) = "chat_action_${action.name.lowercase()}"
+
+    fun muteOption(option: MuteOption) = "chat_actions_mute_${option.name.lowercase()}"
 }
 
+/** [onReport] opens the report about a user (the peer) with messages from a chat. */
 @Composable
 fun GroupInfoRoute(
     viewModel: GroupInfoViewModel,
     onBack: () -> Unit,
     onLeftChat: () -> Unit = onBack,
+    onReport: (userId: String, chatId: String) -> Unit = { _, _ -> },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     val currentOnLeftChat by rememberUpdatedState(onLeftChat)
+    val currentOnReport by rememberUpdatedState(onReport)
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
                 GroupInfoEvent.LeftChat -> currentOnLeftChat()
+                is GroupInfoEvent.OpenReport -> currentOnReport(event.userId, event.chatId)
                 is GroupInfoEvent.ShowError -> snackbarHostState.showSnackbar(event.error.message(context))
             }
         }
@@ -103,6 +97,9 @@ fun GroupInfoRoute(
             onLeave = viewModel::requestLeave,
             onConfirmLeave = viewModel::confirmLeave,
             onDismissDialog = viewModel::dismissDialog,
+            onChatAction = viewModel::onChatAction,
+            onMute = viewModel::mute,
+            onConfirmBlock = viewModel::confirmBlock,
         ),
     )
 }
@@ -122,8 +119,9 @@ internal class GroupInfoActions(
     val onLeave: () -> Unit = {},
     val onConfirmLeave: () -> Unit = {},
     val onDismissDialog: () -> Unit = {},
-    /** Not wired yet: the "Chat actions" group is hidden behind [ChatActions.AVAILABLE]. */
     val onChatAction: (ChatAction) -> Unit = {},
+    val onMute: (MuteOption) -> Unit = {},
+    val onConfirmBlock: () -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -204,19 +202,24 @@ private fun ChatDetails(
                 }
             }
         }
-        if (!isGroup) return@LazyColumn
-        item(key = "actions") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = actions.onRename, enabled = !state.busy) {
-                    Text(stringResource(R.string.contacts_rename_group))
-                }
-                TextButton(onClick = actions.onAddMember, enabled = !state.busy) {
-                    Text(stringResource(R.string.contacts_add_member))
+        if (isGroup) {
+            item(key = "actions") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = actions.onRename, enabled = !state.busy) {
+                        Text(stringResource(R.string.contacts_rename_group))
+                    }
+                    TextButton(onClick = actions.onAddMember, enabled = !state.busy) {
+                        Text(stringResource(R.string.contacts_add_member))
+                    }
                 }
             }
         }
-        if (ChatActions.AVAILABLE) {
-            item(key = "chat-actions") { ChatActionsGroup(onAction = actions.onChatAction, enabled = !state.busy) }
+        // Groups list them after the members.
+        if (!isGroup) {
+            if (state.chatActions.isNotEmpty()) {
+                item(key = "chat-actions") { ChatActionsGroup(chat, state, onAction = actions.onChatAction) }
+            }
+            return@LazyColumn
         }
         item(key = "members-title") {
             Text(
@@ -245,6 +248,9 @@ private fun ChatDetails(
                 }
             }
         }
+        if (state.chatActions.isNotEmpty()) {
+            item(key = "chat-actions") { ChatActionsGroup(chat, state, onAction = actions.onChatAction) }
+        }
         item(key = "leave") {
             TextButton(
                 onClick = actions.onLeave,
@@ -262,15 +268,47 @@ private fun ChatDetails(
 }
 
 @Composable
-private fun ChatActionsGroup(onAction: (ChatAction) -> Unit, enabled: Boolean) {
+private fun ChatActionsGroup(chat: ChatSummary, state: GroupInfoUiState, onAction: (ChatAction) -> Unit) {
+    val context = LocalContext.current
     Column(modifier = Modifier.testTag(ChatActionsTestTags.GROUP)) {
         Text(
             text = stringResource(R.string.contacts_chat_actions),
             style = MaterialTheme.typography.titleSmall,
             modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
         )
-        ChatAction.entries.forEach { action ->
-            TextButton(onClick = { onAction(action) }, enabled = enabled) { Text(stringResource(action.label)) }
+        state.chatActions.forEach { action ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(
+                    onClick = { onAction(action) },
+                    enabled = !state.busy,
+                    modifier = Modifier.testTag(ChatActionsTestTags.action(action)),
+                ) {
+                    val color = if (action == ChatAction.BLOCK || action == ChatAction.REPORT) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        Color.Unspecified
+                    }
+                    Text(stringResource(action.label), color = color)
+                }
+                if (action == ChatAction.UNMUTE) {
+                    val until = if (state.mutedForever) {
+                        stringResource(R.string.contacts_muted_forever)
+                    } else {
+                        val time = DateUtils.formatDateTime(
+                            context,
+                            chat.mutedUntilMs,
+                            DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH,
+                        )
+                        stringResource(R.string.contacts_muted_until, time)
+                    }
+                    Text(
+                        text = until,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                }
+            }
         }
     }
 }
@@ -310,6 +348,46 @@ private fun GroupInfoDialogs(state: GroupInfoUiState, actions: GroupInfoActions)
             confirmLabel = stringResource(R.string.contacts_leave),
             onConfirm = actions.onConfirmLeave,
             onDismiss = actions.onDismissDialog,
+        )
+    }
+    if (state.choosingMute) {
+        AlertDialog(
+            onDismissRequest = actions.onDismissDialog,
+            title = { Text(stringResource(R.string.contacts_mute_title)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.contacts_mute_body))
+                    MuteOption.entries.forEach { option ->
+                        TextButton(
+                            onClick = { actions.onMute(option) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag(ChatActionsTestTags.muteOption(option)),
+                        ) { Text(stringResource(option.label)) }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = actions.onDismissDialog) { Text(stringResource(R.string.contacts_cancel)) } },
+        )
+    }
+    val peer = state.chat?.peer
+    if (state.confirmingBlock && peer != null) {
+        val blocked = state.chat?.blocked == true
+        GimConfirmDialog(
+            title = stringResource(
+                if (blocked) R.string.contacts_unblock_title else R.string.contacts_block_title,
+                peer.displayLabel,
+            ),
+            body = stringResource(if (blocked) R.string.contacts_unblock_body else R.string.contacts_block_body),
+            confirmLabel = stringResource(
+                if (blocked) R.string.contacts_chat_action_unblock else R.string.contacts_chat_action_block,
+            ),
+            dismissLabel = stringResource(R.string.contacts_cancel),
+            onConfirm = actions.onConfirmBlock,
+            onDismiss = actions.onDismissDialog,
+            modifier = Modifier.testTag(ChatActionsTestTags.BLOCK_CONFIRM),
+            destructive = !blocked,
         )
     }
     state.renameDraft?.let { draft ->

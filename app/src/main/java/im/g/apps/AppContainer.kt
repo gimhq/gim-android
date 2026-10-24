@@ -54,6 +54,10 @@ class AppContainer(
 ) {
     private val appContext = context.applicationContext
 
+    /** Reporting users needs the meta server: Report is hidden without one. */
+    val reportAvailable: Boolean
+        get() = metaServerUrl != null
+
     /** Shared by [AndroidPlatformHooks] and [SyncController]; never create a second one. */
     val reachability = AndroidReachabilityMonitor(appContext)
     val hooks = AndroidPlatformHooks(appContext, reachabilityMonitor = reachability)
