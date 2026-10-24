@@ -14,6 +14,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
 class DeleteAccountScreenTest {
@@ -83,6 +84,14 @@ class DeleteAccountScreenTest {
         rule.onNodeWithText("OK").performClick()
 
         assertEquals(1, deleted)
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN")
+    fun unreachable_servers_are_joined_for_the_locale() {
+        show(DeleteAccountUiState(deleted = true, unreachable = ServerList(listOf("a.example", "b.example", "c.example"), 3)))
+
+        rule.onNodeWithText("a.example、b.example和c.example", substring = true).assertExists()
     }
 
     @Test

@@ -15,6 +15,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
 class NewRecoveryKeyScreenTest {
@@ -86,6 +87,21 @@ class NewRecoveryKeyScreenTest {
 
         rule.onNodeWithText("https://two.example", substring = true).performScrollTo().assertExists()
         rule.onNodeWithText("old key still works there", substring = true).assertExists()
+    }
+
+    @Test
+    fun the_kit_joins_unsynced_servers_as_a_list() {
+        show(kit.copy(unsynced = ServerList(listOf("https://one.example", "https://two.example"), 2)))
+
+        rule.onNodeWithText("https://one.example and https://two.example", substring = true).performScrollTo().assertExists()
+    }
+
+    @Test
+    @Config(qualifiers = "es")
+    fun the_kit_joins_unsynced_servers_for_the_locale() {
+        show(kit.copy(unsynced = ServerList(listOf("https://one.example", "https://two.example"), 2)))
+
+        rule.onNodeWithText("https://one.example y https://two.example", substring = true).performScrollTo().assertExists()
     }
 
     @Test

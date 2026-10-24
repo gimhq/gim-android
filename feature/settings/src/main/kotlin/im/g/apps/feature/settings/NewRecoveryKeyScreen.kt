@@ -3,6 +3,7 @@ package im.g.apps.feature.settings
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.icu.text.ListFormatter
 import android.os.PersistableBundle
 import androidx.activity.compose.BackHandler
 import androidx.annotation.PluralsRes
@@ -38,6 +39,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
@@ -340,10 +342,14 @@ internal fun ErrorText(@StringRes text: Int) {
     )
 }
 
-/** The servers by URL in [named] (one `%1$s`), else counted with [counted]. */
+/** The servers by URL in [named] (one `%1$s`, joined for the locale), else counted with [counted]. */
 @Composable
 internal fun ServerList.describe(@StringRes named: Int, @PluralsRes counted: Int): String =
-    if (urls.isNotEmpty()) stringResource(named, urls.joinToString(", ")) else pluralStringResource(counted, count, count)
+    if (urls.isNotEmpty()) {
+        stringResource(named, ListFormatter.getInstance(LocalConfiguration.current.locales[0]).format(urls))
+    } else {
+        pluralStringResource(counted, count, count)
+    }
 
 /** Copies [text] flagged as sensitive, so Android 13+ hides it from the clipboard preview. */
 private fun copySensitive(context: Context, text: String) {
