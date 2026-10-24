@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Traditional Chinese (zh-TW, Taiwan) -->
+<resources>
+    <string name="chatlist_title">聊天</string>
+    <string name="chatlist_banner_waiting_for_network">正在等待網路連線…</string>
+    <string name="chatlist_banner_connecting">連線中…</string>
+    <string name="chatlist_banner_updating">更新中…</string>
+    <string name="chatlist_preview_you">你：%1$s</string>
+    <string name="chatlist_preview_member">%1$s：%2$s</string>
+    <string name="chatlist_state_leaving">正在離開…</string>
+    <string name="chatlist_state_left">你已經不在這個聊天裡了</string>
+    <string name="chatlist_empty_title">還沒有聊天</string>
+    <string name="chatlist_empty_body">點一下「開始聊天」，傳送你的第一則訊息。</string>
+    <string name="chatlist_start_chat">開始聊天</string>
+    <string name="chatlist_new_message">新訊息</string>
+    <string name="chatlist_new_chat">新聊天</string>
+    <string name="chatlist_new_group">新群組</string>
+    <string name="chatlist_open_settings">設定</string>
+    <string name="chatlist_time_now">剛剛</string>
+    <plurals name="chatlist_time_minutes">
+        <item quantity="other">%d 分鐘</item>
+    </plurals>
+    <string name="chatlist_time_yesterday">昨天</string>
+    <plurals name="chatlist_unread_messages">
+        <item quantity="other">%d 則未讀訊息</item>
+    </plurals>
+    <string name="chatlist_open_chat">開啟聊天</string>
+</resources>

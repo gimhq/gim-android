@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Traditional Chinese (zh-TW, Taiwan) -->
+<resources>
+    <string name="push_mock_channel">測試通知</string>
+    <string name="push_mock_polling">正在檢查測試通知</string>
+</resources>
