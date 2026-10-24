@@ -1,8 +1,9 @@
 # :feature:settings
 
 Settings home and its screens: the own profile header, "Account and devices" (your recovery key, linked devices, link
-a new device), "Notifications" (one row per push channel, each opening the phone's settings for it),
-the profile (name, username, Account ID and "My QR code"), "Look and language" (appearance: phone setting, light or
+a new device), "Notifications" (one row per push channel, each opening the phone's settings for it), "Privacy" (read
+receipts and typing indicator switches, "Blocked people" with unblock), the profile (photo, name, username, Account ID
+and "My QR code"), "Look and language" (appearance: phone setting, light or
 dark; in-app language), "Advanced" (servers), "Help and about" (how gim works, versions, open-source licences) and sign out.
 
 Appearance is a `ThemeMode` in `ThemeModeStore` (shared preferences `gim_settings`), applied app-wide by `MainActivity`.
@@ -24,25 +25,28 @@ channels as `NotificationChannelItem`s, built in `GimNavHost` from the app's `Pu
    from `SettingsScreen` in display order.
 4. Wire the callback in `GimNavHost` (new route in `Routes`) and cover the row in `SettingsScreenTest`.
 
+## Privacy and own photo
+
+- The privacy switches live in `SettingsViewModel` (`client.privacy()`, `setReadReceipts`, `setTypingIndicators`): a
+  switch moves at once and moves back with a snackbar if saving fails. gim-core syncs them to the user's other devices.
+- `BlockedPeopleScreen` lists `privacy().blockedUserIds`, named after the direct chat's peer in the chat list when there
+  is one, else by Account ID, and unblocks behind a confirmation. Blocking happens from chat info.
+- `ProfilePhotos` holds the photo files in the app cache: `load` downloads a user's photo with `fetchUserAvatar` into
+  `gim/avatars/`; `prepare` crops a picked picture to a centred square of at most 512 x 512 and writes a JPEG for
+  `setAvatar`. `ProfileRoute` picks the picture with the system photo picker (no storage permission). Only the profile
+  header shows the own photo for now; the Settings header keeps the initials.
+
 ## Extension points (step 6)
 
-These entries are built but hidden until the SDK has their APIs (plan
-`docs/plan/20261023-0755-product-ui-i18n-settings.md`, step 6). The strings exist, so showing one is flipping its flag
-(`AccountSafety.AVAILABLE` here, `ChatActions.AVAILABLE` in `:feature:contacts`) and wiring its callbacks in
-`GimNavHost`. Nothing behind a flag fakes behaviour.
+These entries are built but hidden. Each has its own switch in `AccountSafety` (`ChatActions.AVAILABLE` in
+`:feature:contacts`); the strings exist, so showing one is turning its switch on and wiring its callbacks in
+`GimNavHost`. Nothing behind a switch fakes behaviour.
 
-- Own photo: `ProfileScreen` shows "Change photo" (`ProfileActions.onChangePhoto`, not wired yet) only when
-  `AccountSafety.AVAILABLE` is true; flip it once the SDK can set an own photo, then wire the callback.
-- Read receipts and typing indicator: `PrivacySection` in `SettingsScreen.kt` (switch values from
-  `SettingsScreen(privacy = PrivacySettings(...))`, changes to `SettingsActions.onReadReceiptsChange` and
-  `onTypingIndicatorChange`). Waits for SDK read-receipt and typing-indicator settings (get and set).
-- Blocked people: the "Blocked people" row in `PrivacySection` (`SettingsActions.onBlockedPeople`). Waits for the SDK
-  block/unblock and blocked-users list APIs; the list screen is still to build.
 - Chat actions: `ChatActionsGroup` in `feature/contacts/.../GroupInfoScreen.kt` (mute, pin, archive, block, report;
-  `GroupInfoActions.onChatAction`), behind `ChatActions.AVAILABLE`. Waits for SDK mute, pin and archive per chat, and
-  block and report. Direct chats and the chat list long-press reuse the `ChatAction` list.
-- Create a new recovery key: the row in `AccountSection` (`SettingsActions.onNewRecoveryKey`). Uses the SDK's
-  `rotateRecoveryCode()` (exists today) once the flow is built: show the new kit like onboarding; hubs in
-  `unsyncedHubIds` keep the old key until a later rotation reaches them.
-- Delete account: the row in `AccountSection` (`SettingsActions.onDeleteAccount`). Waits for an SDK delete-account
-  API; on success, wipe the phone like sign-out.
+  `GroupInfoActions.onChatAction`), behind `ChatActions.AVAILABLE`. Direct chats and the chat list long-press reuse the
+  `ChatAction` list.
+- Create a new recovery key: the row in `AccountSection` (`SettingsActions.onNewRecoveryKey`), behind
+  `AccountSafety.NEW_RECOVERY_KEY`. Uses the SDK's `rotateRecoveryCode()` once the flow is built: show the new kit like
+  onboarding; hubs in `unsyncedHubIds` keep the old key until a later rotation reaches them.
+- Delete account: the row in `AccountSection` (`SettingsActions.onDeleteAccount`), behind
+  `AccountSafety.DELETE_ACCOUNT`. Uses the SDK's `deleteAccount()`; on success, wipe the phone like sign-out.

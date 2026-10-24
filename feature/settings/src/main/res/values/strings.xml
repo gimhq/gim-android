@@ -14,10 +14,12 @@
     <string name="settings_notifications_value">Sounds and alerts</string>
     <string name="settings_section_privacy">Privacy</string>
     <string name="settings_read_receipts">Read receipts</string>
-    <string name="settings_read_receipts_value">Let people see when you\'ve read their messages.</string>
+    <string name="settings_read_receipts_value">When off, people can\'t see when you\'ve read their messages, and you can\'t see theirs.</string>
     <string name="settings_typing_indicator">Typing indicator</string>
-    <string name="settings_typing_indicator_value">Let people see when you\'re typing.</string>
+    <string name="settings_typing_indicator_value">When off, people can\'t see when you\'re typing, and you can\'t see when they are.</string>
     <string name="settings_blocked_people">Blocked people</string>
+    <string name="settings_privacy_synced">These settings apply on all your devices.</string>
+    <string name="settings_privacy_error">Couldn\'t change this setting. Check your internet and try again.</string>
     <string name="settings_section_look">Look and language</string>
     <string name="settings_appearance">Appearance</string>
     <string name="settings_language">Language</string>
@@ -32,6 +34,12 @@
 
     <string name="profile_title">Profile</string>
     <string name="profile_change_photo">Change photo</string>
+    <string name="profile_remove_photo">Remove photo</string>
+    <string name="profile_photo_saved">Photo saved.</string>
+    <string name="profile_photo_removed">Photo removed.</string>
+    <string name="profile_photo_error_unreadable">Couldn\'t open that picture. Try another one.</string>
+    <string name="profile_photo_error_network">Couldn\'t change your photo. Check your internet and try again.</string>
+    <string name="profile_photo_error_unknown">Couldn\'t change your photo. Try again.</string>
     <string name="profile_section_name">Name</string>
     <string name="profile_name_edit">Tap to change your name</string>
     <string name="profile_name_title">Your name</string>
@@ -61,6 +69,15 @@
     <string name="profile_error_username_taken">That username is taken. Try another one.</string>
     <string name="profile_error_network">Couldn\'t save. Check your internet and try again.</string>
     <string name="profile_error_unknown">Couldn\'t save. Try again.</string>
+
+    <string name="blocked_title">Blocked people</string>
+    <string name="blocked_empty">You haven\'t blocked anyone.</string>
+    <string name="blocked_unblock">Unblock</string>
+    <string name="blocked_unblock_title">Unblock %1$s?</string>
+    <string name="blocked_unblock_body">They can send you messages again. Messages they sent while blocked won\'t come back.</string>
+    <string name="blocked_unblock_error">Couldn\'t unblock. Check your internet and try again.</string>
+    <string name="blocked_load_error">Couldn\'t load blocked people. Try again.</string>
+    <string name="blocked_retry">Try again</string>
 
     <string name="appearance_title">Appearance</string>
     <string name="appearance_system">Use phone setting</string>

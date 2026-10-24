@@ -21,16 +21,20 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -49,6 +53,9 @@ internal object SettingsTestTags {
     const val APPEARANCE = "settings_appearance"
     const val LANGUAGE = "settings_language"
     const val HELP = "settings_help"
+    const val READ_RECEIPTS = "settings_read_receipts"
+    const val TYPING_INDICATOR = "settings_typing_indicator"
+    const val BLOCKED_PEOPLE = "settings_blocked_people"
     const val SIGN_OUT = "settings_sign_out"
     const val SIGN_OUT_CONFIRM = "settings_sign_out_confirm"
 }
@@ -67,12 +74,24 @@ fun SettingsRoute(
         onStopOrDispose {}
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    SettingsScreen(state = state, actions = actions, modifier = modifier, themeMode = themeMode, languageTag = languageTag)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    LaunchedEffect(viewModel) {
+        viewModel.messages.collect { snackbarHostState.showSnackbar(context.getString(it)) }
+    }
+    SettingsScreen(
+        state = state,
+        actions = actions,
+        modifier = modifier,
+        themeMode = themeMode,
+        languageTag = languageTag,
+        snackbarHostState = snackbarHostState,
+    )
 }
 
 /**
- * Callbacks of [SettingsScreen]; the header is clickable only when [onOpenProfile] is set. The privacy callbacks,
- * [onNewRecoveryKey] and [onDeleteAccount] belong to rows hidden behind [AccountSafety.AVAILABLE] and are not wired yet.
+ * Callbacks of [SettingsScreen]; the header is clickable only when [onOpenProfile] is set. [onNewRecoveryKey] and
+ * [onDeleteAccount] belong to rows hidden behind [AccountSafety] and are not wired yet.
  */
 class SettingsActions(
     val onBack: () -> Unit = {},
@@ -95,8 +114,7 @@ class SettingsActions(
 
 /**
  * Settings home: the own profile header, one composable per section, and sign out at the bottom. [themeMode] and
- * [languageTag] (null: phone language) are shown as the values of the "Look and language" rows; [privacy] feeds the
- * hidden "Privacy" switches.
+ * [languageTag] (null: phone language) are shown as the values of the "Look and language" rows.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,10 +124,11 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     languageTag: String? = null,
-    privacy: PrivacySettings = PrivacySettings(),
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.settings_title)) },
@@ -131,7 +150,7 @@ fun SettingsScreen(
             HorizontalDivider()
             AccountSection(actions)
             NotificationsSection(actions)
-            if (AccountSafety.AVAILABLE) PrivacySection(actions, privacy)
+            PrivacySection(actions, state)
             LookAndLanguageSection(actions, themeMode, languageTag)
             AdvancedSection(actions)
             HelpSection(actions)
@@ -177,8 +196,10 @@ private fun AccountSection(actions: SettingsActions) {
     )
     SettingsRow(title = stringResource(R.string.settings_linked_devices), onClick = actions.onDevices)
     SettingsRow(title = stringResource(R.string.settings_link_device), onClick = actions.onLinkDevice)
-    if (AccountSafety.AVAILABLE) {
+    if (AccountSafety.NEW_RECOVERY_KEY) {
         SettingsRow(title = stringResource(R.string.settings_new_recovery_key), onClick = actions.onNewRecoveryKey)
+    }
+    if (AccountSafety.DELETE_ACCOUNT) {
         SettingsRow(
             title = stringResource(R.string.settings_delete_account),
             onClick = actions.onDeleteAccount,
@@ -198,25 +219,35 @@ private fun NotificationsSection(actions: SettingsActions) {
     )
 }
 
-/** The values of the hidden "Privacy" switches. */
-data class PrivacySettings(val readReceipts: Boolean = true, val typingIndicator: Boolean = true)
-
+/** Read receipts, typing indicator (synced to the user's other devices) and the blocked people list. */
 @Composable
-private fun PrivacySection(actions: SettingsActions, privacy: PrivacySettings) {
+private fun PrivacySection(actions: SettingsActions, state: SettingsUiState) {
     SettingsSectionHeader(stringResource(R.string.settings_section_privacy))
     SettingsSwitchRow(
         title = stringResource(R.string.settings_read_receipts),
-        checked = privacy.readReceipts,
+        checked = state.readReceipts,
         onCheckedChange = actions.onReadReceiptsChange,
+        modifier = Modifier.testTag(SettingsTestTags.READ_RECEIPTS),
         value = stringResource(R.string.settings_read_receipts_value),
     )
     SettingsSwitchRow(
         title = stringResource(R.string.settings_typing_indicator),
-        checked = privacy.typingIndicator,
+        checked = state.typingIndicator,
         onCheckedChange = actions.onTypingIndicatorChange,
+        modifier = Modifier.testTag(SettingsTestTags.TYPING_INDICATOR),
         value = stringResource(R.string.settings_typing_indicator_value),
     )
-    SettingsRow(title = stringResource(R.string.settings_blocked_people), onClick = actions.onBlockedPeople)
+    Text(
+        text = stringResource(R.string.settings_privacy_synced),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+    )
+    SettingsRow(
+        title = stringResource(R.string.settings_blocked_people),
+        onClick = actions.onBlockedPeople,
+        modifier = Modifier.testTag(SettingsTestTags.BLOCKED_PEOPLE),
+    )
 }
 
 @Composable

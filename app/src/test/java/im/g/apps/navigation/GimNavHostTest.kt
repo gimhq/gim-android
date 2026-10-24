@@ -2,6 +2,8 @@ package im.g.apps.navigation
 
 import android.app.Application
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
@@ -205,6 +207,38 @@ class GimNavHostTest {
         val accountId = container.manager.client.value!!.userId()!!
         rule.waitUntilAtLeastOneExists(hasText(accountId), TIMEOUT)
         rule.runOnIdle { assertEquals(Routes.SETTINGS_PROFILE, nav.currentDestination?.route) }
+    }
+
+    @Test
+    fun settings_read_receipts_switch_saves_the_privacy_setting() {
+        val container = testContainer(scope = scope)
+        launch(container)
+
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+        rule.onNodeWithTag("chatlist_settings").performClick()
+        rule.onNodeWithTag("settings_read_receipts").performScrollTo().assertIsOn().performClick()
+
+        rule.waitUntil(TIMEOUT) { runBlocking { !container.manager.client.value!!.privacy().readReceipts } }
+        rule.onNodeWithTag("settings_read_receipts").assertIsOff()
+    }
+
+    @Test
+    fun settings_opens_blocked_people_and_unblocks_by_name() {
+        val container = testContainer(scope = scope)
+        launch(container)
+        rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
+        val client = container.manager.client.value!!
+        runBlocking { client.blockUser(DemoData.lukas.userId) }
+
+        openSettingsRow("Blocked people")
+
+        rule.waitUntilAtLeastOneExists(hasText(DemoData.lukas.displayName), TIMEOUT)
+        rule.runOnIdle { assertEquals(Routes.SETTINGS_BLOCKED, nav.currentDestination?.route) }
+        rule.onNodeWithTag("settings_blocked_unblock_${DemoData.lukas.userId}").performClick()
+        rule.onNodeWithTag("settings_blocked_unblock_confirm").performClick()
+
+        rule.waitUntilAtLeastOneExists(hasText("You haven't blocked anyone."), TIMEOUT)
+        assertEquals(emptyList<String>(), runBlocking { client.privacy().blockedUserIds })
     }
 
     @Test

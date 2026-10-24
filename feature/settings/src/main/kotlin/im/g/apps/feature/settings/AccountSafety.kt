@@ -1,10 +1,13 @@
 package im.g.apps.feature.settings
 
 /**
- * Hidden extension points of the profile and account screens (own photo, privacy, block/report, new recovery key and
- * delete account). Flip when the SDK gains own-photo, privacy, block/report, new recovery key and delete-account APIs;
- * see README.
+ * Account safety rows that are built but still hidden, one switch each; turn one on when its flow is wired (see
+ * README, "Extension points").
  */
 internal object AccountSafety {
-    const val AVAILABLE = false
+    /** "Create a new recovery key" in the account section. */
+    const val NEW_RECOVERY_KEY = false
+
+    /** "Delete account" in the account section. */
+    const val DELETE_ACCOUNT = false
 }

@@ -9,6 +9,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import im.g.apps.core.bridge.GimClient
 import im.g.apps.core.bridge.GimException
+import java.io.File
+import java.io.InputStream
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -27,6 +29,8 @@ private val HANDLE_PATTERN = Regex("^[a-z0-9_]{3,32}$")
 private const val DISPLAY_NAME_MAX_LENGTH = 64
 
 private const val HTTP_CONFLICT = 409
+
+private const val JPEG_MIME = "image/jpeg"
 
 /** Trims, drops a leading `@` and lowercases what the user typed, like onboarding. */
 internal fun normalizeHandle(value: String): String = value.trim().removePrefix("@").lowercase()
@@ -51,6 +55,12 @@ data class ProfileUiState(
     val saving: Boolean = false,
     val nameError: ProfileFieldError? = null,
     val usernameError: ProfileFieldError? = null,
+    /** Whether the user has a profile photo ([UserProfile.hasAvatar][im.g.apps.core.bridge.UserProfile.hasAvatar]). */
+    val hasPhoto: Boolean = false,
+    /** The downloaded photo; null shows the initials (no photo, or it can't be downloaded now). */
+    val photoPath: String? = null,
+    /** A photo change is being saved; the photo buttons are disabled. */
+    val photoSaving: Boolean = false,
 )
 
 sealed interface ProfileEvent {
@@ -61,9 +71,13 @@ sealed interface ProfileEvent {
     data class CopyAccountId(val accountId: String) : ProfileEvent
 }
 
-/** The own name, username and Account ID; every change is saved through [GimClient] and then re-read from the session. */
+/**
+ * The own name, username, Account ID and photo; every change is saved through [GimClient] and then re-read from the
+ * session and [GimClient.ownProfile].
+ */
 class ProfileViewModel(
     private val client: GimClient,
+    private val photos: ProfilePhotos,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val _state = MutableStateFlow(ProfileUiState())
@@ -126,6 +140,25 @@ class ProfileViewModel(
         })
     }
 
+    /**
+     * Crops and scales the picture [open] reads (see [ProfilePhotos.prepare]) and sets it as the profile photo. A
+     * picture that can't be read is not uploaded.
+     */
+    fun changePhoto(open: () -> InputStream?) {
+        savePhoto(R.string.profile_photo_saved) {
+            val file = photos.prepare(open) ?: return@savePhoto false
+            client.setAvatar(file.path, JPEG_MIME)
+            true
+        }
+    }
+
+    fun removePhoto() {
+        savePhoto(R.string.profile_photo_removed) {
+            client.removeAvatar()
+            true
+        }
+    }
+
     fun copyAccountId() {
         _state.value.accountId.takeIf { it.isNotEmpty() }?.let { _events.trySend(ProfileEvent.CopyAccountId(it)) }
     }
@@ -161,6 +194,29 @@ class ProfileViewModel(
         }
     }
 
+    /**
+     * Runs [call] off the main thread; false means the picture couldn't be read. On success reloads the profile and
+     * shows [done]; any failure is a snackbar message.
+     */
+    private fun savePhoto(@StringRes done: Int, call: suspend () -> Boolean) {
+        if (_state.value.photoSaving) return
+        _state.update { it.copy(photoSaving = true) }
+        viewModelScope.launch {
+            val message = try {
+                if (withContext(ioDispatcher) { call() }) {
+                    reload()
+                    done
+                } else {
+                    R.string.profile_photo_error_unreadable
+                }
+            } catch (e: GimException) {
+                if (e is GimException.Network) R.string.profile_photo_error_network else R.string.profile_photo_error_unknown
+            }
+            _state.update { it.copy(photoSaving = false) }
+            _events.send(ProfileEvent.Message(message))
+        }
+    }
+
     private suspend fun reload() {
         val session = try {
             withContext(ioDispatcher) { client.session() }
@@ -170,6 +226,13 @@ class ProfileViewModel(
         _state.update {
             it.copy(displayName = session.displayName, username = session.handle.ifEmpty { null }, accountId = session.userId)
         }
+        val hasPhoto = try {
+            withContext(ioDispatcher) { client.ownProfile() }?.hasAvatar ?: false
+        } catch (_: GimException) {
+            _state.value.hasPhoto
+        }
+        val photoPath = if (hasPhoto) withContext(ioDispatcher) { photos.load(session.userId) } else null
+        _state.update { it.copy(hasPhoto = hasPhoto, photoPath = photoPath) }
     }
 
     @StringRes
@@ -179,6 +242,7 @@ class ProfileViewModel(
     }
 }
 
-fun profileViewModelFactory(client: GimClient): ViewModelProvider.Factory = viewModelFactory {
-    initializer { ProfileViewModel(client) }
+/** [cacheDir] holds the downloaded and the prepared photos (see [ProfilePhotos]). */
+fun profileViewModelFactory(client: GimClient, cacheDir: File): ViewModelProvider.Factory = viewModelFactory {
+    initializer { ProfileViewModel(client, ProfilePhotos(client, cacheDir)) }
 }
