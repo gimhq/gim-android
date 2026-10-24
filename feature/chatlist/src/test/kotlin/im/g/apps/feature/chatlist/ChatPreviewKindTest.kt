@@ -1,7 +1,10 @@
 package im.g.apps.feature.chatlist
 
+import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import im.g.apps.core.bridge.PreviewKind
 import im.g.apps.core.designsystem.theme.GimTheme
@@ -34,11 +37,11 @@ class ChatPreviewKindTest {
             GimTheme { ChatListScreen(ChatListUiState(rows = rows), "Sofia Costa", {}, {}, {}, {}) }
         }
 
-        rule.onNodeWithText("照片").assertExists()
-        rule.onNodeWithText("你：文件：report.pdf").assertExists()
-        rule.onNodeWithText("Nikos：文件").assertExists()
-        rule.onNodeWithText("消息已删除").assertExists()
-        rule.onNodeWithText("你：Table booked").assertExists()
+        // The small test screen does not fit every row, so scroll each one into view.
+        for (text in listOf("照片", "你：文件：report.pdf", "Nikos：文件", "消息已删除", "你：Table booked")) {
+            rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasText(text))
+            rule.onNodeWithText(text).assertExists()
+        }
         rule.onNodeWithText("Photo").assertDoesNotExist()
         rule.onNodeWithText("你：File: report.pdf").assertDoesNotExist()
     }
