@@ -15,8 +15,6 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import im.g.apps.core.designsystem.R
@@ -24,7 +22,10 @@ import im.g.apps.core.designsystem.theme.GimTheme
 
 enum class TickState { PENDING, SENT, DELIVERED, READ, FAILED }
 
-/** Delivery state glyph: clock / one check / two checks / two accent checks / error mark. */
+/**
+ * Delivery state glyph: clock / one check / two checks / two accent checks / error mark. Decorative: the
+ * message row announces [tickLabel] as part of its description.
+ */
 @Composable
 fun StatusTicks(
     state: TickState,
@@ -37,16 +38,7 @@ fun StatusTicks(
         TickState.FAILED -> colors.tickFailed
         else -> colors.tick
     }
-    val description = stringResource(
-        when (state) {
-            TickState.PENDING -> R.string.gim_tick_pending
-            TickState.SENT -> R.string.gim_tick_sent
-            TickState.DELIVERED -> R.string.gim_tick_delivered
-            TickState.READ -> R.string.gim_tick_read
-            TickState.FAILED -> R.string.gim_tick_failed
-        },
-    )
-    Canvas(modifier = modifier.size(size).semantics { contentDescription = description }) {
+    Canvas(modifier = modifier.size(size)) {
         when (state) {
             TickState.PENDING -> drawClock(color)
             TickState.SENT -> drawCheck(color, offsetFraction = 0.1f)
@@ -58,6 +50,18 @@ fun StatusTicks(
         }
     }
 }
+
+/** Spoken delivery state, e.g. "Read". */
+@Composable
+fun tickLabel(state: TickState): String = stringResource(
+    when (state) {
+        TickState.PENDING -> R.string.gim_tick_pending
+        TickState.SENT -> R.string.gim_tick_sent
+        TickState.DELIVERED -> R.string.gim_tick_delivered
+        TickState.READ -> R.string.gim_tick_read
+        TickState.FAILED -> R.string.gim_tick_failed
+    },
+)
 
 private fun DrawScope.strokeOf() = Stroke(width = size.minDimension * 0.11f, cap = StrokeCap.Round, join = StrokeJoin.Round)
 
