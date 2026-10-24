@@ -6,6 +6,7 @@ import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.flow.chatListFlow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -14,6 +15,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class NewGroupViewModelTest {
@@ -21,9 +24,30 @@ class NewGroupViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
+    @get:Rule
+    val tmp = TemporaryFolder()
+
+    private val avatarDir by lazy { tmp.newFolder("avatars") }
+
     private fun TestScope.newViewModel(): Pair<NewGroupViewModel, TestClient> {
         val client = TestClient(demoClient(backgroundScope))
-        return NewGroupViewModel(client) to client
+        return NewGroupViewModel(client, avatarDir, StandardTestDispatcher(testScheduler)) to client
+    }
+
+    @Test
+    fun selectedMemberWithAPhoto_downloadsItOnce() = runTest {
+        val fake = demoClient(backgroundScope).also { it.addDirectoryUser(DemoData.ana.copy(hasAvatar = true)) }
+        val client = TestClient(fake)
+        val vm = NewGroupViewModel(client, avatarDir, StandardTestDispatcher(testScheduler))
+        vm.onQueryChange("ana")
+        advanceUntilIdle()
+        val ana = (vm.state.value.search as UserSearchState.Found).user
+        vm.addMember(ana)
+        vm.onQueryChange("ana")
+        advanceUntilIdle()
+
+        assertEquals(File(avatarDir, ana.userId).path, vm.state.value.photos[ana.userId])
+        assertEquals(listOf(ana.userId), client.avatarFetches)
     }
 
     @Test
@@ -115,7 +139,7 @@ class NewGroupViewModelTest {
     @Test
     fun create_partlyRefusedContacts_createsTheGroupWithTheAdmittedUsers() = runTest {
         val fake = demoClient(backgroundScope).also { it.refuseContacts(DemoData.nikos.userId) }
-        val vm = NewGroupViewModel(fake)
+        val vm = NewGroupViewModel(fake, avatarDir)
         advanceUntilIdle()
         vm.addMember(DemoData.ana)
         vm.addMember(DemoData.nikos)
@@ -131,7 +155,7 @@ class NewGroupViewModelTest {
     @Test
     fun create_allContactsRefused_namesThemAndCreatesNothing() = runTest {
         val fake = demoClient(backgroundScope).also { it.refuseContacts(DemoData.ana.userId, DemoData.nikos.userId) }
-        val vm = NewGroupViewModel(fake)
+        val vm = NewGroupViewModel(fake, avatarDir)
         advanceUntilIdle()
         val before = fake.chatListFlow().first().size
         vm.addMember(DemoData.ana)

@@ -8,10 +8,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -28,6 +32,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.GraphicsMode
 
+private val hasAnyText = SemanticsMatcher.keyIsDefined(SemanticsProperties.Text)
+private val hasAnyContentDescription = SemanticsMatcher.keyIsDefined(SemanticsProperties.ContentDescription)
+
 @RunWith(AndroidJUnit4::class)
 class ComponentsTest {
 
@@ -39,8 +46,8 @@ class ComponentsTest {
         rule.setContent {
             GimTheme { Avatar(name = "Ada Lovelace", imagePath = null, size = 48.dp) }
         }
-        rule.onNodeWithText("AL").assertExists()
-        rule.onNodeWithTag(AvatarTestTags.PHOTO).assertDoesNotExist()
+        rule.onNodeWithText("AL", useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag(AvatarTestTags.PHOTO, useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
@@ -48,8 +55,17 @@ class ComponentsTest {
         rule.setContent {
             GimTheme { Avatar(name = "Ada Lovelace", imagePath = "/data/ada.jpg", size = 48.dp) }
         }
-        rule.onNodeWithTag(AvatarTestTags.PHOTO).assertExists()
-        rule.onNodeWithText("AL").assertExists()
+        rule.onNodeWithTag(AvatarTestTags.PHOTO, useUnmergedTree = true).assertExists()
+        rule.onNodeWithText("AL", useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun avatar_withoutDescription_isDecorative() {
+        rule.setContent {
+            GimTheme { Avatar(name = "Ada Lovelace", imagePath = "/data/ada.jpg", size = 48.dp) }
+        }
+        rule.onAllNodesWithText("AL").assertCountEquals(0)
+        rule.onAllNodes(hasAnyText or hasAnyContentDescription).assertCountEquals(0)
     }
 
     @Test
@@ -109,6 +125,7 @@ class ComponentsTest {
             }
         }
         rule.onNodeWithContentDescription("Ada Lovelace").assertExists()
+        rule.onAllNodes(hasAnyContentDescription).assertCountEquals(1)
         rule.onNodeWithText("AL").assertDoesNotExist()
     }
 

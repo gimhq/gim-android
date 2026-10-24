@@ -183,7 +183,7 @@ private fun ChatDetails(
             ) {
                 val peer = if (isGroup) null else state.peer
                 val title = peer?.displayLabel ?: displayNameOrShortId(chat.name)
-                Avatar(name = title, imagePath = null, size = 72.dp)
+                Avatar(name = title, imagePath = state.headerPhotoPath, size = 72.dp)
                 Text(text = title, style = MaterialTheme.typography.titleLarge)
                 val subtitle = when {
                     peer != null -> userSubtitle(peer)
@@ -238,7 +238,7 @@ private fun ChatDetails(
             }
         }
         items(state.members, key = { it.user.userId }) { member ->
-            UserRow(user = member.user, isSelf = member.isSelf) {
+            UserRow(user = member.user, photoPath = state.photos[member.user.userId], isSelf = member.isSelf) {
                 if (!member.isSelf) {
                     RemoveButton(
                         description = stringResource(R.string.contacts_remove_member_description, member.user.displayLabel),
@@ -324,6 +324,7 @@ private fun GroupInfoDialogs(state: GroupInfoUiState, actions: GroupInfoActions)
                     query = dialog.query,
                     onQueryChange = actions.onAddMemberQueryChange,
                     state = dialog.search,
+                    photos = state.photos,
                 ) { user ->
                     Button(onClick = { actions.onConfirmAddMember(user) }, enabled = state.canAdd(user)) {
                         Text(stringResource(if (state.canAdd(user)) R.string.contacts_add else R.string.contacts_added))
