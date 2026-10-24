@@ -1,6 +1,6 @@
 # 20261023-0755-product-ui-i18n-settings Product-grade UI, languages, account and settings
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P1
 - **owner**: bkd-l1/eynzhrra
 - **createdAt**: 2026-10-23 07:55
@@ -34,3 +34,5 @@ Turning the Android demo UI into a product UI
   and l2-dispatch-jdepq1ie are paused; resume them when the user resumes.
 - 2026-10-24: campaign resumed by the user; crons re-enabled; E and F continue
   from their branches (E: final gate + device E2E; F: F5 device run, then F6-F8).
+
+- complete: 2026-10-24: all six workstreams merged and pushed (B 507b0ca, A 3c26383, C a75b01a, D 7d2beb7, E 15bbf2b, F 8f415bd). Gate and device E2E green on main 8f415bd. Deferred items filed as 20261024-1415-* tasks.

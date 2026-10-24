@@ -1,6 +1,6 @@
 # 20261023-0755-product-ui-i18n-settings Product-grade UI, languages, account explanations and settings
 
-- **status**: approved
+- **status**: completed
 - **createdAt**: 2026-10-23 07:55
 - **approvedAt**: 2026-10-23 09:27
 - **relatedTask**: 20261023-0755-product-ui-i18n-settings

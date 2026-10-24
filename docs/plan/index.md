@@ -1,6 +1,6 @@
 # gim-android - Plan List
 
-> Updated: 2026-10-23
+> Updated: 2026-10-24
 
 Each plan is a single line linking to its detail file. Only update the checkbox marker; new plans append to the end.
 
@@ -16,4 +16,4 @@ Each plan is a single line linking to its detail file. Only update the checkbox 
 
 ## Plans
 
-- [ ] [**20261023-0755-product-ui-i18n-settings Product-grade UI, languages, account explanations and settings**](20261023-0755-product-ui-i18n-settings.md) `2026-10-23`
+- [x] [**20261023-0755-product-ui-i18n-settings Product-grade UI, languages, account explanations and settings**](20261023-0755-product-ui-i18n-settings.md) `2026-10-23`
