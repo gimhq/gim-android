@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Traditional Chinese (zh-TW, Taiwan) -->
+<resources>
+    <string name="chat_today">今天</string>
+    <string name="chat_yesterday">昨天</string>
+    <plurals name="chat_members">
+        <item quantity="other">%d 位成員</item>
+    </plurals>
+    <string name="chat_typing">正在輸入…</string>
+    <string name="chat_typing_one">%1$s 正在輸入…</string>
+    <string name="chat_typing_two">%1$s 和 %2$s 正在輸入…</string>
+    <string name="chat_typing_someone">有人正在輸入…</string>
+    <plurals name="chat_typing_many">
+        <item quantity="other">%d 個人正在輸入…</item>
+    </plurals>
+    <string name="chat_member_added">%1$s 已加入</string>
+    <string name="chat_member_added_by">%1$s 新增了 %2$s</string>
+    <string name="chat_member_added_you">%1$s 把你加進來了</string>
+    <string name="chat_member_you_added">你新增了 %1$s</string>
+    <string name="chat_member_you_were_added">你已被加入</string>
+    <string name="chat_member_removed">%1$s 已被移除</string>
+    <string name="chat_member_removed_by">%1$s 移除了 %2$s</string>
+    <string name="chat_member_you_removed">你移除了 %1$s</string>
+    <string name="chat_member_removed_you">你已被移除</string>
+    <string name="chat_member_left">%1$s 已離開</string>
+    <string name="chat_member_you_left">你已離開</string>
+    <string name="chat_message_deleted">訊息已刪除</string>
+    <string name="chat_message_unsupported">這個版本的 App 無法顯示這則訊息</string>
+    <string name="chat_message_edited">已編輯</string>
+    <string name="chat_message_failed">未傳送。點一下再試一次</string>
+    <string name="chat_message_not_sent">未傳送</string>
+    <string name="chat_back">返回</string>
+    <string name="chat_group_info">群組資訊</string>
+    <string name="chat_jump_to_bottom">前往最新訊息</string>
+    <string name="chat_loading_older">正在載入較早的訊息…</string>
+    <string name="chat_image">相片</string>
+    <string name="chat_file_open">開啟 %1$s</string>
+    <string name="chat_composer_placeholder">訊息</string>
+    <string name="chat_composer_leaving">正在離開…</string>
+    <string name="chat_composer_left">你已離開這個群組</string>
+    <string name="chat_composer_removed">你已被移出這個群組</string>
+    <string name="chat_error_not_active">你已經不在這個群組裡了，所以無法在這裡傳送訊息。</string>
+    <string name="chat_error_open_file">無法開啟檔案。請再試一次。</string>
+    <plurals name="chat_error_retry_later">
+        <item quantity="other">現在無法執行。請在 %d 秒後再試一次。</item>
+    </plurals>
+    <string name="chat_error_media_unavailable">無法下載。目前連不上傳送者的伺服器。請稍後再試。</string>
+    <string name="chat_media_retry">重新下載</string>
+    <string name="chat_message_options">顯示選項</string>
+    <string name="chat_message_react">回應</string>
+    <string name="composer_send">傳送訊息</string>
+    <string name="composer_save">儲存變更</string>
+    <string name="composer_attach">附加相片或檔案</string>
+    <string name="composer_attach_photo">相片</string>
+    <string name="composer_attach_file">檔案</string>
+    <string name="composer_editing">正在編輯訊息</string>
+    <string name="composer_cancel_edit">停止編輯</string>
+    <string name="composer_action_reply">回覆</string>
+    <string name="composer_action_copy">複製</string>
+    <string name="composer_action_edit">編輯</string>
+    <string name="composer_action_delete">刪除</string>
+    <string name="composer_action_retry">再試一次</string>
+    <string name="composer_react">用 %1$s 回應</string>
+    <string name="composer_delete_title">要刪除訊息嗎？</string>
+    <string name="composer_delete_body">這則訊息會為聊天裡的所有人刪除。</string>
+    <string name="composer_delete_keep">保留</string>
+    <string name="composer_error_send">無法傳送。請檢查網路連線後再試一次。</string>
+    <string name="composer_error_edit">無法編輯訊息。請檢查網路連線後再試一次。</string>
+    <string name="composer_error_delete">無法刪除訊息。請檢查網路連線後再試一次。</string>
+    <string name="composer_error_react">無法更新回應。請檢查網路連線後再試一次。</string>
+    <string name="composer_error_retry">還是無法傳送。請檢查網路連線後再試一次。</string>
+    <string name="composer_error_cancel">無法停止傳送。請再試一次。</string>
+    <string name="composer_error_attach">無法開啟這個檔案。請換一個檔案試試。</string>
+    <string name="composer_error_too_large">這個檔案太大了。請選擇小於 100 MB 的檔案。</string>
+</resources>
