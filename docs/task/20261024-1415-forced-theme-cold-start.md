@@ -1,8 +1,8 @@
 # 20261024-1415-forced-theme-cold-start Apply forced light or dark theme from the first frame
 
-- **status**: pending
+- **status**: in_progress
 - **priority**: P3
-- **owner**: (none)
+- **owner**: bkd-l1/eynzhrra
 - **createdAt**: 2026-10-24 14:15
 
 ## Description

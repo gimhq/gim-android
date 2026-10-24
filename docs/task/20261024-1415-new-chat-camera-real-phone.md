@@ -2,7 +2,7 @@
 
 - **status**: pending
 - **priority**: P3
-- **owner**: (none)
+- **owner**: (unassigned)
 - **createdAt**: 2026-10-24 14:15
 
 ## Description

@@ -1,8 +1,8 @@
 # 20261024-1415-avatar-initials-talkback Stop TalkBack reading avatar initials in contacts and group info
 
-- **status**: pending
+- **status**: in_progress
 - **priority**: P2
-- **owner**: (none)
+- **owner**: bkd-l1/eynzhrra
 - **createdAt**: 2026-10-24 14:15
 
 ## Description
