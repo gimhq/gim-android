@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simplified Chinese (zh-CN). -->
+<resources>
+    <string name="gim_tick_pending">正在发送</string>
+    <string name="gim_tick_sent">已发送</string>
+    <string name="gim_tick_delivered">已送达</string>
+    <string name="gim_tick_read">已读</string>
+    <string name="gim_tick_failed">未发送</string>
+    <plurals name="gim_unread_count">
+        <item quantity="other">%d 条未读消息</item>
+    </plurals>
+    <string name="gim_unread_count_muted">%1$s，已静音</string>
+    <string name="gim_unread_overflow">超过 99 条未读消息</string>
+    <string name="gim_reply_close">取消回复</string>
+    <string name="gim_reply_to">回复 %1$s：%2$s</string>
+    <plurals name="gim_reaction">
+        <item quantity="other">%1$s，%2$d 个回应</item>
+    </plurals>
+    <string name="gim_reaction_mine">%1$s，包括你的</string>
+    <string name="gim_error_user_suspended">你的账号在这个服务器上已被停用。请联系服务器管理员。</string>
+    <string name="gim_error_user_suspended_on_hub">你的账号在 %1$s 上已被停用。请联系服务器管理员。</string>
+    <string name="gim_error_user_not_admitted">这个服务器还没有允许你的账号加入。请向服务器管理员申请。</string>
+    <string name="gim_error_user_not_admitted_on_hub">%1$s 还没有允许你的账号加入。请向服务器管理员申请。</string>
+    <string name="gim_error_not_admitted_by_peer">这个聊天所在的服务器不接收你的消息。</string>
+</resources>
