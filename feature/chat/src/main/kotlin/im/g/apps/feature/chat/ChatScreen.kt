@@ -436,7 +436,7 @@ private fun MessageRowItem(
                     Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 }
                 row.replyPreview?.let {
-                    ReplyPreviewBar(senderName = it.senderName, snippet = it.text, onClose = null)
+                    ReplyPreviewBar(senderName = it.senderName, snippet = it.text.asString(), onClose = null)
                 }
                 row.image?.let { MessageImage(row.key, it, onImageNeeded) }
                 row.file?.let { FileAttachment(it) }

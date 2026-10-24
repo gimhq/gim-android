@@ -176,7 +176,9 @@ object DemoData {
                 isOwn = isOwn,
                 sentAtMs = nextTime(),
                 content = content(id),
-                replyTo = replyTo?.let { ReplyPreview(it.messageId, it.sender.displayName, previewText(it.content)) },
+                replyTo = replyTo?.let {
+                    ReplyPreview(it.messageId, it.sender.displayName, previewText(it.content), previewKind(it.content))
+                },
                 reactions = reactions,
                 edited = edited,
                 sendState = if (isOwn) state else null,

@@ -3,6 +3,8 @@ package im.g.apps.feature.chat.timeline
 import im.g.apps.core.bridge.MembershipChangeKind
 import im.g.apps.core.bridge.MessageContent
 import im.g.apps.core.bridge.MessageItem
+import im.g.apps.core.bridge.PreviewKind
+import im.g.apps.core.bridge.ReplyPreview
 import im.g.apps.core.bridge.SendState
 import im.g.apps.core.bridge.TimelineItem
 import im.g.apps.core.bridge.displayLabel
@@ -142,7 +144,7 @@ internal class TimelineMapper(private val zone: ZoneId, private val locale: Loca
                 val name = it.fileName ?: it.media.messageId
                 FileUi(name, formatSize(it.media.size, locale), it.media.mime, typeLabel(name, it.media.mime))
             },
-            replyPreview = message.replyTo?.let { ReplyPreviewUi(displayNameOrShortId(it.senderName), it.text) },
+            replyPreview = message.replyTo?.let { ReplyPreviewUi(displayNameOrShortId(it.senderName), it.snippet()) },
             reactions = message.reactions.map { ReactionChipModel(it.emoji, it.count, it.own) }.toImmutableList(),
             edited = message.edited && !deleted,
             deleted = deleted,
@@ -222,6 +224,15 @@ internal class TimelineMapper(private val zone: ZoneId, private val locale: Loca
                     MembershipChangeKind.LEFT -> res(R.string.chat_member_left, user.name)
                 }
             }
+        }
+
+        /** The quote's text: user text as is, media and deleted messages from string resources. */
+        fun ReplyPreview.snippet(): UiText = when (val kind = kind) {
+            PreviewKind.Text -> UiText.Raw(text)
+            PreviewKind.Photo -> UiText.Res(R.string.chat_image)
+            is PreviewKind.File -> kind.fileName?.let { UiText.Res(R.string.chat_reply_file, persistentListOf(it)) }
+                ?: UiText.Res(R.string.chat_reply_file_unnamed)
+            PreviewKind.Deleted -> UiText.Res(R.string.chat_message_deleted)
         }
 
         fun SendState.toTick(): TickState = when (this) {

@@ -81,8 +81,9 @@ enum class ChatState {
 /** Last message shown in a chat list row. */
 data class MessagePreview(
     val senderName: String,
-    /** Plain-text rendering ("Photo", "File: report.pdf" for media). */
+    /** Plain-text rendering in English ("Photo", "File: report.pdf" for media); localized UI renders [kind]. */
     val text: String,
+    val kind: PreviewKind,
     val sentAtMs: Long,
     val isOwn: Boolean,
     /** Delivery state of an own message (the row's ticks), as [MessageItem.sendState]; null for others' messages. */
@@ -171,8 +172,25 @@ data class MediaRef(
 data class ReplyPreview(
     val messageId: String,
     val senderName: String,
+    /** As [MessagePreview.text]. */
     val text: String,
+    val kind: PreviewKind,
 )
+
+/** What a previewed message is, for a rendering in the app's language. */
+sealed class PreviewKind {
+    /** A text message or media with a caption: show the preview's `text` (user content) as is. */
+    data object Text : PreviewKind()
+
+    /** An image without a caption ("Photo"). */
+    data object Photo : PreviewKind()
+
+    /** Another file without a caption ("File: <name>", or "File"). */
+    data class File(val fileName: String?) : PreviewKind()
+
+    /** A deleted message ("Message deleted"). */
+    data object Deleted : PreviewKind()
+}
 
 data class ReactionGroup(
     val emoji: String,

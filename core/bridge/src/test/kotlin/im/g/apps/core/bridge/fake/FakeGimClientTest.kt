@@ -7,10 +7,12 @@ import im.g.apps.core.bridge.ChatSummary
 import im.g.apps.core.bridge.ConnectionState
 import im.g.apps.core.bridge.DeviceInfo
 import im.g.apps.core.bridge.GimException
+import im.g.apps.core.bridge.MediaRef
 import im.g.apps.core.bridge.MembershipChangeKind
 import im.g.apps.core.bridge.MessageContent
 import im.g.apps.core.bridge.MessageItem
 import im.g.apps.core.bridge.MessagePreview
+import im.g.apps.core.bridge.PreviewKind
 import im.g.apps.core.bridge.ReactionGroup
 import im.g.apps.core.bridge.ReplyPreview
 import im.g.apps.core.bridge.SendFailure
@@ -295,13 +297,30 @@ class FakeGimClientTest {
     }
 
     @Test
+    fun previews_carry_the_kind_of_each_message_content() {
+        val media = MediaRef("c", "m", "image/jpeg", 1L, hasThumbnail = false)
+        assertEquals(PreviewKind.Text, previewKind(MessageContent.Text("hi")))
+        assertEquals(PreviewKind.Photo, previewKind(MessageContent.Image(media, null, null, caption = null)))
+        assertEquals(PreviewKind.Text, previewKind(MessageContent.Image(media, null, null, caption = "Kea")))
+        assertEquals("Kea", previewText(MessageContent.Image(media, null, null, caption = "Kea")))
+        assertEquals(PreviewKind.File("a.pdf"), previewKind(MessageContent.File(media, "a.pdf", caption = null)))
+        assertEquals(PreviewKind.File(null), previewKind(MessageContent.File(media, null, caption = null)))
+        assertEquals("File", previewText(MessageContent.File(media, null, caption = null)))
+        assertEquals(PreviewKind.Text, previewKind(MessageContent.File(media, "a.pdf", caption = "Notes")))
+        assertEquals(PreviewKind.Deleted, previewKind(MessageContent.Deleted))
+    }
+
+    @Test
     fun reply_carries_a_preview_of_the_quoted_message() = runTest {
         val client = demo()
         val timeline = client.record(DIRECT_CHAT_ID)
         val survey = timeline.messages.single { it.content is MessageContent.File }
 
         client.sendText(DIRECT_CHAT_ID, "Read it, all good", replyTo = survey.messageId)
-        assertEquals(ReplyPreview(survey.messageId, lukas.displayName, "File: survey-2026.pdf"), timeline.last().replyTo)
+        assertEquals(
+            ReplyPreview(survey.messageId, lukas.displayName, "File: survey-2026.pdf", PreviewKind.File("survey-2026.pdf")),
+            timeline.last().replyTo,
+        )
         assertGimError<GimException.NotFound> { client.sendText(DIRECT_CHAT_ID, "x", replyTo = "missing") }
         assertGimError<GimException.InvalidInput> { client.sendText(DIRECT_CHAT_ID, " ", replyTo = null) }
     }
@@ -627,7 +646,7 @@ class FakeGimClientTest {
         val direct = chats.chat(DIRECT_CHAT_ID)
         assertEquals(1, direct.unreadCount)
         assertEquals(base + 1_000, direct.updatedAtMs)
-        assertEquals(MessagePreview(lukas.displayName, "Moored in Split", base + 1_000, isOwn = false), direct.lastMessage)
+        assertEquals(MessagePreview(lukas.displayName, "Moored in Split", PreviewKind.Text, base + 1_000, isOwn = false), direct.lastMessage)
 
         client.markRead(DIRECT_CHAT_ID, incoming)
         assertEquals(0, (chats.batches.last().single() as ChatListDiff.Set).value.unreadCount)
@@ -638,7 +657,7 @@ class FakeGimClientTest {
         client.sendMedia(GROUP_CHAT_ID, photo.path, "image/jpeg", "Sunset over Kea", replyTo = null)
         assertEquals(GROUP_CHAT_ID, chats.ids.first())
         assertEquals(
-            MessagePreview(me.displayName, "Photo", base + 2_000, isOwn = true, sendState = SendState.Pending),
+            MessagePreview(me.displayName, "Sunset over Kea", PreviewKind.Text, base + 2_000, isOwn = true, sendState = SendState.Pending),
             chats.items[0].lastMessage,
         )
 

@@ -39,6 +39,8 @@
     <string name="chat_jump_to_bottom">Ir a los últimos mensajes</string>
     <string name="chat_loading_older">Cargando mensajes anteriores…</string>
     <string name="chat_image">Foto</string>
+    <string name="chat_reply_file">Archivo: %1$s</string>
+    <string name="chat_reply_file_unnamed">Archivo</string>
     <string name="chat_file_open">Abrir %1$s</string>
     <string name="chat_composer_placeholder">Mensaje</string>
     <string name="chat_composer_leaving">Saliendo…</string>

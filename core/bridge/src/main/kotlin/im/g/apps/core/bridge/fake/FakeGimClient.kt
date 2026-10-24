@@ -27,6 +27,7 @@ import im.g.apps.core.bridge.PrivacySettings
 import im.g.apps.core.bridge.PushRegistration
 import im.g.apps.core.bridge.ReactionGroup
 import im.g.apps.core.bridge.RecoveryRotation
+import im.g.apps.core.bridge.PreviewKind
 import im.g.apps.core.bridge.ReplyPreview
 import im.g.apps.core.bridge.ReportReason
 import im.g.apps.core.bridge.SendFailure
@@ -1290,7 +1291,9 @@ class FakeGimClient(
 
     private fun replyPreview(chat: FakeChat, messageId: String): ReplyPreview {
         val message = (chat.events[messageIndex(chat, messageId)] as TimelineItem.Message).item
-        return ReplyPreview(message.messageId, message.sender.displayName, previewText(message.content))
+        return ReplyPreview(
+            message.messageId, message.sender.displayName, previewText(message.content), previewKind(message.content),
+        )
     }
 
     private fun membership(user: UserProfile, change: MembershipChangeKind, actor: UserProfile?) =
@@ -1468,7 +1471,7 @@ class FakeGimClient(
             avatar = chat.avatar,
             lastMessage = last?.item?.let {
                 MessagePreview(
-                    it.sender.displayName, previewText(it.content), it.sentAtMs, it.isOwn,
+                    it.sender.displayName, previewText(it.content), previewKind(it.content), it.sentAtMs, it.isOwn,
                     sendState = if (it.isOwn) it.sendState else null,
                 )
             },
@@ -1597,12 +1600,25 @@ class FakeGimClient(
 }
 
 /** Plain-text rendering used for chat list previews and reply quotes, as gim-core renders them. */
-internal fun previewText(content: MessageContent): String = when (content) {
-    is MessageContent.Text -> content.body
-    is MessageContent.Image -> "Photo"
-    is MessageContent.File -> "File: ${content.fileName ?: "attachment"}"
-    MessageContent.Deleted -> "Message deleted"
-    MessageContent.Unsupported -> "Unsupported message"
+internal fun previewText(content: MessageContent): String = when (val kind = previewKind(content)) {
+    PreviewKind.Text -> when (content) {
+        is MessageContent.Text -> content.body
+        is MessageContent.Image -> content.caption.orEmpty()
+        is MessageContent.File -> content.caption.orEmpty()
+        else -> "Unsupported message"
+    }
+    PreviewKind.Photo -> "Photo"
+    is PreviewKind.File -> kind.fileName?.let { "File: $it" } ?: "File"
+    PreviewKind.Deleted -> "Message deleted"
+}
+
+/** What [content] is for previews, as gim-core decides it: media with a caption previews as its caption. */
+internal fun previewKind(content: MessageContent): PreviewKind = when (content) {
+    is MessageContent.Text, MessageContent.Unsupported -> PreviewKind.Text
+    is MessageContent.Image -> if (content.caption.isNullOrEmpty()) PreviewKind.Photo else PreviewKind.Text
+    is MessageContent.File ->
+        if (content.caption.isNullOrEmpty()) PreviewKind.File(content.fileName) else PreviewKind.Text
+    MessageContent.Deleted -> PreviewKind.Deleted
 }
 
 private fun eventTime(item: TimelineItem): Long = when (item) {

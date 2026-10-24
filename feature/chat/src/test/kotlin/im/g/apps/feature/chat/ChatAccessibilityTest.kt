@@ -90,7 +90,7 @@ class ChatAccessibilityTest {
         message("m3", "Bring the charts", "12:02").copy(
             sender = nikos,
             groupedWithPrevious = true,
-            replyPreview = ReplyPreviewUi("You", "Shall we leave Split at nine tomorrow morning?"),
+            replyPreview = ReplyPreviewUi("You", UiText.Raw("Shall we leave Split at nine tomorrow morning?")),
         ),
         message("m2", "Wind looks good", "12:01").copy(sender = nikos, senderName = "Nikos Papas", groupedWithNext = true),
         DateSeparatorRow("date-today", UiText.Raw("Today")),
