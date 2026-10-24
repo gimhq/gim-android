@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spanish (es, neutral) -->
+<resources>
+    <string name="hubs_title">Servidores</string>
+    <string name="hubs_back">Volver</string>
+    <string name="hubs_add">Añadir servidor</string>
+    <string name="hubs_removed_section">Quitados</string>
+    <string name="hubs_unknown_address">Dirección desconocida</string>
+    <string name="hubs_state_unverified">Sin comprobar</string>
+    <string name="hubs_state_verified">Conectado</string>
+    <string name="hubs_state_removed">Quitado</string>
+    <string name="hubs_signed_in">Sesión iniciada</string>
+    <string name="hubs_not_signed_in">Sin sesión iniciada</string>
+    <string name="hubs_state_line">%1$s · %2$s</string>
+    <string name="hubs_badge_home">Tu cuenta</string>
+    <string name="hubs_badge_primary">Servidor principal</string>
+    <string name="hubs_make_primary">Hacer servidor principal</string>
+    <string name="hubs_remove">Quitar</string>
+    <string name="hubs_empty_title">No hay servidores para mostrar</string>
+    <string name="hubs_add_title">Añade un servidor</string>
+    <string name="hubs_add_url_label">Dirección del servidor</string>
+    <string name="hubs_add_confirm">Añadir</string>
+    <string name="hubs_cancel">Cancelar</string>
+    <string name="hubs_ok">Aceptar</string>
+    <string name="hubs_owned_title">¿Quitar este servidor?</string>
+    <plurals name="hubs_owned_body">
+        <item quantity="one">Este servidor aloja %1$d de tus chats de grupo. Se quedará allí. Aún puedes llegar a él desde tus otros servidores.</item>
+        <item quantity="many">Este servidor aloja %1$d de tus chats de grupo. Se quedarán allí. Aún puedes llegar a ellos desde tus otros servidores.</item>
+        <item quantity="other">Este servidor aloja %1$d de tus chats de grupo. Se quedarán allí. Aún puedes llegar a ellos desde tus otros servidores.</item>
+    </plurals>
+    <string name="hubs_owned_confirm">Quitar servidor</string>
+    <string name="hubs_error_invalid_url">Esa no es una dirección de servidor de gim. Revísala e inténtalo de nuevo.</string>
+    <string name="hubs_error_unreachable">No se puede conectar con el servidor. Revisa la dirección y tu conexión a internet, y vuelve a intentarlo.</string>
+    <string name="hubs_error_not_verified">No se pudo comprobar este servidor. Su dirección no coincide. Revisa la dirección e inténtalo de nuevo.</string>
+    <string name="hubs_error_retry_later">El servidor está ocupado. Inténtalo de nuevo en %1$d s.</string>
+    <string name="hubs_error_home_hub">Tu cuenta vive en este servidor, así que aún no puedes quitarlo. Primero haz que otro servidor sea tu servidor principal.</string>
+    <string name="hubs_error_last_hub">Necesitas al menos un servidor. Primero añade otro servidor.</string>
+    <string name="hubs_error_not_drained">Algunos mensajes aún se están enviando. Inténtalo de nuevo en un momento.</string>
+    <string name="hubs_error_cannot_make_primary">No se pudo cambiar tu servidor principal. Primero inicia sesión en todos los servidores en este dispositivo y vuelve a intentarlo.</string>
+    <string name="hubs_error_not_listed">Este servidor ya no está en tu lista. Actualiza e inténtalo de nuevo.</string>
+    <string name="hubs_error_not_registered">Este dispositivo cerró sesión. Vuelve a iniciar sesión para gestionar los servidores.</string>
+    <string name="hubs_error_server">El servidor no pudo terminar esto. Inténtalo de nuevo en un momento.</string>
+    <string name="hubs_error_unknown">Algo salió mal. Inténtalo de nuevo.</string>
+</resources>
