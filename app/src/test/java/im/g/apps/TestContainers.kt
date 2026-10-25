@@ -13,15 +13,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 
 /**
- * A container whose stored server URL restores a client from [factory] (demo data by default); [metaServerUrl] turns
- * on the meta server for the container and the demo client.
+ * A container whose stored server URL restores a client from [factory] (demo data by default); [keepServerUrl] turns
+ * on the keep server for the container and the demo client.
  */
 fun testContainer(
     storedUrl: String? = DemoData.SERVER_URL,
     scope: CoroutineScope = CoroutineScope(Job()),
-    metaServerUrl: String? = null,
+    keepServerUrl: String? = null,
     factory: GimClientFactory = FakeGimClientFactory { _, _ ->
-        FakeGimClient.withDemoData(scope, outboxDelays = null, metaServerUrl = metaServerUrl)
+        FakeGimClient.withDemoData(scope, outboxDelays = null, keepServerUrl = keepServerUrl)
     },
 ) = AppContainer(
     context = ApplicationProvider.getApplicationContext(),
@@ -30,6 +30,6 @@ fun testContainer(
     clientFactory = factory,
     themeModeStore = InMemoryThemeModeStore(),
     appLocales = InMemoryAppLocales(),
-    metaServerUrl = metaServerUrl,
+    keepServerUrl = keepServerUrl,
     recoveryKitCodec = FakeRecoveryKitCodec,
 )

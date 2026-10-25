@@ -30,7 +30,7 @@ class ReportViewModelTest {
         messageId: String? = null,
         extraMessages: Int = 0,
     ): ReportViewModel {
-        fake = FakeGimClient.withDemoData(backgroundScope, outboxDelays = null, pageSize = 200, metaServerUrl = META)
+        fake = FakeGimClient.withDemoData(backgroundScope, outboxDelays = null, pageSize = 200, keepServerUrl = KEEP)
         repeat(extraMessages) { fake.simulateIncoming(chatId, "Spam $it", from = userId) }
         return ReportViewModel(fake, userId, chatId, messageId)
     }
@@ -182,6 +182,6 @@ class ReportViewModelTest {
     }
 
     private companion object {
-        const val META = "https://meta.example.eu"
+        const val KEEP = "https://keep.example.eu"
     }
 }

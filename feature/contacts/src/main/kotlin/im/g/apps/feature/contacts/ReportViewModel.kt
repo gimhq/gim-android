@@ -70,7 +70,7 @@ sealed interface ReportEvent {
 }
 
 /**
- * Reports [userId] to the meta server's moderators with a reason, an optional note and up to [MAX_REPORT_MESSAGES]
+ * Reports [userId] to the keep server's moderators with a reason, an optional note and up to [MAX_REPORT_MESSAGES]
  * of their messages from [chatId] ([messageId] picked to start with), then blocks them if asked to.
  */
 class ReportViewModel(

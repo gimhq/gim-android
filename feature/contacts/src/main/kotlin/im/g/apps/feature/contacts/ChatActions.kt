@@ -38,7 +38,7 @@ fun ChatSummary.isMuted(nowMs: Long): Boolean = mutedUntilMs > nowMs
 
 /**
  * The actions for [chat] at [nowMs]: mute, pin and archive (or their undo) for every chat; for a direct chat with a
- * known peer also block (or unblock) and, when [reportAvailable] (a meta server is configured), report.
+ * known peer also block (or unblock) and, when [reportAvailable] (a keep server is configured), report.
  */
 fun chatActions(chat: ChatSummary, nowMs: Long, reportAvailable: Boolean): List<ChatAction> = buildList {
     add(if (chat.isMuted(nowMs)) ChatAction.UNMUTE else ChatAction.MUTE)

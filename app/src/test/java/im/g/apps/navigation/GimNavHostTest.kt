@@ -152,7 +152,7 @@ class GimNavHostTest {
     }
 
     @Test
-    fun chat_info_hides_report_without_a_meta_server() {
+    fun chat_info_hides_report_without_a_keep_server() {
         launch(testContainer(scope = scope))
         openDirectChatInfo()
 
@@ -161,8 +161,8 @@ class GimNavHostTest {
     }
 
     @Test
-    fun chat_info_report_opens_the_report_and_sends_it_with_a_meta_server() {
-        launch(testContainer(scope = scope, metaServerUrl = "https://meta.example.eu"))
+    fun chat_info_report_opens_the_report_and_sends_it_with_a_keep_server() {
+        launch(testContainer(scope = scope, keepServerUrl = "https://keep.example.eu"))
         openDirectChatInfo()
 
         rule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("chat_action_report"))

@@ -282,7 +282,7 @@ class ContactsScreensTest {
     }
 
     @Test
-    fun directChatInfo_hidesReportWithoutAMetaServer() {
+    fun directChatInfo_hidesReportWithoutAKeepServer() {
         val fake = demoClient(scope)
         val vm = GroupInfoViewModel(fake, DemoData.DIRECT_CHAT_ID, avatarDir, reportAvailable = false)
         rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}) } }
@@ -294,8 +294,8 @@ class ContactsScreensTest {
     }
 
     @Test
-    fun directChatInfo_showsReportWithAMetaServer_andOpensItForThePeer() {
-        val fake = FakeGimClient.withDemoData(scope, outboxDelays = null, metaServerUrl = "https://meta.example.eu")
+    fun directChatInfo_showsReportWithAKeepServer_andOpensItForThePeer() {
+        val fake = FakeGimClient.withDemoData(scope, outboxDelays = null, keepServerUrl = "https://keep.example.eu")
         val vm = GroupInfoViewModel(fake, DemoData.DIRECT_CHAT_ID, avatarDir, reportAvailable = true)
         var reported: Pair<String, String>? = null
         rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}, onReport = { u, c -> reported = u to c }) } }
@@ -369,7 +369,7 @@ class ContactsScreensTest {
 
     @Test
     fun report_formShowsTheWarning_andSendIsEnabledOnceAReasonIsPicked() {
-        val fake = FakeGimClient.withDemoData(scope, outboxDelays = null, metaServerUrl = "https://meta.example.eu")
+        val fake = FakeGimClient.withDemoData(scope, outboxDelays = null, keepServerUrl = "https://keep.example.eu")
         val vm = ReportViewModel(fake, DemoData.lukas.userId, DemoData.DIRECT_CHAT_ID)
         rule.setContent { GimTheme { ReportRoute(vm, onBack = {}) } }
 

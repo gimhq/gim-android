@@ -264,7 +264,7 @@ internal fun im.g.gimcore.ConnectionState.toMirror(): ConnectionState = when (th
 }
 
 internal fun ClientConfig.toCore() =
-    im.g.gimcore.ClientConfig(serverUrl = serverUrl, mode = mode.toCore(), metaServerUrl = metaServerUrl)
+    im.g.gimcore.ClientConfig(serverUrl = serverUrl, mode = mode.toCore(), keepServerUrl = keepServerUrl)
 
 internal fun ClientMode.toCore(): im.g.gimcore.ClientMode = when (this) {
     ClientMode.APP -> im.g.gimcore.ClientMode.APP

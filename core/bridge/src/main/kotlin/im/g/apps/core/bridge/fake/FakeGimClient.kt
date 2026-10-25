@@ -74,14 +74,14 @@ import java.time.ZoneId
  *
  * Settings follow gim-core's privacy and chat settings: pinned chats first in the chat list, blocked users' messages
  * dropped and chats with them refused, read receipts off stop own sends at [SendState.Delivered], a muted chat's push
- * is not displayed. [reportUser] needs [metaServerUrl] and records [reports]; [deleteAccount] wipes like [signOut].
+ * is not displayed. [reportUser] needs [keepServerUrl] and records [reports]; [deleteAccount] wipes like [signOut].
  * [failNext] makes the next call of a method throw.
  *
  * @param clock epoch-millisecond time source for timestamps.
  * @param pageSize number of newest history events (messages, membership changes) loaded before
  *   [Timeline.paginateBackwards].
  * @param discardedLocalState value of [localStateReset].
- * @param metaServerUrl the client's [im.g.apps.core.bridge.ClientConfig.metaServerUrl]; null fails [reportUser].
+ * @param keepServerUrl the client's [im.g.apps.core.bridge.ClientConfig.keepServerUrl]; null fails [reportUser].
  */
 class FakeGimClient(
     private val scope: CoroutineScope,
@@ -91,7 +91,7 @@ class FakeGimClient(
     private val pageSize: Int = DEFAULT_PAGE_SIZE,
     private val discardedLocalState: Boolean = false,
     private val homeHubUrl: String = DEFAULT_HOME_HUB_URL,
-    private val metaServerUrl: String? = null,
+    private val keepServerUrl: String? = null,
 ) : GimClient {
 
     data class OutboxDelays(
@@ -475,7 +475,7 @@ class FakeGimClient(
     ): String = synchronized(lock) {
         checkFailure("reportUser")
         val me = me()
-        if (metaServerUrl == null) throw GimException.InvalidInput("no meta server configured")
+        if (keepServerUrl == null) throw GimException.InvalidInput("no keep server configured")
         if (userId == me.userId) throw GimException.InvalidInput("cannot report yourself")
         if (messageIds.size > MAX_REPORT_MESSAGES) {
             throw GimException.InvalidInput("at most $MAX_REPORT_MESSAGES messages per report")
@@ -1593,8 +1593,8 @@ class FakeGimClient(
             zone: ZoneId = ZoneId.systemDefault(),
             outboxDelays: OutboxDelays? = OutboxDelays(),
             pageSize: Int = DEFAULT_PAGE_SIZE,
-            metaServerUrl: String? = null,
-        ): FakeGimClient = FakeGimClient(scope, clock, zone, outboxDelays, pageSize, metaServerUrl = metaServerUrl)
+            keepServerUrl: String? = null,
+        ): FakeGimClient = FakeGimClient(scope, clock, zone, outboxDelays, pageSize, keepServerUrl = keepServerUrl)
             .also { DemoData.seed(it, clock()) }
     }
 }

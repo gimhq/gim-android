@@ -396,8 +396,8 @@ class MappersTest {
             ClientConfig("https://gim.example", ClientMode.EXTENSION).toCore(),
         )
         assertEquals(
-            im.g.gimcore.ClientConfig("https://gim.example", im.g.gimcore.ClientMode.APP, "https://meta.example"),
-            ClientConfig("https://gim.example", metaServerUrl = "https://meta.example").toCore(),
+            im.g.gimcore.ClientConfig("https://gim.example", im.g.gimcore.ClientMode.APP, "https://keep.example"),
+            ClientConfig("https://gim.example", keepServerUrl = "https://keep.example").toCore(),
         )
     }
 

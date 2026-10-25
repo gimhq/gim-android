@@ -164,18 +164,18 @@ interface GimClient {
     suspend fun signOut()
 
     /**
-     * Deletes the account for good: its data on the meta server (if configured), leaves every chat, deletes the user
+     * Deletes the account for good: its data on the keep server (if configured), leaves every chat, deletes the user
      * on the home hub and then on the other hubs, and wipes this device like [signOut]. Returns the other hubs that
-     * could not be reached. If the meta server or the home hub step fails, nothing local is deleted and the call can be
+     * could not be reached. If the keep server or the home hub step fails, nothing local is deleted and the call can be
      * repeated. Create a new client afterwards.
      */
     suspend fun deleteAccount(): List<String>
 
     /**
      * Sends a report about [userId] with up to 50 [messageIds] from local history (text or media caption) and an
-     * optional [note] (at most 1000 characters) to the meta server's moderators, in plaintext; returns the report id.
+     * optional [note] (at most 1000 characters) to the keep server's moderators, in plaintext; returns the report id.
      * It does not block: offer [blockUser] alongside. [GimException.InvalidInput] for the signed-in user, too many
-     * messages, a long note or no meta server configured; [GimException.NotFound] for an unknown message id.
+     * messages, a long note or no keep server configured; [GimException.NotFound] for an unknown message id.
      */
     suspend fun reportUser(userId: String, reason: ReportReason, note: String?, messageIds: List<String>): String
 

@@ -253,14 +253,14 @@ data class ClientConfig(
     /** The process kind; the app always creates [ClientMode.APP] clients. */
     val mode: ClientMode = ClientMode.APP,
     /**
-     * Base URL of the gim meta server, which backs up the privacy settings and takes [GimClient.reportUser] reports;
+     * Base URL of the gim keep server, which backs up the privacy settings and takes [GimClient.reportUser] reports;
      * null: no backup, and reports fail with [GimException.InvalidInput].
      */
-    val metaServerUrl: String? = null,
+    val keepServerUrl: String? = null,
 )
 
 /**
- * Privacy settings, synced to the user's other devices and backed up on the meta server; all on and empty by default.
+ * Privacy settings, synced to the user's other devices and backed up on the keep server; all on and empty by default.
  */
 data class PrivacySettings(
     /** Off: [GimClient.markRead] sends no receipt and others' receipts are not shown (sends stop at Delivered). */

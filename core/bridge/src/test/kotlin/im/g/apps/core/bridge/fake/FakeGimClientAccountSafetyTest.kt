@@ -38,7 +38,7 @@ class FakeGimClientAccountSafetyTest {
     val tmp = TemporaryFolder()
 
     private val now = 1_800_000_000_000L
-    private val metaUrl = "https://meta.example.eu"
+    private val keepUrl = "https://keep.example.eu"
 
     private inline fun <reified T : GimException> assertThrows(block: () -> Unit): T {
         try {
@@ -51,8 +51,8 @@ class FakeGimClientAccountSafetyTest {
         error("unreachable")
     }
 
-    private fun TestScope.demo(metaServerUrl: String? = metaUrl) =
-        FakeGimClient.withDemoData(backgroundScope, clock = { now }, outboxDelays = null, metaServerUrl = metaServerUrl)
+    private fun TestScope.demo(keepServerUrl: String? = keepUrl) =
+        FakeGimClient.withDemoData(backgroundScope, clock = { now }, outboxDelays = null, keepServerUrl = keepServerUrl)
 
     /** Subscribes to the chat list and keeps it up to date by applying every diff batch. */
     private suspend fun FakeGimClient.liveChatList(): Pair<MutableList<ChatSummary>, MutableList<List<ChatListDiff>>> {
@@ -322,8 +322,8 @@ class FakeGimClientAccountSafetyTest {
     }
 
     @Test
-    fun reportUserNeedsAMetaServer() = runTest {
-        val client = demo(metaServerUrl = null)
+    fun reportUserNeedsAKeepServer() = runTest {
+        val client = demo(keepServerUrl = null)
         assertThrows<GimException.InvalidInput> { client.reportUser(lukas.userId, ReportReason.SPAM, null, emptyList()) }
         assertTrue(client.reports.isEmpty())
     }

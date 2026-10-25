@@ -25,13 +25,13 @@ class InMemoryServerUrlStore(@Volatile private var url: String? = null) : Server
 /**
  * Owns the process-wide [GimClient]: one client per server URL, created through [factory] and
  * remembered in [serverUrlStore] so it can be [restore]d on the next launch. Calls are serialized. Every client is
- * created with [metaServerUrl] ([ClientConfig.metaServerUrl]; null: none configured).
+ * created with [keepServerUrl] ([ClientConfig.keepServerUrl]; null: none configured).
  */
 class GimClientManager(
     private val factory: GimClientFactory,
     private val hooks: PlatformHooks,
     private val serverUrlStore: ServerUrlStore,
-    private val metaServerUrl: String? = null,
+    private val keepServerUrl: String? = null,
 ) {
     private val mutex = Mutex()
     private var clientUrl: String? = null
@@ -114,7 +114,7 @@ class GimClientManager(
     }
 
     private suspend fun create(url: String): GimClient =
-        factory.create(ClientConfig(url, metaServerUrl = metaServerUrl), hooks).also {
+        factory.create(ClientConfig(url, keepServerUrl = keepServerUrl), hooks).also {
             clientUrl = url
             _client.value = it
         }

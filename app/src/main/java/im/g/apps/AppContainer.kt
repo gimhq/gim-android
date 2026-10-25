@@ -47,16 +47,16 @@ class AppContainer(
     val themeModeStore: ThemeModeStore = SharedPrefsThemeModeStore(context),
     /** The in-app language; kept across restarts and sign-out. */
     val appLocales: AppLocales = AppCompatAppLocales(),
-    /** Build-time gim meta server URL (settings backup, user reports); null when not configured (feature off). */
-    val metaServerUrl: String? = BuildConfig.META_SERVER_URL.ifBlank { null },
+    /** Build-time gim keep server URL (settings backup, user reports); null when not configured (feature off). */
+    val keepServerUrl: String? = BuildConfig.KEEP_SERVER_URL.ifBlank { null },
     /** gim-core's recovery-kit functions; JVM tests pass the fake. */
     val recoveryKitCodec: RecoveryKitCodec = UniffiRecoveryKitCodec,
 ) {
     private val appContext = context.applicationContext
 
-    /** Reporting users needs the meta server: Report is hidden without one. */
+    /** Reporting users needs the keep server: Report is hidden without one. */
     val reportAvailable: Boolean
-        get() = metaServerUrl != null
+        get() = keepServerUrl != null
 
     /** Shared by [AndroidPlatformHooks] and [SyncController]; never create a second one. */
     val reachability = AndroidReachabilityMonitor(appContext)
@@ -75,7 +75,7 @@ class AppContainer(
         },
         hooks = hooks,
         serverUrlStore = serverUrlStore,
-        metaServerUrl = metaServerUrl,
+        keepServerUrl = keepServerUrl,
     )
 
     val sync = SyncController(manager, reachability.reachable, appScope)

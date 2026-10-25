@@ -74,8 +74,8 @@ class AppContainerTest {
     }
 
     @Test
-    fun meta_server_url_defaults_to_the_build_config_and_reaches_the_client_config() = runTest {
-        assertNull(ApplicationProvider.getApplicationContext<GimApplication>().container.metaServerUrl)
+    fun keep_server_url_defaults_to_the_build_config_and_reaches_the_client_config() = runTest {
+        assertNull(ApplicationProvider.getApplicationContext<GimApplication>().container.keepServerUrl)
 
         var received: ClientConfig? = null
         val container = AppContainer(
@@ -83,12 +83,12 @@ class AppContainerTest {
             scope,
             serverUrlStore = InMemoryServerUrlStore(),
             clientFactory = GimClientFactory { config, _ -> FakeGimClient(scope).also { received = config } },
-            metaServerUrl = "https://meta.example.eu",
+            keepServerUrl = "https://keep.example.eu",
         )
 
-        assertEquals("https://meta.example.eu", container.metaServerUrl)
+        assertEquals("https://keep.example.eu", container.keepServerUrl)
         container.manager.connect(DemoData.SERVER_URL)
-        assertEquals("https://meta.example.eu", received?.metaServerUrl)
+        assertEquals("https://keep.example.eu", received?.keepServerUrl)
     }
 
     @Test

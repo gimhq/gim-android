@@ -118,7 +118,7 @@ sealed interface GroupInfoEvent {
  * the chat's timeline gains a membership change, or after this screen's own add/remove calls.
  * Groups support rename, add/remove member and leave; direct chats are read-only. Whether a leave is in progress (or
  * done) comes from the row's [ChatState], which gim-core keeps across restarts. Both offer the [chatActions] of the row;
- * report only when [reportAvailable] (a meta server is configured). [clock] decides whether the chat is still muted.
+ * report only when [reportAvailable] (a keep server is configured). [clock] decides whether the chat is still muted.
  * Photos (the chat's, members' and found users') are downloaded into [avatarDir].
  */
 class GroupInfoViewModel(

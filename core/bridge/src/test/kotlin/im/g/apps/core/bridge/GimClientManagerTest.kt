@@ -132,18 +132,18 @@ class GimClientManagerTest {
     }
 
     @Test
-    fun connect_passes_the_meta_server_url_into_the_client_config() = runTest {
+    fun connect_passes_the_keep_server_url_into_the_client_config() = runTest {
         val configs = mutableListOf<ClientConfig>()
         val factory = FakeGimClientFactory { config, _ ->
             configs += config
             FakeGimClient.withDemoData(backgroundScope, outboxDelays = null)
         }
-        GimClientManager(factory, hooks, store, metaServerUrl = "https://meta.example.eu").connect(DemoData.SERVER_URL)
+        GimClientManager(factory, hooks, store, keepServerUrl = "https://keep.example.eu").connect(DemoData.SERVER_URL)
         GimClientManager(factory, hooks, InMemoryServerUrlStore()).connect(DemoData.SERVER_URL)
 
         assertEquals(
             listOf(
-                ClientConfig(DemoData.SERVER_URL, metaServerUrl = "https://meta.example.eu"),
+                ClientConfig(DemoData.SERVER_URL, keepServerUrl = "https://keep.example.eu"),
                 ClientConfig(DemoData.SERVER_URL),
             ),
             configs,
