@@ -25,7 +25,7 @@
     <string name="settings_language">語言</string>
     <string name="settings_section_advanced">進階</string>
     <string name="settings_servers">伺服器</string>
-    <string name="settings_keep_server">保管伺服器</string>
+    <string name="settings_keep_server">Keep 伺服器</string>
     <string name="settings_keep_server_off">已關閉</string>
     <string name="settings_section_help">說明和關於</string>
     <string name="settings_help">說明和關於</string>
@@ -161,7 +161,7 @@
 
     <string name="licences_title">開放原始碼授權</string>
     <string name="licence_gim_core">gim 用戶端 SDK</string>
-    <string name="keep_server_title">保管伺服器</string>
+    <string name="keep_server_title">Keep 伺服器</string>
     <string name="keep_server_current">目前的伺服器</string>
     <string name="keep_server_off">已關閉</string>
     <string name="keep_server_about">備份你的隱私設定，並接收你送出的檢舉。你的備份是加密的。</string>

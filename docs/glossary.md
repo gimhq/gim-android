@@ -54,7 +54,7 @@ are a first draft: native-speaker review is still pending.
 | Connected | 已连接 | 已連線 | Conectado |
 | Not checked | 未检查 | 尚未檢查 | Sin comprobar |
 | Main server | 主服务器 | 主要伺服器 | servidor principal |
-| Keep server | 保管服务器 | 保管伺服器 | servidor de copia |
+| Keep server | Keep 服务器 | Keep 伺服器 | servidor Keep |
 | Recovery kit | 恢复包 | 復原包 | kit de recuperación |
 | Linked devices | 已关联的设备 | 已連結的裝置 | Dispositivos vinculados |
 | Chat | 聊天 | 聊天 | chat |

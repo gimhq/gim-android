@@ -25,7 +25,7 @@
     <string name="settings_language">Idioma</string>
     <string name="settings_section_advanced">Avanzado</string>
     <string name="settings_servers">Servidores</string>
-    <string name="settings_keep_server">Servidor de copia</string>
+    <string name="settings_keep_server">Servidor Keep</string>
     <string name="settings_keep_server_off">Desactivado</string>
     <string name="settings_section_help">Ayuda e información</string>
     <string name="settings_help">Ayuda e información</string>
@@ -158,7 +158,7 @@
     <string name="help_licences">Licencias de código abierto</string>
     <string name="licences_title">Licencias de código abierto</string>
     <string name="licence_gim_core">SDK de cliente de gim</string>
-    <string name="keep_server_title">Servidor de copia</string>
+    <string name="keep_server_title">Servidor Keep</string>
     <string name="keep_server_current">Servidor actual</string>
     <string name="keep_server_off">Desactivado</string>
     <string name="keep_server_about">Guarda una copia de tus ajustes de privacidad y recibe los reportes que envías. Tu copia está cifrada.</string>

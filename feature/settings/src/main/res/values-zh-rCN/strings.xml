@@ -25,7 +25,7 @@
     <string name="settings_language">语言</string>
     <string name="settings_section_advanced">高级</string>
     <string name="settings_servers">服务器</string>
-    <string name="settings_keep_server">保管服务器</string>
+    <string name="settings_keep_server">Keep 服务器</string>
     <string name="settings_keep_server_off">已关闭</string>
     <string name="settings_section_help">帮助和关于</string>
     <string name="settings_help">帮助和关于</string>
@@ -154,7 +154,7 @@
     <string name="help_licences">开源许可</string>
     <string name="licences_title">开源许可</string>
     <string name="licence_gim_core">gim 客户端 SDK</string>
-    <string name="keep_server_title">保管服务器</string>
+    <string name="keep_server_title">Keep 服务器</string>
     <string name="keep_server_current">当前服务器</string>
     <string name="keep_server_off">已关闭</string>
     <string name="keep_server_about">备份你的隐私设置，并接收你发送的举报。你的备份是加密的。</string>
