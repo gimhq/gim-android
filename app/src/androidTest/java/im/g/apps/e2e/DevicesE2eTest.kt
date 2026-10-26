@@ -34,6 +34,7 @@ import im.g.apps.testing.completeRecoveryKit
 import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
+import im.g.apps.testing.showServerField
 import im.g.apps.testing.skipIntro
 import im.g.apps.testing.openSettingsRow
 import java.io.File
@@ -98,6 +99,7 @@ class DevicesE2eTest {
         // Onboarding: skip the intro, create identity, pass the recovery kit check, skip the handle -> chat list.
         compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
         waitFor("onboarding shown", hasText(string(OnboardingR.string.onboarding_welcome_title)))
+        compose.showServerField(LOG_TAG, timeoutMs, ::failStep)
         enterText("hub address", TAG_SERVER_URL, serverUrl)
         click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
         waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))

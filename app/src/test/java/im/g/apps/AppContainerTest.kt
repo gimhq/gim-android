@@ -15,6 +15,8 @@ import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.flow.chatListFlow
 import im.g.apps.core.bridge.platform.AndroidPlatformHooks
 import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
+import im.g.apps.feature.settings.InMemoryKeepServerStore
+import im.g.apps.feature.settings.KeepServerChoice
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
@@ -74,8 +76,11 @@ class AppContainerTest {
     }
 
     @Test
-    fun keep_server_url_defaults_to_the_build_config_and_reaches_the_client_config() = runTest {
-        assertNull(ApplicationProvider.getApplicationContext<GimApplication>().container.keepServerUrl)
+    fun keep_server_url_defaults_to_the_built_in_server_and_reaches_the_client_config() = runTest {
+        assertEquals("https://keep.g.im", BuildConfig.KEEP_SERVER_URL)
+        val app = ApplicationProvider.getApplicationContext<GimApplication>().container
+        assertEquals(BuildConfig.KEEP_SERVER_URL, app.keepServerDefault)
+        assertEquals(BuildConfig.KEEP_SERVER_URL, app.keepServerUrl)
 
         var received: ClientConfig? = null
         val container = AppContainer(
@@ -83,12 +88,63 @@ class AppContainerTest {
             scope,
             serverUrlStore = InMemoryServerUrlStore(),
             clientFactory = GimClientFactory { config, _ -> FakeGimClient(scope).also { received = config } },
-            keepServerUrl = "https://keep.example.eu",
+            keepServerStore = InMemoryKeepServerStore(),
+        )
+
+        assertEquals("https://keep.g.im", container.keepServerUrl)
+        assertTrue(container.reportAvailable)
+        container.manager.connect(DemoData.SERVER_URL)
+        assertEquals("https://keep.g.im", received?.keepServerUrl)
+    }
+
+    @Test
+    fun the_users_keep_server_choice_wins_over_the_build_default() = runTest {
+        var received: ClientConfig? = null
+        val container = AppContainer(
+            context,
+            scope,
+            serverUrlStore = InMemoryServerUrlStore(),
+            clientFactory = GimClientFactory { config, _ -> FakeGimClient(scope).also { received = config } },
+            keepServerStore = InMemoryKeepServerStore(KeepServerChoice.Custom("https://keep.example.eu")),
+            keepServerDefault = "https://keep.g.im",
         )
 
         assertEquals("https://keep.example.eu", container.keepServerUrl)
         container.manager.connect(DemoData.SERVER_URL)
         assertEquals("https://keep.example.eu", received?.keepServerUrl)
+    }
+
+    @Test
+    fun keep_server_off_hides_report_and_leaves_it_out_of_the_client_config() = runTest {
+        var received: ClientConfig? = null
+        val container = AppContainer(
+            context,
+            scope,
+            serverUrlStore = InMemoryServerUrlStore(),
+            clientFactory = GimClientFactory { config, _ -> FakeGimClient(scope).also { received = config } },
+            keepServerStore = InMemoryKeepServerStore(KeepServerChoice.Off),
+            keepServerDefault = "https://keep.g.im",
+        )
+
+        assertNull(container.keepServerUrl)
+        assertFalse(container.reportAvailable)
+        container.manager.connect(DemoData.SERVER_URL)
+        assertNull(received?.keepServerUrl)
+    }
+
+    @Test
+    fun a_build_without_keep_stays_off_by_default_and_reset_follows_it() {
+        val container = AppContainer(
+            context,
+            scope,
+            serverUrlStore = InMemoryServerUrlStore(),
+            clientFactory = GimClientFactory { _, _ -> FakeGimClient(scope) },
+            keepServerStore = InMemoryKeepServerStore(KeepServerChoice.Default),
+            keepServerDefault = null,
+        )
+
+        assertNull(container.keepServerUrl)
+        assertFalse(container.reportAvailable)
     }
 
     @Test

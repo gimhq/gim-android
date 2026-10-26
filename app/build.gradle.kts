@@ -1,4 +1,5 @@
 import im.g.apps.buildlogic.resolveDefaultHubUrl
+import im.g.apps.buildlogic.resolveKeepServerUrl
 
 plugins {
     alias(libs.plugins.gim.android.application)
@@ -17,12 +18,21 @@ android {
         // Shown on Help and about: the first line of the root GIM_CORE_VERSION file (e.g. 0.1.0+c1b7503).
         val gimCoreVersion = rootProject.file("GIM_CORE_VERSION").readLines().first().trim()
         buildConfigField("String", "GIM_CORE_VERSION", "\"$gimCoreVersion\"")
-        // gim keep server (settings backup, user reports): -P/gradle.properties `gim.keepServerUrl`, else env
-        // GIM_KEEP_SERVER_URL; empty (default) leaves it off (AppContainer.keepServerUrl is null).
-        val keepServerUrl = providers.gradleProperty("gim.keepServerUrl").orNull?.takeIf { it.isNotBlank() }
-            ?: providers.environmentVariable("GIM_KEEP_SERVER_URL").orNull.orEmpty()
-        val keepServerUrlLiteral = keepServerUrl.trim().replace("\\", "\\\\").replace("\"", "\\\"")
-        buildConfigField("String", "KEEP_SERVER_URL", "\"$keepServerUrlLiteral\"")
+        // Prefilled onboarding hub: -P/gradle.properties `gim.defaultHubUrl`, else env GIM_DEFAULT_HUB_URL, else the
+        // built-in hub (see resolveDefaultHubUrl).
+        val defaultHubUrl = resolveDefaultHubUrl(
+            property = providers.gradleProperty("gim.defaultHubUrl").orNull,
+            env = providers.environmentVariable("GIM_DEFAULT_HUB_URL").orNull,
+        )
+        buildConfigField("String", "DEFAULT_HUB_URL", "\"${defaultHubUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        // Default keep server (settings backup, user reports): -P/gradle.properties `gim.keepServerUrl`, else env
+        // GIM_KEEP_SERVER_URL, else the built-in one; an empty or `off` override turns it off (see resolveKeepServerUrl).
+        // The user's Settings choice overrides it at runtime.
+        val keepServerUrl = resolveKeepServerUrl(
+            property = providers.gradleProperty("gim.keepServerUrl").orNull,
+            env = providers.environmentVariable("GIM_KEEP_SERVER_URL").orNull,
+        )
+        buildConfigField("String", "KEEP_SERVER_URL", "\"${keepServerUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         // libgim_core.so ships for these ABIs only; drops JNA's other ABIs from the APK.
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
@@ -37,20 +47,8 @@ android {
         generateLocaleConfig = true
     }
 
-    // Prefilled onboarding server URL: -P/gradle.properties `gim.defaultHubUrl`, else env GIM_DEFAULT_HUB_URL,
-    // else https://hub.g.im for release and empty for debug (see resolveDefaultHubUrl).
-    fun defaultHubUrlLiteral(release: Boolean): String {
-        val url = resolveDefaultHubUrl(
-            property = providers.gradleProperty("gim.defaultHubUrl").orNull,
-            env = providers.environmentVariable("GIM_DEFAULT_HUB_URL").orNull,
-            release = release,
-        )
-        return "\"" + url.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
-    }
-
     buildTypes {
         debug {
-            buildConfigField("String", "DEFAULT_HUB_URL", defaultHubUrlLiteral(release = false))
             // gim-push-mock base URL MockPushProvider polls when no debug setting overrides it: -P/gradle.properties
             // `gim.pushMockUrl`, else env GIM_PUSH_MOCK_URL; empty (default) leaves push off. Debug builds only.
             val pushMockUrl = providers.gradleProperty("gim.pushMockUrl").orNull?.takeIf { it.isNotBlank() }
@@ -59,7 +57,6 @@ android {
             buildConfigField("String", "PUSH_MOCK_URL", "\"$pushMockUrlLiteral\"")
         }
         release {
-            buildConfigField("String", "DEFAULT_HUB_URL", defaultHubUrlLiteral(release = true))
             isMinifyEnabled = true
             // Release keys and store publishing are out of scope for M2; sign with the debug key.
             signingConfig = signingConfigs.getByName("debug")

@@ -47,14 +47,23 @@ The onboarding server field is prefilled from `BuildConfig.DEFAULT_HUB_URL`, res
 
 1. Gradle property `gim.defaultHubUrl` (`gradle.properties` or `-Pgim.defaultHubUrl=...`), if not blank;
 2. otherwise the environment variable `GIM_DEFAULT_HUB_URL`;
-3. otherwise the per-build-type default: release builds use `https://hub.g.im` (the product hub, not yet deployed);
-   debug builds stay empty (the field starts blank).
+3. otherwise the built-in hub `https://hub.g.im`, in debug and release builds.
 
-An override (1 or 2) always wins, in both build types.
+The user can change the field before creating or restoring an account.
 
 ```bash
 ./gradlew assembleDebug -Pgim.defaultHubUrl=http://10.0.2.2:8080
 ```
+
+The keep server (privacy settings backup, user reports) defaults to `BuildConfig.KEEP_SERVER_URL`, resolved from:
+
+1. Gradle property `gim.keepServerUrl`, if set;
+2. otherwise the environment variable `GIM_KEEP_SERVER_URL`, if set;
+3. otherwise the built-in keep server `https://keep.g.im`.
+
+A set value that is empty or `off` turns the keep server off (`-Pgim.keepServerUrl=off`). Settings > Advanced >
+Keep server overrides the build default per install: change it, reset it to the default or turn it off. The choice
+applies the next time the app starts.
 
 `10.0.2.2` is the emulator's alias for the host loopback.
 

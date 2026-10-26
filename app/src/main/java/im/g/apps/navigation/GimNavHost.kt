@@ -52,6 +52,7 @@ import im.g.apps.feature.onboarding.OnboardingRoute
 import im.g.apps.feature.onboarding.OnboardingViewModel
 import im.g.apps.feature.onboarding.onboardingViewModelFactory
 import im.g.apps.feature.settings.AppearanceRoute
+import im.g.apps.feature.settings.KeepServerRoute
 import im.g.apps.feature.settings.BlockedPeopleRoute
 import im.g.apps.feature.settings.DeleteAccountRoute
 import im.g.apps.feature.settings.HelpScreen
@@ -66,6 +67,8 @@ import im.g.apps.feature.settings.SettingsActions
 import im.g.apps.feature.settings.SettingsRoute
 import im.g.apps.feature.settings.SettingsViewModel
 import im.g.apps.feature.settings.appearanceViewModelFactory
+import im.g.apps.feature.settings.keepServerViewModelFactory
+import im.g.apps.feature.settings.resolve
 import im.g.apps.feature.settings.blockedPeopleViewModelFactory
 import im.g.apps.feature.settings.deleteAccountViewModelFactory
 import im.g.apps.feature.settings.languageViewModelFactory
@@ -176,6 +179,7 @@ fun GimNavHost(
         composable(Routes.SETTINGS) {
             val current = client ?: return@composable
             val themeMode by container.themeModeStore.mode.collectAsState()
+            val keepServer by container.keepServerStore.choice.collectAsState()
             val context = LocalContext.current
             val vm: SettingsViewModel = viewModel(factory = settingsViewModelFactory(current, context.cacheDir))
             SettingsRoute(
@@ -193,6 +197,7 @@ fun GimNavHost(
                     onTypingIndicatorChange = vm::setTypingIndicator,
                     onBlockedPeople = { navController.navigate(Routes.SETTINGS_BLOCKED) },
                     onServers = { navController.navigate(Routes.HUBS) },
+                    onKeepServer = { navController.navigate(Routes.SETTINGS_KEEP_SERVER) },
                     onAppearance = { navController.navigate(Routes.SETTINGS_APPEARANCE) },
                     onLanguage = { navController.navigate(Routes.SETTINGS_LANGUAGE) },
                     onHelp = { navController.navigate(Routes.SETTINGS_HELP) },
@@ -207,6 +212,7 @@ fun GimNavHost(
                 themeMode = themeMode,
                 // Re-read on every visit: a new language recreates the activity anyway.
                 languageTag = container.appLocales.current(),
+                keepServer = keepServer.resolve(container.keepServerDefault),
             )
         }
         composable(Routes.SETTINGS_RECOVERY_KEY) {
@@ -250,6 +256,18 @@ fun GimNavHost(
         composable(Routes.SETTINGS_APPEARANCE) {
             AppearanceRoute(
                 viewModel = viewModel(factory = appearanceViewModelFactory(container.themeModeStore)),
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(Routes.SETTINGS_KEEP_SERVER) {
+            KeepServerRoute(
+                viewModel = viewModel(
+                    factory = keepServerViewModelFactory(
+                        container.keepServerStore,
+                        buildDefault = container.keepServerDefault,
+                        applied = container.keepServerUrl,
+                    ),
+                ),
                 onBack = { navController.popBackStack() },
             )
         }

@@ -25,6 +25,8 @@
     <string name="settings_language">语言</string>
     <string name="settings_section_advanced">高级</string>
     <string name="settings_servers">服务器</string>
+    <string name="settings_keep_server">保管服务器</string>
+    <string name="settings_keep_server_off">已关闭</string>
     <string name="settings_section_help">帮助和关于</string>
     <string name="settings_help">帮助和关于</string>
     <string name="settings_sign_out">退出登录</string>
@@ -152,4 +154,16 @@
     <string name="help_licences">开源许可</string>
     <string name="licences_title">开源许可</string>
     <string name="licence_gim_core">gim 客户端 SDK</string>
+    <string name="keep_server_title">保管服务器</string>
+    <string name="keep_server_current">当前服务器</string>
+    <string name="keep_server_off">已关闭</string>
+    <string name="keep_server_about">备份你的隐私设置，并接收你发送的举报。你的备份是加密的。</string>
+    <string name="keep_server_off_note">关闭后，你的隐私设置不会备份，你也不能举报别人。</string>
+    <string name="keep_server_address">服务器地址</string>
+    <string name="keep_server_save">保存</string>
+    <string name="keep_server_reset">使用默认服务器</string>
+    <string name="keep_server_turn_off">关闭</string>
+    <string name="keep_server_error_invalid">请输入以 https:// 开头的地址</string>
+    <string name="keep_server_error_insecure">请使用 https://。以 http:// 开头的地址只能在你自己的网络里使用。</string>
+    <string name="keep_server_restart">关闭应用再重新打开，这个更改才会生效。</string>
 </resources>

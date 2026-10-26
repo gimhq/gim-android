@@ -22,6 +22,7 @@ import im.g.apps.testing.awaitServerReachable
 import im.g.apps.testing.clickWhenSettled
 import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
+import im.g.apps.testing.showServerField
 import im.g.apps.testing.skipIntro
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
@@ -71,6 +72,7 @@ class CreateRetryE2eTest {
 
         compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
         waitFor("onboarding shown", hasText(string(OnboardingR.string.onboarding_welcome_title)))
+        compose.showServerField(LOG_TAG, timeoutMs, ::failStep)
         enterText("hub address", TAG_SERVER_URL, unreachableUrl)
         click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
         waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))
@@ -87,6 +89,7 @@ class CreateRetryE2eTest {
         // Corrected address: back to Welcome, fix it, submit the kept display name.
         click("back to welcome", TAG_BACK, next = hasTestTag(TAG_CREATE_ACCOUNT))
         waitFor("welcome shown", hasTestTag(TAG_CREATE_ACCOUNT))
+        compose.showServerField(LOG_TAG, timeoutMs, ::failStep)
         enterText("hub address", TAG_SERVER_URL, serverUrl)
         click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
         waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))

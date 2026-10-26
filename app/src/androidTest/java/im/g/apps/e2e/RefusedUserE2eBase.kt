@@ -44,6 +44,7 @@ import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.onboardingShown
 import im.g.apps.testing.saveFailureScreenshot
+import im.g.apps.testing.showServerField
 import im.g.apps.testing.skipIntro
 import im.g.apps.testing.openSettingsRow
 import java.io.File
@@ -227,6 +228,7 @@ abstract class RefusedUserE2eBase {
     private fun onboard() {
         compose.skipIntro(logTag, timeoutMs, ::failStep)
         waitForText("onboarding shown", string(OnboardingR.string.onboarding_welcome_title))
+        compose.showServerField(logTag, timeoutMs, ::failStep)
         enterText("hub address", TAG_SERVER_URL, serverUrl)
         click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
         waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))

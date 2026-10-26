@@ -22,6 +22,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.core.app.NotificationManagerCompat
 import androidx.navigation.NavHostController
@@ -81,10 +82,17 @@ class GimNavHostTest {
         rule.waitUntilAtLeastOneExists(hasTestTag("onboarding_create_account"), TIMEOUT)
     }
 
+    /** Welcome prefills the build's hub and hides the field; shows it so the test can type the demo server. */
+    private fun useAnotherServer() {
+        rule.onNodeWithTag("onboarding_use_another_server").performClick()
+        rule.waitUntilAtLeastOneExists(hasTestTag("onboarding_server_url"), TIMEOUT)
+    }
+
     /** Runs the new-account onboarding from Welcome; claims "sofia" or skips the handle step. */
     private fun register(claimHandle: Boolean) {
         rule.onNodeWithTag("onboarding_create_account").assertExists()
-        rule.onNode(hasSetTextAction()).performTextInput(DemoData.SERVER_URL)
+        useAnotherServer()
+        rule.onNodeWithTag("onboarding_server_url").performTextReplacement(DemoData.SERVER_URL)
         rule.onNodeWithTag("onboarding_create_account").performClick()
         rule.onNodeWithTag("onboarding_display_name").performTextInput("Sofia Costa")
         rule.onNodeWithTag("onboarding_submit").performClick()
@@ -514,7 +522,8 @@ class GimNavHostTest {
         )
 
         skipIntro()
-        rule.onNode(hasSetTextAction()).performTextInput(DemoData.SERVER_URL)
+        useAnotherServer()
+        rule.onNodeWithTag("onboarding_server_url").performTextReplacement(DemoData.SERVER_URL)
         rule.onNodeWithTag("onboarding_link_device").performClick()
         rule.waitUntilAtLeastOneExists(hasTestTag("onboarding_link_sas"), TIMEOUT)
         rule.onNodeWithTag("onboarding_link_confirm").performClick()

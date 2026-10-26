@@ -27,6 +27,7 @@ import im.g.apps.testing.clickWhenSettled
 import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
+import im.g.apps.testing.showServerField
 import im.g.apps.testing.skipIntro
 import java.io.File
 import java.util.UUID
@@ -100,6 +101,7 @@ class LinkDeviceE2eTest {
         // New device: Welcome -> Link to existing device -> QR code.
         compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
         waitFor("onboarding shown", hasText(string(OnboardingR.string.onboarding_welcome_title)))
+        compose.showServerField(LOG_TAG, timeoutMs, ::failStep)
         enterText("hub address", TAG_SERVER_URL, serverUrl)
         click("link to existing device", TAG_LINK_DEVICE)
         waitFor("link QR code shown", hasTestTag(TAG_LINK_QR))

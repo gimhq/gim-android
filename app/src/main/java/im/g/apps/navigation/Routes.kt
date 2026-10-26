@@ -28,6 +28,7 @@ object Routes {
     const val SETTINGS_NOTIFICATIONS = "settings/notifications"
     const val SETTINGS_APPEARANCE = "settings/appearance"
     const val SETTINGS_LANGUAGE = "settings/language"
+    const val SETTINGS_KEEP_SERVER = "settings/keep-server"
     const val SETTINGS_HELP = "settings/help"
     const val SETTINGS_LICENCES = "settings/licences"
 

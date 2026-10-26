@@ -52,6 +52,7 @@ internal object SettingsTestTags {
     const val NOTIFICATIONS = "settings_notifications"
     const val APPEARANCE = "settings_appearance"
     const val LANGUAGE = "settings_language"
+    const val KEEP_SERVER = "settings_keep_server"
     const val HELP = "settings_help"
     const val READ_RECEIPTS = "settings_read_receipts"
     const val TYPING_INDICATOR = "settings_typing_indicator"
@@ -69,6 +70,7 @@ fun SettingsRoute(
     modifier: Modifier = Modifier,
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     languageTag: String? = null,
+    keepServer: String? = null,
 ) {
     // Picks up a name or photo changed in a sub-screen when returning here.
     LifecycleStartEffect(viewModel) {
@@ -87,6 +89,7 @@ fun SettingsRoute(
         modifier = modifier,
         themeMode = themeMode,
         languageTag = languageTag,
+        keepServer = keepServer,
         snackbarHostState = snackbarHostState,
     )
 }
@@ -105,6 +108,7 @@ class SettingsActions(
     val onTypingIndicatorChange: (Boolean) -> Unit = {},
     val onBlockedPeople: () -> Unit = {},
     val onServers: () -> Unit = {},
+    val onKeepServer: () -> Unit = {},
     val onAppearance: () -> Unit = {},
     val onLanguage: () -> Unit = {},
     val onHelp: () -> Unit = {},
@@ -113,7 +117,8 @@ class SettingsActions(
 
 /**
  * Settings home: the own profile header, one composable per section, and sign out at the bottom. [themeMode] and
- * [languageTag] (null: phone language) are shown as the values of the "Look and language" rows.
+ * [languageTag] (null: phone language) are shown as the values of the "Look and language" rows, [keepServer] (null:
+ * off) as the value of the keep server row.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -123,6 +128,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     languageTag: String? = null,
+    keepServer: String? = null,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
     Scaffold(
@@ -151,7 +157,7 @@ fun SettingsScreen(
             NotificationsSection(actions)
             PrivacySection(actions, state)
             LookAndLanguageSection(actions, themeMode, languageTag)
-            AdvancedSection(actions)
+            AdvancedSection(actions, keepServer)
             HelpSection(actions)
             HorizontalDivider(modifier = Modifier.padding(top = 12.dp))
             SignOutRow(actions.onSignOut)
@@ -268,9 +274,15 @@ private fun LookAndLanguageSection(actions: SettingsActions, themeMode: ThemeMod
 }
 
 @Composable
-private fun AdvancedSection(actions: SettingsActions) {
+private fun AdvancedSection(actions: SettingsActions, keepServer: String?) {
     SettingsSectionHeader(stringResource(R.string.settings_section_advanced))
     SettingsRow(title = stringResource(R.string.settings_servers), onClick = actions.onServers)
+    SettingsRow(
+        title = stringResource(R.string.settings_keep_server),
+        onClick = actions.onKeepServer,
+        modifier = Modifier.testTag(SettingsTestTags.KEEP_SERVER),
+        value = keepServer ?: stringResource(R.string.settings_keep_server_off),
+    )
 }
 
 @Composable

@@ -61,6 +61,7 @@ import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.onboardingShown
 import im.g.apps.testing.saveFailureScreenshot
+import im.g.apps.testing.showServerField
 import im.g.apps.testing.skipIntro
 import im.g.apps.testing.signOutFromSettings
 import java.io.File
@@ -156,6 +157,7 @@ class MessagingE2eTest {
         // soft keyboard and scroll each button into view in case the keyboard covers it.
         compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
         waitForText("onboarding shown", string(OnboardingR.string.onboarding_welcome_title))
+        compose.showServerField(LOG_TAG, timeoutMs, ::failStep)
         enterText("hub address", TAG_SERVER_URL, serverUrl)
         click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
         waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))

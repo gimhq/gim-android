@@ -191,6 +191,27 @@ class SettingsScreenTest {
     }
 
     @Test
+    fun keep_server_row_shows_the_server_and_opens_its_screen() {
+        var opened = 0
+        rule.setContent {
+            GimTheme { SettingsScreen(state, SettingsActions(onKeepServer = { opened++ }), keepServer = "https://keep.g.im") }
+        }
+
+        rule.onNodeWithTag(SettingsTestTags.KEEP_SERVER).performScrollTo().assertTextContains("Keep server")
+        rule.onNodeWithTag(SettingsTestTags.KEEP_SERVER).assertTextContains("https://keep.g.im")
+        rule.onNodeWithTag(SettingsTestTags.KEEP_SERVER).performClick()
+
+        assertEquals(1, opened)
+    }
+
+    @Test
+    fun keep_server_row_says_off_without_a_server() {
+        show()
+
+        rule.onNodeWithTag(SettingsTestTags.KEEP_SERVER).performScrollTo().assertTextContains("Off")
+    }
+
+    @Test
     fun sign_out_asks_first_and_mentions_the_recovery_kit() {
         var signOut = 0
         show(actions = SettingsActions(onSignOut = { signOut++ }))

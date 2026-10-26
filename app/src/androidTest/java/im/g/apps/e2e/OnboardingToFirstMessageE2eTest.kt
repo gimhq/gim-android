@@ -47,6 +47,7 @@ import im.g.apps.testing.completeRecoveryKit
 import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
+import im.g.apps.testing.showServerField
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -137,6 +138,7 @@ class OnboardingToFirstMessageE2eTest {
 
         // Welcome -> name -> recovery kit (heading shown) -> check -> username -> chat list.
         waitForText("welcome", string(OnboardingR.string.onboarding_welcome_title))
+        compose.showServerField(LOG_TAG, timeoutMs, ::failStep)
         enterText("server address", TAG_SERVER_URL, serverUrl)
         click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
         waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))

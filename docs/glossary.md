@@ -14,6 +14,7 @@ screen.
 | Verified hub | Connected | The app reached this server and it answered. |
 | Unverified hub | Not checked | The app has not reached this server yet. |
 | Home hub / Primary hub | Main server | The server your account lives on. |
+| Keep server | Keep server | Backs up your privacy settings and receives the reports you send. |
 
 Plurals follow the same mapping (hubs → servers, handles → usernames).
 
@@ -53,6 +54,7 @@ are a first draft: native-speaker review is still pending.
 | Connected | 已连接 | 已連線 | Conectado |
 | Not checked | 未检查 | 尚未檢查 | Sin comprobar |
 | Main server | 主服务器 | 主要伺服器 | servidor principal |
+| Keep server | 保管服务器 | 保管伺服器 | servidor de copia |
 | Recovery kit | 恢复包 | 復原包 | kit de recuperación |
 | Linked devices | 已关联的设备 | 已連結的裝置 | Dispositivos vinculados |
 | Chat | 聊天 | 聊天 | chat |

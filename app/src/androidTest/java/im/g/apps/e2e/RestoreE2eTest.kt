@@ -31,6 +31,7 @@ import im.g.apps.testing.completeRecoveryKit
 import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
+import im.g.apps.testing.showServerField
 import im.g.apps.testing.skipIntro
 import im.g.apps.testing.signOutFromSettings
 import java.io.File
@@ -99,6 +100,7 @@ class RestoreE2eTest {
         // App: intro -> Welcome -> create account; the Account ID and recovery key of its kit are kept.
         compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
         waitFor("onboarding shown", hasText(string(OnboardingR.string.onboarding_welcome_title)))
+        compose.showServerField(LOG_TAG, timeoutMs, ::failStep)
         enterText("hub address", TAG_SERVER_URL, serverUrl)
         click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
         waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))
@@ -132,6 +134,7 @@ class RestoreE2eTest {
         compose.signOutFromSettings(LOG_TAG, timeoutMs, ::failStep)
         compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
         waitFor("onboarding after sign-out", hasText(string(OnboardingR.string.onboarding_welcome_title)))
+        compose.showServerField(LOG_TAG, timeoutMs, ::failStep)
         enterText("hub address", TAG_SERVER_URL, serverUrl)
         click("restore with recovery kit", TAG_RESTORE, next = hasTestTag(TAG_KIT))
         waitFor("restore form shown", hasTestTag(TAG_KIT))

@@ -25,6 +25,8 @@
     <string name="settings_language">語言</string>
     <string name="settings_section_advanced">進階</string>
     <string name="settings_servers">伺服器</string>
+    <string name="settings_keep_server">保管伺服器</string>
+    <string name="settings_keep_server_off">已關閉</string>
     <string name="settings_section_help">說明和關於</string>
     <string name="settings_help">說明和關於</string>
     <string name="settings_sign_out">登出</string>
@@ -159,4 +161,16 @@
 
     <string name="licences_title">開放原始碼授權</string>
     <string name="licence_gim_core">gim 用戶端 SDK</string>
+    <string name="keep_server_title">保管伺服器</string>
+    <string name="keep_server_current">目前的伺服器</string>
+    <string name="keep_server_off">已關閉</string>
+    <string name="keep_server_about">備份你的隱私設定，並接收你送出的檢舉。你的備份是加密的。</string>
+    <string name="keep_server_off_note">關閉後，你的隱私設定不會備份，你也不能檢舉別人。</string>
+    <string name="keep_server_address">伺服器位址</string>
+    <string name="keep_server_save">儲存</string>
+    <string name="keep_server_reset">使用預設伺服器</string>
+    <string name="keep_server_turn_off">關閉</string>
+    <string name="keep_server_error_invalid">請輸入以 https:// 開頭的位址</string>
+    <string name="keep_server_error_insecure">請使用 https://。以 http:// 開頭的位址只能在你自己的網路裡使用。</string>
+    <string name="keep_server_restart">關閉 App 再重新開啟，這項變更才會生效。</string>
 </resources>

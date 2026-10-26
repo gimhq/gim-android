@@ -25,6 +25,8 @@
     <string name="settings_language">Language</string>
     <string name="settings_section_advanced">Advanced</string>
     <string name="settings_servers">Servers</string>
+    <string name="settings_keep_server">Keep server</string>
+    <string name="settings_keep_server_off">Off</string>
     <string name="settings_section_help">Help and about</string>
     <string name="settings_help">Help and about</string>
     <string name="settings_sign_out">Sign out</string>
@@ -173,4 +175,16 @@
     <string name="library_jna" translatable="false">JNA</string>
     <string name="library_zxing" translatable="false">ZXing</string>
     <string name="library_gim_core" translatable="false">gim-core</string>
+    <string name="keep_server_title">Keep server</string>
+    <string name="keep_server_current">Current server</string>
+    <string name="keep_server_off">Off</string>
+    <string name="keep_server_about">Backs up your privacy settings and receives the reports you send. Your backup is encrypted.</string>
+    <string name="keep_server_off_note">While it\'s off, your privacy settings are not backed up and you can\'t report people.</string>
+    <string name="keep_server_address">Server address</string>
+    <string name="keep_server_save">Save</string>
+    <string name="keep_server_reset">Use the default</string>
+    <string name="keep_server_turn_off">Turn off</string>
+    <string name="keep_server_error_invalid">Enter an address that starts with https://</string>
+    <string name="keep_server_error_insecure">Use https://. Addresses with http:// only work on your own network.</string>
+    <string name="keep_server_restart">Close the app and open it again to use this change.</string>
 </resources>

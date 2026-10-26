@@ -40,6 +40,7 @@ import im.g.apps.MainActivity
 import im.g.apps.testing.awaitServerReachable
 import im.g.apps.testing.completeRecoveryKit
 import im.g.apps.testing.keepScreenOn
+import im.g.apps.testing.showServerField
 import im.g.apps.testing.skipIntro
 import java.io.File
 import kotlinx.coroutines.runBlocking
@@ -106,6 +107,7 @@ class InteropTest {
         awaitServerReachable(instrumentation.targetContext, serverUrl)
         compose.skipIntro(Rendezvous.TAG, TIMEOUT_MS, ::fail)
         compose.waitForText(string(OnboardingR.string.onboarding_welcome_title))
+        compose.showServerField(Rendezvous.TAG, TIMEOUT_MS, ::fail)
         compose.onNodeWithTag(TAG_SERVER_URL).performTextReplacement(serverUrl)
         click(TAG_CREATE_ACCOUNT)
         compose.waitFor(hasTestTag(TAG_DISPLAY_NAME))

@@ -28,6 +28,8 @@ object OnboardingTags {
     const val KIT_CHECK = "onboarding_kit_check"
     const val KIT_CHECK_CONFIRM = "onboarding_kit_check_confirm"
     const val HANDLE = "onboarding_handle"
+    const val SERVER_URL = "onboarding_server_url"
+    const val USE_ANOTHER_SERVER = "onboarding_use_another_server"
 }
 
 /** What the recovery kit showed: the Account ID and the recovery key as displayed (blocks of four joined by '-'). */
@@ -47,6 +49,22 @@ fun AndroidComposeTestRule<*, out ComponentActivity>.skipIntro(
     val welcome = hasTestTag(OnboardingTags.CREATE_ACCOUNT)
     clickWhenSettled(logTag, "skip intro", OnboardingTags.INTRO_SKIP, timeoutMs, next = welcome)
     awaitNode("welcome after the intro", welcome, timeoutMs, fail)
+}
+
+/**
+ * On Welcome: taps "Use another server" when the build's prefilled hub hides the server field, then waits for the
+ * field, so the test can type its own hub.
+ */
+fun AndroidComposeTestRule<*, out ComponentActivity>.showServerField(
+    logTag: String,
+    timeoutMs: Long,
+    fail: (String, Throwable) -> Nothing,
+) {
+    val field = hasTestTag(OnboardingTags.SERVER_URL)
+    if (onAllNodes(field).fetchSemanticsNodes().isEmpty()) {
+        clickWhenSettled(logTag, "use another server", OnboardingTags.USE_ANOTHER_SERVER, timeoutMs, next = field)
+    }
+    awaitNode("server field shown", field, timeoutMs, fail)
 }
 
 /**

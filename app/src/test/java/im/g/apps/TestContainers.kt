@@ -8,6 +8,7 @@ import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakeGimClientFactory
 import im.g.apps.core.bridge.fake.FakeRecoveryKitCodec
 import im.g.apps.feature.settings.InMemoryAppLocales
+import im.g.apps.feature.settings.InMemoryKeepServerStore
 import im.g.apps.feature.settings.InMemoryThemeModeStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -30,6 +31,7 @@ fun testContainer(
     clientFactory = factory,
     themeModeStore = InMemoryThemeModeStore(),
     appLocales = InMemoryAppLocales(),
+    keepServerStore = InMemoryKeepServerStore(),
     keepServerUrl = keepServerUrl,
     recoveryKitCodec = FakeRecoveryKitCodec,
 )

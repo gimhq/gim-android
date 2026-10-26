@@ -17,8 +17,11 @@ import im.g.apps.core.bridge.uniffi.UniffiGimClientFactory
 import im.g.apps.core.bridge.uniffi.UniffiRecoveryKitCodec
 import im.g.apps.feature.settings.AppCompatAppLocales
 import im.g.apps.feature.settings.AppLocales
+import im.g.apps.feature.settings.KeepServerStore
+import im.g.apps.feature.settings.SharedPrefsKeepServerStore
 import im.g.apps.feature.settings.SharedPrefsThemeModeStore
 import im.g.apps.feature.settings.ThemeModeStore
+import im.g.apps.feature.settings.resolve
 import im.g.apps.push.AndroidPushNotifier
 import im.g.apps.push.PushController
 import im.g.apps.push.PushNotifier
@@ -47,8 +50,15 @@ class AppContainer(
     val themeModeStore: ThemeModeStore = SharedPrefsThemeModeStore(context),
     /** The in-app language; kept across restarts and sign-out. */
     val appLocales: AppLocales = AppCompatAppLocales(),
-    /** Build-time gim keep server URL (settings backup, user reports); null when not configured (feature off). */
-    val keepServerUrl: String? = BuildConfig.KEEP_SERVER_URL.ifBlank { null },
+    /** The user's keep server choice (Settings); kept across restarts and sign-out. */
+    val keepServerStore: KeepServerStore = SharedPrefsKeepServerStore(context),
+    /** The build's keep server URL (override, else built-in); null when the build turns it off. */
+    val keepServerDefault: String? = BuildConfig.KEEP_SERVER_URL.ifBlank { null },
+    /**
+     * The gim keep server URL (settings backup, user reports) every client of this process is created with: the user's
+     * choice over [keepServerDefault]; null when off. A new choice applies when the app starts again.
+     */
+    val keepServerUrl: String? = keepServerStore.choice.value.resolve(keepServerDefault),
     /** gim-core's recovery-kit functions; JVM tests pass the fake. */
     val recoveryKitCodec: RecoveryKitCodec = UniffiRecoveryKitCodec,
 ) {

@@ -41,6 +41,7 @@ import im.g.apps.testing.completeRecoveryKit
 import im.g.apps.testing.dismissSystemDialogs
 import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.saveFailureScreenshot
+import im.g.apps.testing.showServerField
 import im.g.apps.testing.skipIntro
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
@@ -96,6 +97,7 @@ class SettingsE2eTest {
         // Onboarding: skip the intro, create an account, pass the recovery kit check, skip the username.
         val name = "Settings $suffix"
         compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
+        compose.showServerField(LOG_TAG, timeoutMs, ::failStep)
         enterText("server address", TAG_SERVER_URL, serverUrl)
         click("create new account", TAG_CREATE_ACCOUNT, next = hasTestTag(TAG_DISPLAY_NAME))
         waitFor("display name step", hasTestTag(TAG_DISPLAY_NAME))
