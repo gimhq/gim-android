@@ -169,7 +169,7 @@ private fun UserSearchFieldPreview() {
             UserSearchField(
                 query = "u-ana",
                 onQueryChange = {},
-                state = UserSearchState.Found(UserProfile("u-ana", "", "Ana Kovač")),
+                state = UserSearchState.Found(UserProfile("u-ana", "Ana Kovač")),
                 modifier = Modifier.padding(16.dp),
             ) { TextButton(onClick = {}) { Text(stringResource(R.string.contacts_start_chat)) } }
         }

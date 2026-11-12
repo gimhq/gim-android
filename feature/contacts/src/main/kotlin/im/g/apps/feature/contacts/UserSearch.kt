@@ -25,7 +25,7 @@ internal class UserSearch(private val onState: (UserSearchState) -> Unit) {
         onState(
             when {
                 text.isBlank() -> UserSearchState.Idle
-                else -> findAccountId(text)?.let { UserSearchState.Found(UserProfile(it, handle = "", displayName = "")) }
+                else -> findAccountId(text)?.let { UserSearchState.Found(UserProfile(it, displayName = "")) }
                     ?: UserSearchState.NotAccountId
             },
         )

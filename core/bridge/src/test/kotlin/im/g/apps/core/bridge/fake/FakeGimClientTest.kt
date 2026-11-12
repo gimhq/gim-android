@@ -1,5 +1,6 @@
 package im.g.apps.core.bridge.fake
 
+import im.g.apps.core.bridge.ChatKind
 import im.g.apps.core.bridge.ChatListDiff
 import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.ChatListListener
@@ -113,36 +114,28 @@ class FakeGimClientTest {
     }
 
     @Test
-    fun create_identity_claim_handle_and_sign_out() = runTest {
+    fun create_identity_keeps_the_recovery_code_and_sign_out_deletes_it() = runTest {
         val client = FakeGimClient(backgroundScope, clock = { base }, zone = zone, outboxDelays = null)
         assertNull(client.session())
         assertNull(client.userId())
         assertFalse(client.localStateReset())
-        assertGimError<GimException.NotRegistered> { client.findUser("lukas") }
-        assertGimError<GimException.NotRegistered> { client.claimHandle("marta") }
+        assertGimError<GimException.NotRegistered> { client.recoveryCode() }
         assertGimError<GimException.InvalidInput> { client.createIdentity(" ") }
 
         val code = client.createIdentity(" Marta Rossi ")
         assertEquals(FakeGimClient.fakeRecoveryCode(1), code)
         assertTrue(code.matches(Regex("([0-9A-HJKMNP-TV-Z]{4}-){9}[0-9A-HJKMNP-TV-Z]{3}")))
         val session = client.session()!!
-        assertEquals("", session.handle)
+        assertEquals(code, client.recoveryCode())
         assertEquals("Marta Rossi", session.displayName)
         assertEquals(session.userId, client.userId())
         assertEquals(listOf(DeviceInfo(session.deviceId, base, isCurrent = true, revoked = false)), client.devices())
         assertGimError<GimException.InvalidInput> { client.createIdentity("Other") }
-        assertGimError<GimException.InvalidInput> { client.releaseHandle() }
 
-        assertGimError<GimException.InvalidInput> { client.claimHandle("x") }
         client.addDirectoryUser(lukas)
-        val taken = assertGimError<GimException.Server> { client.claimHandle("lukas") }
-        assertEquals(409, taken.status)
-        client.claimHandle(" @Marta ")
-        assertEquals("marta", client.session()?.handle)
-        client.claimHandle("marta") // own handle again: no conflict
         client.setDisplayName("Marta R.")
         assertGimError<GimException.InvalidInput> { client.setDisplayName("  ") }
-        assertEquals(Session(session.userId, session.deviceId, "marta", "Marta R."), client.session())
+        assertEquals(Session(session.userId, session.deviceId, "Marta R."), client.session())
 
         val chats = client.recordChats()
         val chatId = client.createDirectChat(lukas.userId)
@@ -150,8 +143,8 @@ class FakeGimClientTest {
         client.stopTyping(chatId)
         assertFalse(client.isTyping(chatId))
 
-        client.releaseHandle()
-        assertEquals("", client.session()?.handle)
+        val rotated = client.rotateRecoveryCode().recoveryCode
+        assertEquals(rotated, client.recoveryCode())
 
         client.signOut()
         assertNull(client.session())
@@ -161,10 +154,10 @@ class FakeGimClientTest {
         assertGimError<GimException.NotRegistered> { client.timeline(chatId) }
         assertGimError<GimException.NotRegistered> { client.signOut() }
         assertGimError<GimException.NotRegistered> { client.devices() }
+        assertGimError<GimException.NotRegistered> { client.recoveryCode() }
 
-        client.createIdentity("Sofia Costa")
-        client.claimHandle("sofia")
-        assertEquals("sofia", client.session()?.handle)
+        val second = client.createIdentity("Sofia Costa")
+        assertEquals(second, client.recoveryCode())
     }
 
     @Test
@@ -198,7 +191,7 @@ class FakeGimClientTest {
     @Test
     fun link_flow_new_device_signs_in_after_confirm() = runTest {
         val client = FakeGimClient(backgroundScope, clock = { base }, zone = zone, outboxDelays = null)
-        client.linkedUser = UserProfile("u-marta", "marta", "Marta Rossi")
+        client.linkedUser = UserProfile("u-marta", "Marta Rossi")
         assertGimError<GimException.InvalidInput> { client.confirmLink(true) }
 
         val link = client.startLink(listOf("https://hub.example.eu"))
@@ -218,7 +211,9 @@ class FakeGimClientTest {
         assertGimError<GimException.InvalidInput> { old.confirmApproval(approval, accepted = true) }
 
         client.confirmLink(true)
-        assertEquals("marta", client.session()?.handle)
+        assertEquals("Marta Rossi", client.session()?.displayName)
+        // A linked device never receives the recovery code.
+        assertNull(client.recoveryCode())
     }
 
     @Test
@@ -233,7 +228,7 @@ class FakeGimClientTest {
     @Test
     fun restore_from_recovery_validates_code_and_revokes_others() = runTest {
         val client = FakeGimClient(backgroundScope, clock = { base }, zone = zone, outboxDelays = null)
-        val marta = UserProfile("u-marta", "marta", "Marta Rossi")
+        val marta = UserProfile("u-marta", "Marta Rossi")
         val code = FakeGimClient.fakeRecoveryCode(7)
         client.addRecoverableUser(marta, code, listOf(DeviceInfo("d-old", 1L, isCurrent = false, revoked = false)))
 
@@ -247,7 +242,8 @@ class FakeGimClientTest {
         client.restoreFromRecovery(marta.userId, code.lowercase().replace("-", " "), revokeOthers = true)
         val session = client.session()!!
         assertEquals(marta.userId, session.userId)
-        assertEquals("marta", session.handle)
+        assertEquals("Marta Rossi", session.displayName)
+        assertEquals(code, client.recoveryCode())
         assertEquals(
             listOf(
                 DeviceInfo("d-old", 0, isCurrent = false, revoked = true),
@@ -670,17 +666,30 @@ class FakeGimClientTest {
     }
 
     @Test
-    fun create_direct_chat_returns_the_existing_chat_and_find_user_searches_the_directory() = runTest {
+    fun create_direct_chat_returns_the_existing_chat() = runTest {
         val client = demo()
         assertEquals(DIRECT_CHAT_ID, client.createDirectChat(lukas.userId))
         val anaChat = client.createDirectChat(ana.userId)
         assertNotEquals(DIRECT_CHAT_ID, anaChat)
         assertEquals(anaChat, client.createDirectChat(ana.userId))
-        assertGimError<GimException.InvalidInput> { client.createDirectChat(me.userId) }
         assertGimError<GimException.NotFound> { client.createDirectChat("u-nobody") }
+    }
 
-        assertEquals(ana, client.findUser(" @Ana "))
-        assertNull(client.findUser("nobody"))
+    @Test
+    fun create_direct_chat_with_yourself_is_the_note_to_self() = runTest {
+        val client = demo()
+        val chats = client.recordChats()
+        val note = client.createDirectChat(me.userId)
+        assertEquals(note, client.createDirectChat(me.userId))
+        assertNotEquals(DIRECT_CHAT_ID, note)
+        val summary = chats.items.single { it.chatId == note }
+        assertTrue(summary.isNoteToSelf)
+        assertEquals(ChatKind.DIRECT, summary.kind)
+        assertEquals(me.userId, summary.peer?.userId)
+        assertEquals(me.displayName, summary.name)
+        assertFalse(summary.blocked)
+        assertFalse(chats.items.single { it.chatId == DIRECT_CHAT_ID }.isNoteToSelf)
+        assertGimError<GimException.InvalidInput> { client.addMembers(note, listOf(ana.userId)) }
     }
 
     @Test

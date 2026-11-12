@@ -78,7 +78,7 @@ class FakeGimClientAccountSafetyTest {
         assertNull(signedOut.ownProfile())
 
         val client = demo()
-        assertEquals(UserProfile(me.userId, me.handle, me.displayName, hasAvatar = false), client.ownProfile())
+        assertEquals(UserProfile(me.userId, me.displayName, hasAvatar = false), client.ownProfile())
 
         client.setAvatar(image().path, "image/png")
         assertTrue(client.ownProfile()!!.hasAvatar)
@@ -101,7 +101,7 @@ class FakeGimClientAccountSafetyTest {
     @Test
     fun fetchUserAvatarWritesAPlaceholderPngForUsersWithAPhoto() = runTest {
         val client = demo()
-        val elena = UserProfile("u-elena", "elena", "Elena Rossi", hasAvatar = true)
+        val elena = UserProfile("u-elena", "Elena Rossi", hasAvatar = true)
         client.addDirectoryUser(elena)
 
         val dest = File(tmp.root, "elena.png")
@@ -242,7 +242,7 @@ class FakeGimClientAccountSafetyTest {
     @Test
     fun addMembersRefusesBlockedUsers() = runTest {
         val client = demo()
-        val elena = UserProfile("u-elena", "elena", "Elena Rossi")
+        val elena = UserProfile("u-elena", "Elena Rossi")
         client.addDirectoryUser(elena)
         client.blockUser(elena.userId)
         assertThrows<GimException.InvalidInput> { client.addMembers(GROUP_CHAT_ID, listOf(elena.userId)) }
@@ -285,7 +285,7 @@ class FakeGimClientAccountSafetyTest {
         val client = FakeGimClient(backgroundScope, outboxDelays = null)
         client.createIdentity("Alice")
         val userId = client.userId()!!
-        client.addRecoverableUser(UserProfile(userId, "", "Alice"), FakeGimClient.fakeRecoveryCode(1))
+        client.addRecoverableUser(UserProfile(userId, "Alice"), FakeGimClient.fakeRecoveryCode(1))
         val rotated = client.rotateRecoveryCode().recoveryCode
         client.signOut()
 

@@ -44,7 +44,6 @@ class FakeGimClientSuspensionTest {
         assertSuspended(demoHub) { client.sendText(DIRECT_CHAT_ID, "hi", null) }
         assertSuspended(demoHub) { client.addMembers(GROUP_CHAT_ID, listOf("u-x")) }
         assertSuspended(demoHub) { client.chatMembers(GROUP_CHAT_ID) }
-        assertSuspended(demoHub) { client.findUser("lukas") }
         assertSuspended(demoHub) { client.devices() }
         assertSuspended(demoHub) { client.addHub(secondUrl) }
         assertNotNull(client.session())

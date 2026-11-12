@@ -41,13 +41,11 @@ import im.g.apps.core.bridge.UserProfile
 internal fun im.g.gimcore.Session.toMirror() = Session(
     userId = userId,
     deviceId = deviceId,
-    handle = handle,
     displayName = displayName,
 )
 
 internal fun im.g.gimcore.UserProfile.toMirror() = UserProfile(
     userId = userId,
-    handle = handle,
     displayName = displayName,
     hasAvatar = hasAvatar,
 )
@@ -91,6 +89,7 @@ internal fun im.g.gimcore.ChatSummary.toMirror() = ChatSummary(
     memberCount = memberCount.toInt(),
     state = state.toMirror(),
     peer = peer?.toMirror(),
+    isNoteToSelf = isNoteToSelf,
     mutedUntilMs = mutedUntilMs.toMirrorMutedUntil(),
     pinned = pinned,
     archived = archived,

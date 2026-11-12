@@ -32,7 +32,7 @@ class NewGroupViewModelTest {
         val (vm, _) = newViewModel()
         advanceUntilIdle()
         vm.onQueryChange(" ${UNKNOWN_USER_ID.uppercase()} ")
-        val user = UserProfile(UNKNOWN_USER_ID, "", "")
+        val user = UserProfile(UNKNOWN_USER_ID, "")
         assertEquals(UserSearchState.Found(user), vm.state.value.search)
 
         vm.addMember(user)

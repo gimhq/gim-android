@@ -40,10 +40,10 @@ import org.junit.Test
 
 // Builds im.g.gimcore records directly: they are plain Kotlin classes, so no native library is loaded.
 class MappersTest {
-    private val coreUser = im.g.gimcore.UserProfile("u1", "alice", "Alice", hasAvatar = false)
-    private val user = UserProfile("u1", "alice", "Alice")
-    private val corePeer = im.g.gimcore.UserProfile("u2", "", "Bob", hasAvatar = true)
-    private val peer = UserProfile("u2", "", "Bob", hasAvatar = true)
+    private val coreUser = im.g.gimcore.UserProfile("u1", "Alice", hasAvatar = false)
+    private val user = UserProfile("u1", "Alice")
+    private val corePeer = im.g.gimcore.UserProfile("u2", "Bob", hasAvatar = true)
+    private val peer = UserProfile("u2", "Bob", hasAvatar = true)
     private val coreMedia = im.g.gimcore.MediaRef("c1", "m1", "image/png", 4_000_000_000UL, true)
     private val media = MediaRef("c1", "m1", "image/png", 4_000_000_000L, true)
 
@@ -58,6 +58,7 @@ class MappersTest {
         memberCount = 4u,
         state = im.g.gimcore.ChatState.LEAVING,
         peer = corePeer,
+        isNoteToSelf = true,
         mutedUntilMs = 1_700_000_003_600UL,
         pinned = true,
         archived = true,
@@ -74,6 +75,7 @@ class MappersTest {
         memberCount = 4,
         state = ChatState.LEAVING,
         peer = peer,
+        isNoteToSelf = true,
         mutedUntilMs = 1_700_000_003_600L,
         pinned = true,
         archived = true,
@@ -110,14 +112,9 @@ class MappersTest {
     @Test
     fun session() {
         assertEquals(
-            Session("u1", "d1", "alice", "Alice"),
-            im.g.gimcore.Session("u1", "d1", "alice", "Alice").toMirror(),
+            Session("u1", "d1", "Alice"),
+            im.g.gimcore.Session("u1", "d1", "Alice").toMirror(),
         )
-    }
-
-    @Test
-    fun sessionWithoutHandle() {
-        assertEquals(Session("u1", "d1", "", "Alice"), im.g.gimcore.Session("u1", "d1", "", "Alice").toMirror())
     }
 
     @Test

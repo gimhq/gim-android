@@ -16,11 +16,11 @@ import im.g.apps.core.bridge.UserProfile
 object DemoData {
     const val SERVER_URL = "https://gim.example.eu"
 
-    val session = Session("u-sofia", "d-demo", "sofia", "Sofia Costa")
-    val me = UserProfile(session.userId, session.handle, session.displayName)
-    val lukas = UserProfile("u-lukas", "lukas", "Lukas Berger")
-    val ana = UserProfile("u-ana", "ana", "Ana Kovač")
-    val nikos = UserProfile("u-nikos", "nikos", "Nikos Papadakis")
+    val session = Session("u-sofia", "d-demo", "Sofia Costa")
+    val me = UserProfile(session.userId, session.displayName)
+    val lukas = UserProfile("u-lukas", "Lukas Berger")
+    val ana = UserProfile("u-ana", "Ana Kovač")
+    val nikos = UserProfile("u-nikos", "Nikos Papadakis")
 
     const val DIRECT_CHAT_ID = "chat-lukas"
     const val GROUP_CHAT_ID = "chat-aegean"

@@ -60,7 +60,7 @@ class OnboardingRestoreViewModelTest {
             GimClientFactory { _, _ ->
                 connectError?.let { throw it }
                 val fake = FakeGimClient(backgroundScope, outboxDelays = null).apply {
-                    addRecoverableUser(UserProfile(USER_ID, "", "Sofia Costa"), RECOVERY_CODE, listOf(OLD_DEVICE))
+                    addRecoverableUser(UserProfile(USER_ID, "Sofia Costa"), RECOVERY_CODE, listOf(OLD_DEVICE))
                 }
                 RestoreClient(fake).also(configure).also { clients += it }
             },
@@ -81,7 +81,7 @@ class OnboardingRestoreViewModelTest {
     private fun TestScope.coreManager(local: CoreLocalState) = GimClientManager(
         GimClientFactory { config, _ ->
             val fake = FakeGimClient(backgroundScope, outboxDelays = null).apply {
-                addRecoverableUser(UserProfile(USER_ID, "", "Sofia Costa"), RECOVERY_CODE, listOf(OLD_DEVICE))
+                addRecoverableUser(UserProfile(USER_ID, "Sofia Costa"), RECOVERY_CODE, listOf(OLD_DEVICE))
             }
             local.clients += config.serverUrl
             object : GimClient by fake {

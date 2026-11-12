@@ -30,7 +30,7 @@ class ReplyQuoteLocaleTest {
     @get:Rule
     val rule = createComposeRule()
 
-    private val ana = UserProfile("u-ana", "ana", "Ana Kovač")
+    private val ana = UserProfile("u-ana", "Ana Kovač")
 
     private fun reply(id: String, text: String, kind: PreviewKind) = TimelineItem.Message(
         MessageItem(

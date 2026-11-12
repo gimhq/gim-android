@@ -896,8 +896,6 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_chat_state(
     ): Int
-    external fun uniffi_gim_core_checksum_method_gimclient_claim_handle(
-    ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_confirm_approval(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_confirm_link(
@@ -926,8 +924,6 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_fetch_user_avatar(
     ): Int
-    external fun uniffi_gim_core_checksum_method_gimclient_find_user(
-    ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_hub_list(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_hubs(
@@ -946,9 +942,9 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_react(
     ): Int
-    external fun uniffi_gim_core_checksum_method_gimclient_register_push(
+    external fun uniffi_gim_core_checksum_method_gimclient_recovery_code(
     ): Int
-    external fun uniffi_gim_core_checksum_method_gimclient_release_handle(
+    external fun uniffi_gim_core_checksum_method_gimclient_register_push(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_remove_avatar(
     ): Int
@@ -1121,8 +1117,6 @@ internal object UniffiLib {
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_chat_state(`ptr`: Long,`chatId`: RustBuffer.ByValue,
     ): Long
-    external fun uniffi_gim_core_fn_method_gimclient_claim_handle(`ptr`: Long,`handle`: RustBuffer.ByValue,
-    ): Long
     external fun uniffi_gim_core_fn_method_gimclient_confirm_approval(`ptr`: Long,`approval`: Long,`accepted`: Byte,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_confirm_link(`ptr`: Long,`accepted`: Byte,
@@ -1151,8 +1145,6 @@ internal object UniffiLib {
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_fetch_user_avatar(`ptr`: Long,`userId`: RustBuffer.ByValue,`destPath`: RustBuffer.ByValue,
     ): Long
-    external fun uniffi_gim_core_fn_method_gimclient_find_user(`ptr`: Long,`handle`: RustBuffer.ByValue,
-    ): Long
     external fun uniffi_gim_core_fn_method_gimclient_hub_list(`ptr`: Long,`listener`: Long,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_hubs(`ptr`: Long,
@@ -1171,9 +1163,9 @@ internal object UniffiLib {
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_react(`ptr`: Long,`chatId`: RustBuffer.ByValue,`messageId`: RustBuffer.ByValue,`emoji`: RustBuffer.ByValue,
     ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_recovery_code(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_gim_core_fn_method_gimclient_register_push(`ptr`: Long,`registration`: RustBuffer.ByValue,
-    ): Long
-    external fun uniffi_gim_core_fn_method_gimclient_release_handle(`ptr`: Long,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_remove_avatar(`ptr`: Long,
     ): Long
@@ -1518,9 +1510,6 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_method_gimclient_chat_state() and 0xFFFF) != 39217) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_gim_core_checksum_method_gimclient_claim_handle() and 0xFFFF) != 25957) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_confirm_approval() and 0xFFFF) != 47132) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1530,13 +1519,13 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_method_gimclient_connection_state() and 0xFFFF) != 25642) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_gim_core_checksum_method_gimclient_create_direct_chat() and 0xFFFF) != 26778) {
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_create_direct_chat() and 0xFFFF) != 55023) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_create_group_chat() and 0xFFFF) != 10041) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_gim_core_checksum_method_gimclient_create_identity() and 0xFFFF) != 56233) {
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_create_identity() and 0xFFFF) != 17890) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_delete_account() and 0xFFFF) != 29130) {
@@ -1561,9 +1550,6 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_fetch_user_avatar() and 0xFFFF) != 26902) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if ((lib.uniffi_gim_core_checksum_method_gimclient_find_user() and 0xFFFF) != 25186) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_hub_list() and 0xFFFF) != 18852) {
@@ -1593,10 +1579,10 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_method_gimclient_react() and 0xFFFF) != 11948) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_gim_core_checksum_method_gimclient_register_push() and 0xFFFF) != 42844) {
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_recovery_code() and 0xFFFF) != 58458) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_gim_core_checksum_method_gimclient_release_handle() and 0xFFFF) != 61692) {
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_register_push() and 0xFFFF) != 42844) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_remove_avatar() and 0xFFFF) != 37794) {
@@ -1611,7 +1597,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_method_gimclient_report_user() and 0xFFFF) != 7723) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_gim_core_checksum_method_gimclient_restore_from_recovery() and 0xFFFF) != 59727) {
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_restore_from_recovery() and 0xFFFF) != 45609) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_retry_send() and 0xFFFF) != 31098) {
@@ -1620,7 +1606,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_method_gimclient_revoke_device() and 0xFFFF) != 54975) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_gim_core_checksum_method_gimclient_rotate_recovery_code() and 0xFFFF) != 7811) {
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_rotate_recovery_code() and 0xFFFF) != 42764) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_send_media() and 0xFFFF) != 37766) {
@@ -3022,12 +3008,6 @@ public interface GimClientInterface {
     suspend fun `chatState`(`chatId`: kotlin.String): ChatState
     
     /**
-     * Claims `handle` in the hub directory, so others find the user with
-     * `find_user`; `Server(409)` if it is taken.
-     */
-    suspend fun `claimHandle`(`handle`: kotlin.String)
-    
-    /**
      * Old device: the user compared the SAS. `true` adds the new device to
      * the user's devices and to every joined chat (the new device must
      * have finished `wait_link`); `false` revokes it.
@@ -3048,7 +3028,9 @@ public interface GimClientInterface {
     
     /**
      * Returns the chat id of the direct chat with `user_id`, creating it if
-     * needed.
+     * needed (the lowest chat id if two devices created one at the same
+     * time). With the own user id it is the note to self: the direct chat
+     * with yourself, whose members are only the own devices.
      */
     suspend fun `createDirectChat`(`userId`: kotlin.String): kotlin.String
     
@@ -3061,7 +3043,7 @@ public interface GimClientInterface {
      * Creates a new identity with this device as its first one: uploads
      * its signed DeviceList, recovery backup and KeyPackages to the hub,
      * signs in and persists the session. Returns the recovery code, which
-     * is not stored and must be shown to the user once.
+     * is also kept in the keystore (`recovery_code`).
      *
      * On failure nothing of the attempt is kept: call it again (it creates
      * a new user), also after the app restarted. `InvalidInput` once an
@@ -3112,11 +3094,6 @@ public interface GimClientInterface {
      * have none.
      */
     suspend fun `fetchUserAvatar`(`userId`: kotlin.String, `destPath`: kotlin.String): kotlin.String
-    
-    /**
-     * Looks up a user by handle; `None` if no such user exists.
-     */
-    suspend fun `findUser`(`handle`: kotlin.String): UserProfile?
     
     /**
      * Subscribes to the user's hubs; the first callback carries the
@@ -3180,6 +3157,16 @@ public interface GimClientInterface {
     suspend fun `react`(`chatId`: kotlin.String, `messageId`: kotlin.String, `emoji`: kotlin.String)
     
     /**
+     * The recovery code kept in the keystore, to show it again (after
+     * device authentication); `None` on a device that does not hold it
+     * (linked by QR code, or created before codes were kept): offer
+     * `rotate_recovery_code` there. `create_identity`,
+     * `rotate_recovery_code` and `restore_from_recovery` store it;
+     * `sign_out` and `delete_account` delete it.
+     */
+    fun `recoveryCode`(): kotlin.String?
+    
+    /**
      * Registers this device for push on every hub of the user (`PUT
      * /v2/push/registration`) and keeps the registration on this device:
      * hubs that cannot be reached now, hubs added later and hubs this
@@ -3188,12 +3175,6 @@ public interface GimClientInterface {
      * `InvalidInput` for a malformed registration (see `PushRegistration`).
      */
     suspend fun `registerPush`(`registration`: PushRegistration)
-    
-    /**
-     * Releases the handle claimed with `claim_handle`; `InvalidInput` if
-     * there is none.
-     */
-    suspend fun `releaseHandle`()
     
     /**
      * Removes the signed-in user's profile photo.
@@ -3224,6 +3205,7 @@ public interface GimClientInterface {
      * Restores the user on this (fresh) device from its recovery code
      * after losing every device: becomes a new device of `user_id`, signed
      * in, with a new self group. Chats are not rejoined automatically.
+     * The code is kept in the keystore (`recovery_code`).
      *
      * Reads the user's current DeviceList from the hub (no session
      * needed) and publishes the next one with this device added. With
@@ -3253,8 +3235,9 @@ public interface GimClientInterface {
      * Replaces the recovery code with a new one, for a user who lost it:
      * the previous code stops working on every hub that takes the new
      * backup (the home hub always does, or the call fails without any
-     * change). Returns the new code, which is not stored and must be shown
-     * to the user once.
+     * change). Returns the new code, which replaces the one in the
+     * keystore (`recovery_code`); a device that held none holds it from
+     * now on.
      */
     suspend fun `rotateRecoveryCode`(): RecoveryRotation
     
@@ -3745,33 +3728,6 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
 
     
     /**
-     * Claims `handle` in the hub directory, so others find the user with
-     * `find_user`; `Server(409)` if it is taken.
-     */
-    @Throws(GimException::class)
-    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-    override suspend fun `claimHandle`(`handle`: kotlin.String) {
-        return uniffiRustCallAsync(
-        callWithHandle { uniffiHandle ->
-            UniffiLib.uniffi_gim_core_fn_method_gimclient_claim_handle(
-                uniffiHandle,
-                
-        FfiConverterString.lower(`handle`),
-            )
-        },
-        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_void(future, callback, continuation) },
-        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_void(future, continuation) },
-        { future -> UniffiLib.ffi_gim_core_rust_future_free_void(future) },
-        // lift function
-        { },
-        
-        // Error FFI converter
-        GimException.ErrorHandler,
-    )
-    }
-
-    
-    /**
      * Old device: the user compared the SAS. `true` adds the new device to
      * the user's devices and to every joined chat (the new device must
      * have finished `wait_link`); `false` revokes it.
@@ -3855,7 +3811,9 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
     
     /**
      * Returns the chat id of the direct chat with `user_id`, creating it if
-     * needed.
+     * needed (the lowest chat id if two devices created one at the same
+     * time). With the own user id it is the note to self: the direct chat
+     * with yourself, whose members are only the own devices.
      */
     @Throws(GimException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
@@ -3909,7 +3867,7 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
      * Creates a new identity with this device as its first one: uploads
      * its signed DeviceList, recovery backup and KeyPackages to the hub,
      * signs in and persists the session. Returns the recovery code, which
-     * is not stored and must be shown to the user once.
+     * is also kept in the keystore (`recovery_code`).
      *
      * On failure nothing of the attempt is kept: call it again (it creates
      * a new user), also after the app restarted. `InvalidInput` once an
@@ -4144,31 +4102,6 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
         { future -> UniffiLib.ffi_gim_core_rust_future_free_rust_buffer(future) },
         // lift function
         { FfiConverterString.lift(it) },
-        // Error FFI converter
-        GimException.ErrorHandler,
-    )
-    }
-
-    
-    /**
-     * Looks up a user by handle; `None` if no such user exists.
-     */
-    @Throws(GimException::class)
-    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-    override suspend fun `findUser`(`handle`: kotlin.String) : UserProfile? {
-        return uniffiRustCallAsync(
-        callWithHandle { uniffiHandle ->
-            UniffiLib.uniffi_gim_core_fn_method_gimclient_find_user(
-                uniffiHandle,
-                
-        FfiConverterString.lower(`handle`),
-            )
-        },
-        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_rust_buffer(future, callback, continuation) },
-        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_rust_buffer(future, continuation) },
-        { future -> UniffiLib.ffi_gim_core_rust_future_free_rust_buffer(future) },
-        // lift function
-        { FfiConverterOptionalTypeUserProfile.lift(it) },
         // Error FFI converter
         GimException.ErrorHandler,
     )
@@ -4411,6 +4344,28 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
 
     
     /**
+     * The recovery code kept in the keystore, to show it again (after
+     * device authentication); `None` on a device that does not hold it
+     * (linked by QR code, or created before codes were kept): offer
+     * `rotate_recovery_code` there. `create_identity`,
+     * `rotate_recovery_code` and `restore_from_recovery` store it;
+     * `sign_out` and `delete_account` delete it.
+     */
+    @Throws(GimException::class)override fun `recoveryCode`(): kotlin.String? {
+            return FfiConverterOptionalString.lift(
+    callWithHandle {
+    uniffiRustCallWithError(GimException) { _status ->
+    UniffiLib.uniffi_gim_core_fn_method_gimclient_recovery_code(
+        it,
+        _status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
      * Registers this device for push on every hub of the user (`PUT
      * /v2/push/registration`) and keeps the registration on this device:
      * hubs that cannot be reached now, hubs added later and hubs this
@@ -4427,32 +4382,6 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
                 uniffiHandle,
                 
         FfiConverterTypePushRegistration.lower(`registration`),
-            )
-        },
-        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_void(future, callback, continuation) },
-        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_void(future, continuation) },
-        { future -> UniffiLib.ffi_gim_core_rust_future_free_void(future) },
-        // lift function
-        { },
-        
-        // Error FFI converter
-        GimException.ErrorHandler,
-    )
-    }
-
-    
-    /**
-     * Releases the handle claimed with `claim_handle`; `InvalidInput` if
-     * there is none.
-     */
-    @Throws(GimException::class)
-    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-    override suspend fun `releaseHandle`() {
-        return uniffiRustCallAsync(
-        callWithHandle { uniffiHandle ->
-            UniffiLib.uniffi_gim_core_fn_method_gimclient_release_handle(
-                uniffiHandle,
-                
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_void(future, callback, continuation) },
@@ -4583,6 +4512,7 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
      * Restores the user on this (fresh) device from its recovery code
      * after losing every device: becomes a new device of `user_id`, signed
      * in, with a new self group. Chats are not rejoined automatically.
+     * The code is kept in the keystore (`recovery_code`).
      *
      * Reads the user's current DeviceList from the hub (no session
      * needed) and publishes the next one with this device added. With
@@ -4678,8 +4608,9 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
      * Replaces the recovery code with a new one, for a user who lost it:
      * the previous code stops working on every hub that takes the new
      * backup (the home hub always does, or the call fails without any
-     * change). Returns the new code, which is not stored and must be shown
-     * to the user once.
+     * change). Returns the new code, which replaces the one in the
+     * keystore (`recovery_code`); a device that held none holds it from
+     * now on.
      */
     @Throws(GimException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
@@ -8449,7 +8380,8 @@ data class ChatSummary (
     var `kind`: ChatKind
     , 
     /**
-     * Group name, or the other user's display name for a direct chat.
+     * Group name, or the other user's display name for a direct chat (the
+     * own display name for the note to self).
      */
     var `name`: kotlin.String
     , 
@@ -8470,10 +8402,19 @@ data class ChatSummary (
     var `state`: ChatState
     , 
     /**
-     * For a direct chat: the other user. Show their photo
-     * (`fetch_user_avatar`) when the chat has no avatar.
+     * For a direct chat: the other user, the own user for the note to
+     * self. Show their photo (`fetch_user_avatar`) when the chat has no
+     * avatar.
      */
     var `peer`: UserProfile?
+    , 
+    /**
+     * The note to self: the direct chat with yourself (`peer` is the own
+     * user), synced across the own devices and never admitting anyone
+     * else. Pin it on top and label it; it has no read receipts, typing
+     * indicators, report or block.
+     */
+    var `isNoteToSelf`: kotlin.Boolean
     , 
     /**
      * Notifications are muted until then (Unix milliseconds; 0: not muted,
@@ -8521,6 +8462,7 @@ public object FfiConverterTypeChatSummary: FfiConverterRustBuffer<ChatSummary> {
             FfiConverterUInt.read(buf),
             FfiConverterTypeChatState.read(buf),
             FfiConverterOptionalTypeUserProfile.read(buf),
+            FfiConverterBoolean.read(buf),
             FfiConverterULong.read(buf),
             FfiConverterBoolean.read(buf),
             FfiConverterBoolean.read(buf),
@@ -8539,6 +8481,7 @@ public object FfiConverterTypeChatSummary: FfiConverterRustBuffer<ChatSummary> {
             FfiConverterUInt.allocationSize(value.`memberCount`) +
             FfiConverterTypeChatState.allocationSize(value.`state`) +
             FfiConverterOptionalTypeUserProfile.allocationSize(value.`peer`) +
+            FfiConverterBoolean.allocationSize(value.`isNoteToSelf`) +
             FfiConverterULong.allocationSize(value.`mutedUntilMs`) +
             FfiConverterBoolean.allocationSize(value.`pinned`) +
             FfiConverterBoolean.allocationSize(value.`archived`) +
@@ -8556,6 +8499,7 @@ public object FfiConverterTypeChatSummary: FfiConverterRustBuffer<ChatSummary> {
             FfiConverterUInt.write(value.`memberCount`, buf)
             FfiConverterTypeChatState.write(value.`state`, buf)
             FfiConverterOptionalTypeUserProfile.write(value.`peer`, buf)
+            FfiConverterBoolean.write(value.`isNoteToSelf`, buf)
             FfiConverterULong.write(value.`mutedUntilMs`, buf)
             FfiConverterBoolean.write(value.`pinned`, buf)
             FfiConverterBoolean.write(value.`archived`, buf)
@@ -9352,7 +9296,7 @@ public object FfiConverterTypeRecoveryKitLabels: FfiConverterRustBuffer<Recovery
  */
 data class RecoveryRotation (
     /**
-     * The new recovery code; not stored, show it to the user once.
+     * The new recovery code; it replaces the one `recovery_code` returns.
      */
     var `recoveryCode`: kotlin.String
     , 
@@ -9457,11 +9401,6 @@ data class Session (
     , 
     var `deviceId`: kotlin.String
     , 
-    /**
-     * Empty until `claim_handle`.
-     */
-    var `handle`: kotlin.String
-    , 
     var `displayName`: kotlin.String
     
 ){
@@ -9482,21 +9421,18 @@ public object FfiConverterTypeSession: FfiConverterRustBuffer<Session> {
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
-            FfiConverterString.read(buf),
         )
     }
 
     override fun allocationSize(value: Session) = (
             FfiConverterString.allocationSize(value.`userId`) +
             FfiConverterString.allocationSize(value.`deviceId`) +
-            FfiConverterString.allocationSize(value.`handle`) +
             FfiConverterString.allocationSize(value.`displayName`)
     )
 
     override fun write(value: Session, buf: ByteBuffer) {
             FfiConverterString.write(value.`userId`, buf)
             FfiConverterString.write(value.`deviceId`, buf)
-            FfiConverterString.write(value.`handle`, buf)
             FfiConverterString.write(value.`displayName`, buf)
     }
 }
@@ -9508,8 +9444,6 @@ public object FfiConverterTypeSession: FfiConverterRustBuffer<Session> {
  */
 data class UserProfile (
     var `userId`: kotlin.String
-    , 
-    var `handle`: kotlin.String
     , 
     var `displayName`: kotlin.String
     , 
@@ -9535,21 +9469,18 @@ public object FfiConverterTypeUserProfile: FfiConverterRustBuffer<UserProfile> {
         return UserProfile(
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
-            FfiConverterString.read(buf),
             FfiConverterBoolean.read(buf),
         )
     }
 
     override fun allocationSize(value: UserProfile) = (
             FfiConverterString.allocationSize(value.`userId`) +
-            FfiConverterString.allocationSize(value.`handle`) +
             FfiConverterString.allocationSize(value.`displayName`) +
             FfiConverterBoolean.allocationSize(value.`hasAvatar`)
     )
 
     override fun write(value: UserProfile, buf: ByteBuffer) {
             FfiConverterString.write(value.`userId`, buf)
-            FfiConverterString.write(value.`handle`, buf)
             FfiConverterString.write(value.`displayName`, buf)
             FfiConverterBoolean.write(value.`hasAvatar`, buf)
     }

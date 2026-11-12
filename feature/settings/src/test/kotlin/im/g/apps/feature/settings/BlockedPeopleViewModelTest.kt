@@ -116,7 +116,7 @@ class BlockedPeopleViewModelTest {
     }
 
     private companion object {
-        val LUKAS = UserProfile("u" + "a".repeat(54) + "a", "lukas", "Lukas Weber")
-        val NO_NAME = UserProfile("u" + "b".repeat(54) + "a", "", "")
+        val LUKAS = UserProfile("u" + "a".repeat(54) + "a", "Lukas Weber")
+        val NO_NAME = UserProfile("u" + "b".repeat(54) + "a", "")
     }
 }

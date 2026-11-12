@@ -201,7 +201,7 @@ class OnboardingStepsTest {
         val manager = GimClientManager(
             FakeGimClientFactory { _, _ ->
                 FakeGimClient(fakeScope, outboxDelays = null).apply {
-                    addRecoverableUser(UserProfile(USER_ID, "", "Sofia Costa"), RECOVERY_CODE)
+                    addRecoverableUser(UserProfile(USER_ID, "Sofia Costa"), RECOVERY_CODE)
                 }
             },
             FakePlatformHooks(),

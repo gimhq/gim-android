@@ -195,8 +195,8 @@ private fun NewGroupScreenPreview() {
         NewGroupScreen(
             state = NewGroupUiState(
                 query = "u-nikos",
-                search = UserSearchState.Found(UserProfile("u-nikos", "", "Nikos Papadakis")),
-                members = persistentListOf(UserProfile("u-ana", "", "Ana Kovač")),
+                search = UserSearchState.Found(UserProfile("u-nikos", "Nikos Papadakis")),
+                members = persistentListOf(UserProfile("u-ana", "Ana Kovač")),
             ),
             onQueryChange = {},
             onAddMember = {},

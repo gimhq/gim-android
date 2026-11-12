@@ -57,8 +57,8 @@ interface GimClient {
     fun localStateReset(): Boolean
 
     /**
-     * Creates a new user with this device as its first one and signs in. Returns the recovery code: it is stored
-     * nowhere, so show it once. [Session.handle] stays empty until [claimHandle]. A failed call keeps nothing of the
+     * Creates a new user with this device as its first one and signs in. Returns the recovery code, which is also
+     * kept in the secure store ([recoveryCode]). A failed call keeps nothing of the
      * attempt: call it again (it creates a new user); no [signOut] or new client is needed.
      */
     suspend fun createIdentity(displayName: String): String
@@ -78,6 +78,14 @@ interface GimClient {
      * the hubs in [RecoveryRotation.unsyncedHubIds]. [GimException.NotRegistered] without a session.
      */
     suspend fun rotateRecoveryCode(): RecoveryRotation
+
+    /**
+     * The recovery code kept in the secure store, to show it again after device authentication; null on a device that
+     * does not hold it (linked by QR code, or created before codes were kept): offer [rotateRecoveryCode] there.
+     * [createIdentity], [rotateRecoveryCode] and [restoreFromRecovery] store it; [signOut] and [deleteAccount] delete
+     * it. Synchronous; [GimException.NotRegistered] without a session.
+     */
+    fun recoveryCode(): String?
 
     /** New device: starts linking to an existing device; show [LinkSession.qrString] as a QR code. Synchronous. */
     fun startLink(hubs: List<String>): LinkSession
@@ -139,7 +147,7 @@ interface GimClient {
     /** Changes the display name; [GimException.InvalidInput] if empty. */
     suspend fun setDisplayName(name: String)
 
-    /** The signed-in user's name, handle and [UserProfile.hasAvatar], from local state; null without a session. */
+    /** The signed-in user's name and [UserProfile.hasAvatar], from local state; null without a session. */
     suspend fun ownProfile(): UserProfile?
 
     /**
@@ -150,12 +158,6 @@ interface GimClient {
 
     /** Removes the profile photo. */
     suspend fun removeAvatar()
-
-    /** Claims a handle in the hub directory; [GimException.Server] with status 409 if it is taken. */
-    suspend fun claimHandle(handle: String)
-
-    /** Releases the claimed handle; [GimException.InvalidInput] if none is claimed. */
-    suspend fun releaseHandle()
 
     /**
      * Removes the push registration from the hubs (best effort, a few seconds at most), stops sync and deletes the
@@ -217,12 +219,10 @@ interface GimClient {
      */
     fun setNetworkReachable(reachable: Boolean)
 
-    /** Looks up a user by handle; null if no such user exists. */
-    suspend fun findUser(handle: String): UserProfile?
-
     /**
      * Returns the chat id of the direct chat with [userId], creating it if needed. [GimException.NotFound] (and no
-     * chat) if the user does not exist or has no device; a user whose hub is unavailable is invited later.
+     * chat) if the user does not exist or has no device; a user whose hub is unavailable is invited later. With the
+     * own user id it is the note to self ([ChatSummary.isNoteToSelf]), whose members are only the own devices.
      */
     suspend fun createDirectChat(userId: String): String
 

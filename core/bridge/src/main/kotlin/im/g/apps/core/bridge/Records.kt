@@ -8,15 +8,12 @@ package im.g.apps.core.bridge
 data class Session(
     val userId: String,
     val deviceId: String,
-    /** Empty until [GimClient.claimHandle]. */
-    val handle: String,
     val displayName: String,
 )
 
 /** Public profile of a user. */
 data class UserProfile(
     val userId: String,
-    val handle: String,
     val displayName: String,
     /** Whether the user has a profile photo; download it with [GimClient.fetchUserAvatar]. */
     val hasAvatar: Boolean = false,
@@ -32,7 +29,7 @@ fun shortUserId(userId: String): String = userId.removePrefix("u").take(SHORT_US
 
 /**
  * A name as gim-core reports it, shortened to [shortUserId] when it is a bare user id (gim-core falls back to the
- * user id until a directory lookup resolves the name, and remote users may have no handle).
+ * user id while it does not know the name).
  */
 fun displayNameOrShortId(name: String): String = if (USER_ID_PATTERN.matches(name)) shortUserId(name) else name
 
@@ -46,7 +43,7 @@ enum class ChatKind { DIRECT, GROUP }
 data class ChatSummary(
     val chatId: String,
     val kind: ChatKind,
-    /** Group name, or the other user's display name for a direct chat. */
+    /** Group name, or the other user's display name for a direct chat (the own name for the note to self). */
     val name: String,
     val avatar: MediaRef?,
     val lastMessage: MessagePreview?,
@@ -54,8 +51,13 @@ data class ChatSummary(
     val updatedAtMs: Long,
     val memberCount: Int,
     val state: ChatState = ChatState.ACTIVE,
-    /** The other user of a direct chat (show their photo when [avatar] is absent); null for groups. */
+    /**
+     * The other user of a direct chat (show their photo when [avatar] is absent), the own profile for the note to
+     * self; null for groups.
+     */
     val peer: UserProfile? = null,
+    /** The note to self: the direct chat with yourself, whose members are only the own devices. */
+    val isNoteToSelf: Boolean = false,
     /** Muted until this Unix time in ms; [GimClient.mutedForever] for good, 0 when not muted. Compare with now. */
     val mutedUntilMs: Long = 0,
     /** Pinned chats come first in the chat list. */

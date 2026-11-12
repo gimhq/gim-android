@@ -24,8 +24,8 @@ class FakeGimClientPolicyTest {
     private val homeUrl = "http://10.0.2.2:8080"
     private val secondUrl = "http://10.0.2.2:8081"
     private val homeId = FakeGimClient.fakeHubId(homeUrl)
-    private val elena = UserProfile("u-elena", "elena", "Elena Rossi")
-    private val jan = UserProfile("u-jan", "jan", "Jan de Vries")
+    private val elena = UserProfile("u-elena", "Elena Rossi")
+    private val jan = UserProfile("u-jan", "Jan de Vries")
 
     private inline fun <reified T : GimException> assertThrows(block: () -> Unit): T {
         try {

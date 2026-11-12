@@ -53,6 +53,8 @@ internal class UniffiGimClient(private val inner: im.g.gimcore.GimClient) : GimC
 
     override suspend fun rotateRecoveryCode(): RecoveryRotation = core { inner.rotateRecoveryCode().toMirror() }
 
+    override fun recoveryCode(): String? = core { inner.recoveryCode() }
+
     override fun startLink(hubs: List<String>): LinkSession = UniffiLinkSession(core { inner.startLink(hubs) })
 
     override suspend fun waitLink(link: LinkSession): String = core { inner.waitLink(link.native()) }
@@ -89,10 +91,6 @@ internal class UniffiGimClient(private val inner: im.g.gimcore.GimClient) : GimC
 
     override suspend fun removeAvatar() = core { inner.removeAvatar() }
 
-    override suspend fun claimHandle(handle: String) = core { inner.claimHandle(handle) }
-
-    override suspend fun releaseHandle() = core { inner.releaseHandle() }
-
     override suspend fun signOut() = core { inner.signOut() }
 
     override suspend fun deleteAccount(): List<String> = core { inner.deleteAccount() }
@@ -113,8 +111,6 @@ internal class UniffiGimClient(private val inner: im.g.gimcore.GimClient) : GimC
     override suspend fun stopSync() = core { inner.stopSync() }
 
     override fun setNetworkReachable(reachable: Boolean) = inner.setNetworkReachable(reachable)
-
-    override suspend fun findUser(handle: String): UserProfile? = core { inner.findUser(handle)?.toMirror() }
 
     override suspend fun createDirectChat(userId: String): String = core { inner.createDirectChat(userId) }
 

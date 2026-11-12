@@ -257,8 +257,8 @@ class FakeGimClient(
         val name = requireDisplayName(displayName)
         checkAdmitted()
         val number = nextId++
-        signIn(Session("u-$number", "d-${nextId++}", "", name))
-        fakeRecoveryCode(number)
+        signIn(Session("u-$number", "d-${nextId++}", name))
+        fakeRecoveryCode(number).also { heldRecoveryCode = it }
     }
 
     override suspend fun restoreFromRecovery(userId: String, recoveryCode: String, revokeOthers: Boolean) {
@@ -270,7 +270,8 @@ class FakeGimClient(
             if (normalizeRecoveryCode(expected) != code) throw GimException.Crypto("recovery code does not open the backup")
             checkAdmitted()
             val previous = ownDevices.toList()
-            signIn(Session(profile.userId, "d-${nextId++}", profile.handle, profile.displayName))
+            signIn(Session(profile.userId, "d-${nextId++}", profile.displayName))
+            heldRecoveryCode = expected
             ownDevices.addAll(0, previous.map { if (revokeOthers) it.copy(createdAtMs = 0, revoked = true) else it })
         }
     }
@@ -281,7 +282,13 @@ class FakeGimClient(
         val me = me()
         val code = validRecoveryCode(nextId++)
         recoverable[me.userId]?.let { (profile, _) -> recoverable[me.userId] = profile to code }
+        heldRecoveryCode = code
         RecoveryRotation(code, rotationUnsyncedHubIds)
+    }
+
+    override fun recoveryCode(): String? = synchronized(lock) {
+        requireSession()
+        heldRecoveryCode
     }
 
     override fun startLink(hubs: List<String>): LinkSession = synchronized(lock) {
@@ -297,7 +304,8 @@ class FakeGimClient(
         startedLink = null
         checkAdmitted()
         val user = linkedUser
-        signIn(Session(user.userId, "d-${nextId++}", user.handle, user.displayName))
+        signIn(Session(user.userId, "d-${nextId++}", user.displayName))
+        heldRecoveryCode = null
         linkAwaitingConfirm = true
         fakeSas(link.qr)
     }
@@ -436,25 +444,6 @@ class FakeGimClient(
         updateSession(me)
     }
 
-    override suspend fun claimHandle(handle: String) = synchronized(lock) {
-        checkSuspended()
-        val me = requireSession()
-        val normalized = normalizeHandle(handle)
-        if (!HANDLE_PATTERN.matches(normalized)) {
-            throw GimException.InvalidInput("handle: use 3-32 of a-z, 0-9, '_'")
-        }
-        if (directory.values.any { it.handle == normalized && it.userId != me.userId }) {
-            throw GimException.Server(409, "handle taken")
-        }
-        updateSession(me.copy(handle = normalized))
-    }
-
-    override suspend fun releaseHandle() = synchronized(lock) {
-        val me = requireSession()
-        if (me.handle.isEmpty()) throw GimException.InvalidInput("no handle claimed")
-        updateSession(me.copy(handle = ""))
-    }
-
     override suspend fun signOut() = synchronized(lock) {
         wipe(requireSession())
     }
@@ -509,6 +498,7 @@ class FakeGimClient(
         chatList = emptyList()
         hubs.clear()
         chatOwners.clear()
+        heldRecoveryCode = null
         pushRegistration = null
         ownAvatarPath = null
         privacy = PrivacySettings()
@@ -577,20 +567,19 @@ class FakeGimClient(
         }
     }
 
-    override suspend fun findUser(handle: String): UserProfile? = synchronized(lock) {
-        checkSuspended()
-        requireSession()
-        val normalized = normalizeHandle(handle)
-        directory.values.firstOrNull { it.handle == normalized }
-    }
-
     override suspend fun createDirectChat(userId: String): String = synchronized(lock) {
         checkSuspended()
         val me = me()
-        if (userId == me.userId) throw GimException.InvalidInput("cannot chat with yourself")
+        if (userId == me.userId) {
+            chats.values.firstOrNull { isNoteToSelf(it) }?.let { return@synchronized it.id }
+            val note = FakeChat("chat-${nextId++}", ChatKind.DIRECT, me.displayName, mutableListOf(me), clock())
+            chats[note.id] = note
+            publishChat(note.id)
+            return@synchronized note.id
+        }
         requireNotBlocked(listOf(userId))
         val other = user(userId)
-        chats.values.firstOrNull { it.kind == ChatKind.DIRECT && it.members.any { m -> m.userId == userId } }
+        chats.values.firstOrNull { it.kind == ChatKind.DIRECT && it.members.any { m -> m.userId == userId } && !isNoteToSelf(it) }
             ?.let { return@synchronized it.id }
         if (userId in refusingUsers) throw GimException.ContactNotAdmitted(listOf(userId))
         val chat = FakeChat("chat-${nextId++}", ChatKind.DIRECT, other.displayName, mutableListOf(me, other), clock())
@@ -976,7 +965,7 @@ class FakeGimClient(
 
     // region Test controls
 
-    /** Adds a user that [findUser] can discover. */
+    /** Adds a user that exists on the hub (chats can be created with them by user id). */
     fun addDirectoryUser(user: UserProfile) = synchronized(lock) { directory[user.userId] = user }
 
     /** Lets [restoreFromRecovery] sign in as [user] with [recoveryCode]; [devices] lists earlier devices. */
@@ -999,8 +988,15 @@ class FakeGimClient(
      */
     @Volatile var pushContent: ((payload: String) -> NotificationContent)? = null
 
+    /**
+     * The recovery code [recoveryCode] returns: set by [createIdentity], [rotateRecoveryCode] and
+     * [restoreFromRecovery], null after [waitLink] (a linked device never gets it) and the sign-out wipe. Tests set it to
+     * null to model an account created before codes were kept.
+     */
+    @Volatile var heldRecoveryCode: String? = null
+
     /** The account [waitLink] signs in as. */
-    @Volatile var linkedUser: UserProfile = UserProfile("u-linked", "linked", "Linked Account")
+    @Volatile var linkedUser: UserProfile = UserProfile("u-linked", "Linked Account")
 
     /** Another member commits the pending [leaveChat] of [chatId]: the own `Left` change appears. */
     fun commitLeave(chatId: String) = synchronized(lock) {
@@ -1155,7 +1151,7 @@ class FakeGimClient(
         val home = normalizeHubUrl(homeHubUrl)
         hubs[fakeHubId(home)] = FakeHub(fakeHubId(home), home, HubState.VERIFIED, 0, signedIn = true)
         publishHubs()
-        directory[session.userId] = UserProfile(session.userId, session.handle, session.displayName, ownAvatarPath != null)
+        directory[session.userId] = UserProfile(session.userId, session.displayName, ownAvatarPath != null)
         ownDevices.clear()
         ownDevices += DeviceInfo(session.deviceId, clock(), isCurrent = true, revoked = false)
     }
@@ -1219,7 +1215,7 @@ class FakeGimClient(
 
     private fun updateSession(updated: Session) {
         session = updated
-        directory[updated.userId] = UserProfile(updated.userId, updated.handle, updated.displayName, ownAvatarPath != null)
+        directory[updated.userId] = UserProfile(updated.userId, updated.displayName, ownAvatarPath != null)
     }
 
     private fun homeHubId(): String = fakeHubId(homeHubUrl)
@@ -1253,7 +1249,7 @@ class FakeGimClient(
     }
 
     private fun me(): UserProfile =
-        requireSession().let { UserProfile(it.userId, it.handle, it.displayName, ownAvatarPath != null) }
+        requireSession().let { UserProfile(it.userId, it.displayName, ownAvatarPath != null) }
 
     private fun checkFailure(method: String) {
         failures.remove(method)?.let { throw it }
@@ -1319,7 +1315,7 @@ class FakeGimClient(
     }
 
     /** A refused invitee as the `REMOVED` change names them; the user id if not in the directory. */
-    private fun refusedUser(userId: String): UserProfile = directory[userId] ?: UserProfile(userId, "", userId)
+    private fun refusedUser(userId: String): UserProfile = directory[userId] ?: UserProfile(userId, userId)
 
     private fun requireActive(chatId: String) {
         checkSuspended()
@@ -1451,19 +1447,31 @@ class FakeGimClient(
         connectionRegs.toList().forEach { it.listener.onChange(state) }
     }
 
+    /** The direct chat with yourself: every member is the signed-in user. */
+    private fun isNoteToSelf(chat: FakeChat): Boolean =
+        chat.kind == ChatKind.DIRECT && session != null && chat.members.all { it.userId == session?.userId }
+
     private fun summary(chat: FakeChat): ChatSummary {
         val me = session?.userId
+        if (isNoteToSelf(chat)) {
+            val own = me()
+            return summaryOf(chat, own.displayName, peer = own, noteToSelf = true)
+        }
         val name = if (chat.kind == ChatKind.DIRECT) {
             chat.members.firstOrNull { it.userId != me }?.displayName ?: chat.name
         } else {
             chat.name
         }
-        val last = chat.events.lastOrNull { it is TimelineItem.Message } as TimelineItem.Message?
         val peer = if (chat.kind == ChatKind.DIRECT) {
             chat.members.firstOrNull { it.userId != me }?.let { directory[it.userId] ?: it }
         } else {
             null
         }
+        return summaryOf(chat, name, peer, noteToSelf = false)
+    }
+
+    private fun summaryOf(chat: FakeChat, name: String, peer: UserProfile?, noteToSelf: Boolean): ChatSummary {
+        val last = chat.events.lastOrNull { it is TimelineItem.Message } as TimelineItem.Message?
         return ChatSummary(
             chatId = chat.id,
             kind = chat.kind,
@@ -1480,10 +1488,11 @@ class FakeGimClient(
             memberCount = chat.members.size,
             state = state(chat.id),
             peer = peer,
+            isNoteToSelf = noteToSelf,
             mutedUntilMs = chat.mutedUntilMs,
             pinned = chat.pinned,
             archived = chat.archived,
-            blocked = peer != null && peer.userId in privacy.blockedUserIds,
+            blocked = !noteToSelf && peer != null && peer.userId in privacy.blockedUserIds,
         )
     }
 
@@ -1535,7 +1544,6 @@ class FakeGimClient(
         private const val MAX_REPORT_NOTE = 1000
         private const val AVATAR_SIDE = 64
 
-        private val HANDLE_PATTERN = Regex("[a-z0-9_]{3,32}")
         private const val LINK_PREFIX = "gimlink:fake:"
         private const val CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
         private const val RECOVERY_CODE_CHARS = 39
@@ -1582,7 +1590,6 @@ class FakeGimClient(
 
         private fun fakeSas(qr: String): String = "%03d %03d".format(Math.floorMod(qr.hashCode(), 1000), qr.length)
 
-        private fun normalizeHandle(handle: String) = handle.trim().removePrefix("@").lowercase()
 
         private fun imageMime(file: File) = if (file.extension.equals("png", ignoreCase = true)) "image/png" else "image/jpeg"
 

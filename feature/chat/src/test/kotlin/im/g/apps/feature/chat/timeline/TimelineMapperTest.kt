@@ -27,7 +27,7 @@ class TimelineMapperTest {
         val NAMES = mapOf("u-ana" to "Ana", "u-bob" to "Bob", SELF to "Sofia")
     }
 
-    private val ana = UserProfile("u-ana", "ana", "Ana Kovač")
+    private val ana = UserProfile("u-ana", "Ana Kovač")
     private val athens = ZoneId.of("Europe/Athens")
 
     private fun message(id: String, at: String, sender: UserProfile = ana, content: MessageContent = MessageContent.Text(id)) =
@@ -176,7 +176,7 @@ class TimelineMapperTest {
     @Test
     fun unresolvedNames_showAShortUserId() {
         val remoteId = "u" + "b".repeat(54) + "q"
-        val remote = UserProfile(remoteId, "", remoteId)
+        val remote = UserProfile(remoteId, remoteId)
         val rows = map(
             "2026-10-15T09:00:00Z",
             separator("2026-10-15"),
@@ -208,7 +208,7 @@ class TimelineMapperTest {
 
     @Test
     fun grouping_breaksAtDateSeparatorSystemRowSenderAndWindow() {
-        val bob = UserProfile("u-bob", "bob", "Bob")
+        val bob = UserProfile("u-bob", "Bob")
         val rows = map(
             "2026-10-16T09:00:00Z",
             separator("2026-10-14"),
