@@ -422,7 +422,7 @@ class GimNavHostTest {
 
         openSettingsRow("Your recovery key")
 
-        rule.waitUntilAtLeastOneExists(hasText("Your recovery key is a spare key"), TIMEOUT)
+        rule.waitUntilAtLeastOneExists(hasText("This device doesn't have your recovery key"), TIMEOUT)
         rule.runOnIdle { assertEquals(Routes.SETTINGS_RECOVERY_KEY, nav.currentDestination?.route) }
     }
 

@@ -33,7 +33,7 @@ class NewRecoveryKeyScreenTest {
         show(NewRecoveryKeyUiState(), NewRecoveryKeyActions(onCreate = { create++ }))
 
         rule.onNodeWithText("Your old key stops working", substring = true).assertExists()
-        rule.onNodeWithText("only once", substring = true).assertExists()
+        rule.onNodeWithText("see the new key again later in Settings", substring = true).assertExists()
         rule.onNodeWithText("Save it right away", substring = true).assertExists()
         rule.onNodeWithTag(NewRecoveryKeyTestTags.CREATE).performScrollTo().performClick()
 

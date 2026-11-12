@@ -67,7 +67,7 @@
     <string name="new_key_title">Nueva clave de recuperación</string>
     <string name="new_key_warning_title">¿Crear una clave de recuperación nueva?</string>
     <string name="new_key_warning_old_key">Tu clave anterior deja de funcionar cuando se crea la nueva.</string>
-    <string name="new_key_warning_once">Solo verás la clave nueva una vez.</string>
+    <string name="new_key_warning_once">Podrás volver a ver la clave nueva más tarde en Ajustes.</string>
     <string name="new_key_warning_save">Guárdala enseguida en un lugar seguro.</string>
     <string name="new_key_create">Crear clave nueva</string>
     <string name="new_key_creating">Creando tu clave nueva…</string>
@@ -75,7 +75,7 @@
     <string name="new_key_error_busy">El servidor está ocupado ahora. Espera un minuto e inténtalo de nuevo. Tu clave anterior sigue funcionando.</string>
     <string name="new_key_error_generic">No se pudo crear una clave nueva. Inténtalo de nuevo. Tu clave anterior sigue funcionando.</string>
     <string name="new_key_kit_title">Tu nueva clave de recuperación</string>
-    <string name="new_key_kit_explanation">Guárdala ahora. Solo la verás esta vez. Si pierdes todos tus dispositivos, tu ID de cuenta y esta clave te devuelven tu cuenta.</string>
+    <string name="new_key_kit_explanation">Guárdala ahora. Si pierdes todos tus dispositivos, tu ID de cuenta y esta clave te devuelven tu cuenta.</string>
     <string name="new_key_kit_account_id_label">ID de cuenta</string>
     <string name="new_key_kit_account_id_description">ID de cuenta %1$s</string>
     <string name="new_key_kit_recovery_key_label">Clave de recuperación</string>
@@ -132,7 +132,7 @@
     <string name="language_phone">Usar el idioma del móvil</string>
     <string name="recovery_key_title">Tu clave de recuperación</string>
     <string name="recovery_key_together">Tu clave de recuperación y tu ID de cuenta recuperan tu cuenta en un móvil nuevo.</string>
-    <string name="recovery_key_once">Nadie puede volver a mostrarte tu clave. Ni siquiera gim.</string>
+    <string name="recovery_key_once">Para volver a ver tu clave aquí, confirma que eres tú con tu huella, tu cara o el bloqueo de pantalla.</string>
     <string name="recovery_key_keep_safe">Guarda tu kit de recuperación en un lugar seguro.</string>
     <string name="notifications_title">Notificaciones</string>
     <string name="notifications_body">Elige sonidos y alertas para cada tipo de notificación. Se abrirán los ajustes de tu móvil.</string>
@@ -157,4 +157,16 @@
     <string name="keep_server_error_invalid">Escribe una dirección que empiece por https://</string>
     <string name="keep_server_error_insecure">Usa https://. Las direcciones con http:// solo funcionan en tu propia red.</string>
     <string name="keep_server_restart">Cierra la app y vuelve a abrirla para usar este cambio.</string>
+    <string name="recovery_key_show">Mostrar clave de recuperación</string>
+    <string name="recovery_key_auth_title">Mostrar tu clave de recuperación</string>
+    <string name="recovery_key_auth_subtitle">Confirma que eres tú</string>
+    <string name="recovery_key_auth_failed">No se pudo confirmar que eres tú. Inténtalo de nuevo.</string>
+    <string name="recovery_key_no_lock">Configura un bloqueo de pantalla en este dispositivo para ver tu clave de recuperación.</string>
+    <string name="recovery_key_error">No se pudo abrir tu clave de recuperación. Inténtalo más tarde.</string>
+    <string name="recovery_key_missing_title">Este dispositivo no tiene tu clave de recuperación</string>
+    <string name="recovery_key_missing_body">Este dispositivo se vinculó a tu cuenta, o tu cuenta se creó antes de que los dispositivos guardaran la clave. Crea una clave de recuperación nueva para verla aquí. Tu clave anterior deja de funcionar.</string>
+    <string name="recovery_key_hidden_on_leave">Tu clave se vuelve a ocultar cuando sales de esta pantalla.</string>
+    <string name="recovery_key_qr_show">Mostrar código QR</string>
+    <string name="recovery_key_qr_hide">Ocultar código QR</string>
+    <string name="recovery_key_qr_description">Código QR de tu kit de recuperación</string>
 </resources>

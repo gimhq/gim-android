@@ -9,5 +9,6 @@ android {
 dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.biometric)
     implementation(libs.zxing.core)
 }

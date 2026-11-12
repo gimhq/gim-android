@@ -20,7 +20,7 @@
     <string name="onboarding_submit">Crear cuenta</string>
     <string name="onboarding_submitting">Creando tu cuenta</string>
     <string name="onboarding_kit_title">Tu kit de recuperación</string>
-    <string name="onboarding_kit_explanation">Es una llave de repuesto para tu cuenta. Si pierdes todos tus dispositivos, tu ID de cuenta y tu clave de recuperación te devuelven tu cuenta. Guárdalos en secreto. Solo los verás ahora, así que guárdalos en un lugar seguro.</string>
+    <string name="onboarding_kit_explanation">Es una llave de repuesto para tu cuenta. Si pierdes todos tus dispositivos, tu ID de cuenta y tu clave de recuperación te devuelven tu cuenta. Guárdalos en secreto y en un lugar seguro ahora. Podrás volver a verlos más tarde en Ajustes.</string>
     <string name="onboarding_kit_account_id_label">ID de cuenta</string>
     <string name="onboarding_kit_account_id_description">ID de cuenta %1$s</string>
     <string name="onboarding_kit_recovery_key_label">Clave de recuperación</string>

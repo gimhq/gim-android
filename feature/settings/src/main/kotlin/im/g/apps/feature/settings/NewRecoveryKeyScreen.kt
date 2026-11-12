@@ -241,7 +241,7 @@ private fun ColumnScope.KitStep(state: NewRecoveryKeyUiState, actions: NewRecove
 
 /** A labelled, selectable monospace value that TalkBack reads as [description]. */
 @Composable
-private fun KitValue(@StringRes label: Int, value: String, description: String, tag: String) {
+internal fun KitValue(@StringRes label: Int, value: String, description: String, tag: String) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             text = stringResource(label),
@@ -352,7 +352,7 @@ internal fun ServerList.describe(@StringRes named: Int, @PluralsRes counted: Int
     }
 
 /** Copies [text] flagged as sensitive, so Android 13+ hides it from the clipboard preview. */
-private fun copySensitive(context: Context, text: String) {
+internal fun copySensitive(context: Context, text: String) {
     val clip = ClipData.newPlainText(null, text).apply {
         description.extras = PersistableBundle().apply { putBoolean(EXTRA_IS_SENSITIVE, true) }
     }

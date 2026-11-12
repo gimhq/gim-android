@@ -20,7 +20,7 @@
     <string name="onboarding_submit">创建账号</string>
     <string name="onboarding_submitting">正在创建你的账号</string>
     <string name="onboarding_kit_title">你的恢复包</string>
-    <string name="onboarding_kit_explanation">这是你账号的备用钥匙。如果你的设备全丢了，用账号 ID 和恢复密钥就能找回账号。请保密。它们只显示这一次，请保存在安全的地方。</string>
+    <string name="onboarding_kit_explanation">这是你账号的备用钥匙。如果你的设备全丢了，用账号 ID 和恢复密钥就能找回账号。请保密，现在就把它们保存在安全的地方。之后你也可以在设置中再次查看。</string>
     <string name="onboarding_kit_account_id_label">账号 ID</string>
     <string name="onboarding_kit_account_id_description">账号 ID %1$s</string>
     <string name="onboarding_kit_recovery_key_label">恢复密钥</string>

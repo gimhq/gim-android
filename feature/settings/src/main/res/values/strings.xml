@@ -69,7 +69,7 @@
     <string name="new_key_title">New recovery key</string>
     <string name="new_key_warning_title">Make a new recovery key?</string>
     <string name="new_key_warning_old_key">Your old key stops working once the new one is made.</string>
-    <string name="new_key_warning_once">You see the new key only once.</string>
+    <string name="new_key_warning_once">You can see the new key again later in Settings.</string>
     <string name="new_key_warning_save">Save it right away, somewhere safe.</string>
     <string name="new_key_create">Create new key</string>
     <string name="new_key_creating">Making your new key…</string>
@@ -77,7 +77,7 @@
     <string name="new_key_error_busy">The server is busy right now. Wait a minute and try again. Your old key still works.</string>
     <string name="new_key_error_generic">Couldn\'t make a new key. Try again. Your old key still works.</string>
     <string name="new_key_kit_title">Your new recovery key</string>
-    <string name="new_key_kit_explanation">Save it now. You see it only this time. Your Account ID and this key get your account back if you lose all your devices.</string>
+    <string name="new_key_kit_explanation">Save it now. Your Account ID and this key get your account back if you lose all your devices.</string>
     <string name="new_key_kit_account_id_label">Account ID</string>
     <string name="new_key_kit_account_id_description">Account ID %1$s</string>
     <string name="new_key_kit_recovery_key_label">Recovery key</string>
@@ -136,7 +136,7 @@
 
     <string name="recovery_key_title">Your recovery key</string>
     <string name="recovery_key_together">Your recovery key and your Account ID bring your account back on a new phone.</string>
-    <string name="recovery_key_once">Nobody can show you your key again. Not even gim.</string>
+    <string name="recovery_key_once">To see your key here again, confirm it\'s you with your fingerprint, face or screen lock.</string>
     <string name="recovery_key_keep_safe">Keep your recovery kit somewhere safe.</string>
 
     <string name="notifications_title">Notifications</string>
@@ -172,4 +172,16 @@
     <string name="keep_server_error_invalid">Enter an address that starts with https://</string>
     <string name="keep_server_error_insecure">Use https://. Addresses with http:// only work on your own network.</string>
     <string name="keep_server_restart">Close the app and open it again to use this change.</string>
+    <string name="recovery_key_show">Show recovery key</string>
+    <string name="recovery_key_auth_title">Show your recovery key</string>
+    <string name="recovery_key_auth_subtitle">Confirm it\'s you</string>
+    <string name="recovery_key_auth_failed">Couldn\'t confirm it\'s you. Try again.</string>
+    <string name="recovery_key_no_lock">Set a screen lock on this device to see your recovery key.</string>
+    <string name="recovery_key_error">Couldn\'t open your recovery key. Try again later.</string>
+    <string name="recovery_key_missing_title">This device doesn\'t have your recovery key</string>
+    <string name="recovery_key_missing_body">This device was linked to your account, or your account was made before keys were kept on devices. Create a new recovery key to see it here. Your old key stops working.</string>
+    <string name="recovery_key_hidden_on_leave">Your key is hidden again when you leave this screen.</string>
+    <string name="recovery_key_qr_show">Show QR code</string>
+    <string name="recovery_key_qr_hide">Hide QR code</string>
+    <string name="recovery_key_qr_description">QR code of your recovery kit</string>
 </resources>

@@ -62,7 +62,9 @@ import im.g.apps.feature.settings.NewRecoveryKeyRoute
 import im.g.apps.feature.settings.NotificationChannelItem
 import im.g.apps.feature.settings.NotificationsRoute
 import im.g.apps.feature.settings.ProfileRoute
-import im.g.apps.feature.settings.RecoveryKeyScreen
+import im.g.apps.feature.settings.RecoveryKeyRoute
+import im.g.apps.feature.settings.recoveryKeyViewModelFactory
+import im.g.apps.feature.settings.systemDeviceAuthenticator
 import im.g.apps.feature.settings.SettingsActions
 import im.g.apps.feature.settings.SettingsRoute
 import im.g.apps.feature.settings.SettingsViewModel
@@ -216,7 +218,18 @@ fun GimNavHost(
             )
         }
         composable(Routes.SETTINGS_RECOVERY_KEY) {
-            RecoveryKeyScreen(onBack = { navController.popBackStack() })
+            val current = client ?: return@composable
+            val context = LocalContext.current
+            RecoveryKeyRoute(
+                viewModel = viewModel(factory = recoveryKeyViewModelFactory(current, container.recoveryKitCodec)),
+                authenticator = systemDeviceAuthenticator(context),
+                onShareKit = { shareRecoveryKit(context, it) },
+                onCreateNewKey = { navController.navigate(Routes.SETTINGS_NEW_RECOVERY_KEY) },
+                onBack = {
+                    deleteRecoveryKitFiles(context)
+                    navController.popBackStack()
+                },
+            )
         }
         composable(Routes.SETTINGS_NEW_RECOVERY_KEY) {
             val current = client ?: return@composable

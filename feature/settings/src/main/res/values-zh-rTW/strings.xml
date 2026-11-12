@@ -68,7 +68,7 @@
     <string name="new_key_title">新的復原金鑰</string>
     <string name="new_key_warning_title">要建立新的復原金鑰嗎？</string>
     <string name="new_key_warning_old_key">新金鑰建立後，舊金鑰就不能用了。</string>
-    <string name="new_key_warning_once">新金鑰只會顯示一次。</string>
+    <string name="new_key_warning_once">之後你可以在設定中再次查看新金鑰。</string>
     <string name="new_key_warning_save">請馬上把它存放在安全的地方。</string>
     <string name="new_key_create">建立新金鑰</string>
     <string name="new_key_creating">正在建立新金鑰…</string>
@@ -76,7 +76,7 @@
     <string name="new_key_error_busy">伺服器現在很忙。請等一分鐘再試一次。你的舊金鑰仍然可以用。</string>
     <string name="new_key_error_generic">無法建立新金鑰。請再試一次。你的舊金鑰仍然可以用。</string>
     <string name="new_key_kit_title">你的新復原金鑰</string>
-    <string name="new_key_kit_explanation">現在就把它存好。它只會在這時顯示。如果所有裝置都不見了，你的帳號 ID 和這個金鑰可以找回帳號。</string>
+    <string name="new_key_kit_explanation">現在就把它存好。如果所有裝置都不見了，你的帳號 ID 和這個金鑰可以找回帳號。</string>
     <string name="new_key_kit_account_id_label">帳號 ID</string>
     <string name="new_key_kit_account_id_description">帳號 ID %1$s</string>
     <string name="new_key_kit_recovery_key_label">復原金鑰</string>
@@ -132,7 +132,7 @@
 
     <string name="recovery_key_title">你的復原金鑰</string>
     <string name="recovery_key_together">你的復原金鑰和帳號 ID 可以在新手機上找回你的帳號。</string>
-    <string name="recovery_key_once">沒有人能再顯示你的金鑰給你看，連 gim 也不行。</string>
+    <string name="recovery_key_once">要在這裡再次查看金鑰，需要先用指紋、臉孔或螢幕鎖定確認是你本人。</string>
     <string name="recovery_key_keep_safe">請把復原包存放在安全的地方。</string>
 
     <string name="notifications_title">通知</string>
@@ -160,4 +160,16 @@
     <string name="keep_server_error_invalid">請輸入以 https:// 開頭的位址</string>
     <string name="keep_server_error_insecure">請使用 https://。以 http:// 開頭的位址只能在你自己的網路裡使用。</string>
     <string name="keep_server_restart">關閉 App 再重新開啟，這項變更才會生效。</string>
+    <string name="recovery_key_show">顯示復原金鑰</string>
+    <string name="recovery_key_auth_title">顯示你的復原金鑰</string>
+    <string name="recovery_key_auth_subtitle">確認是你本人</string>
+    <string name="recovery_key_auth_failed">無法確認是你本人。請再試一次。</string>
+    <string name="recovery_key_no_lock">請先為這部裝置設定螢幕鎖定，才能查看復原金鑰。</string>
+    <string name="recovery_key_error">無法開啟你的復原金鑰。請稍後再試。</string>
+    <string name="recovery_key_missing_title">這部裝置上沒有你的復原金鑰</string>
+    <string name="recovery_key_missing_body">這部裝置是連結到你帳號的，或你的帳號建立於裝置開始保存金鑰之前。建立新的復原金鑰後，就能在這裡查看。舊金鑰會失效。</string>
+    <string name="recovery_key_hidden_on_leave">離開這個畫面後，金鑰會再次隱藏。</string>
+    <string name="recovery_key_qr_show">顯示 QR 碼</string>
+    <string name="recovery_key_qr_hide">隱藏 QR 碼</string>
+    <string name="recovery_key_qr_description">復原包的 QR 碼</string>
 </resources>

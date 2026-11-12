@@ -67,7 +67,7 @@
     <string name="new_key_title">新的恢复密钥</string>
     <string name="new_key_warning_title">要创建新的恢复密钥吗？</string>
     <string name="new_key_warning_old_key">新密钥创建后，旧密钥就不能用了。</string>
-    <string name="new_key_warning_once">新密钥只会显示一次。</string>
+    <string name="new_key_warning_once">之后你可以在设置中再次查看新密钥。</string>
     <string name="new_key_warning_save">请马上把它保存在安全的地方。</string>
     <string name="new_key_create">创建新密钥</string>
     <string name="new_key_creating">正在创建新密钥…</string>
@@ -75,7 +75,7 @@
     <string name="new_key_error_busy">服务器现在很忙。请等一分钟再试。你的旧密钥仍然可用。</string>
     <string name="new_key_error_generic">无法创建新密钥。请重试。你的旧密钥仍然可用。</string>
     <string name="new_key_kit_title">你的新恢复密钥</string>
-    <string name="new_key_kit_explanation">现在就保存它。它只显示这一次。如果你的设备全丢了，用账号 ID 和这个密钥就能找回账号。</string>
+    <string name="new_key_kit_explanation">现在就保存它。如果你的设备全丢了，用账号 ID 和这个密钥就能找回账号。</string>
     <string name="new_key_kit_account_id_label">账号 ID</string>
     <string name="new_key_kit_account_id_description">账号 ID %1$s</string>
     <string name="new_key_kit_recovery_key_label">恢复密钥</string>
@@ -128,7 +128,7 @@
     <string name="language_phone">跟随手机语言</string>
     <string name="recovery_key_title">你的恢复密钥</string>
     <string name="recovery_key_together">在新手机上，用恢复密钥和账号 ID 就能找回你的账号。</string>
-    <string name="recovery_key_once">没有人能再次向你显示这个密钥。gim 也不能。</string>
+    <string name="recovery_key_once">要在这里再次查看密钥，需要先用指纹、面容或屏幕锁确认是你本人。</string>
     <string name="recovery_key_keep_safe">请把你的恢复包放在安全的地方。</string>
     <string name="notifications_title">通知</string>
     <string name="notifications_body">为每种通知选择声音和提醒。将打开手机的设置。</string>
@@ -153,4 +153,16 @@
     <string name="keep_server_error_invalid">请输入以 https:// 开头的地址</string>
     <string name="keep_server_error_insecure">请使用 https://。以 http:// 开头的地址只能在你自己的网络里使用。</string>
     <string name="keep_server_restart">关闭应用再重新打开，这个更改才会生效。</string>
+    <string name="recovery_key_show">显示恢复密钥</string>
+    <string name="recovery_key_auth_title">显示你的恢复密钥</string>
+    <string name="recovery_key_auth_subtitle">确认是你本人</string>
+    <string name="recovery_key_auth_failed">无法确认是你本人。请重试。</string>
+    <string name="recovery_key_no_lock">请先为这台设备设置屏幕锁，才能查看恢复密钥。</string>
+    <string name="recovery_key_error">无法打开你的恢复密钥。请稍后再试。</string>
+    <string name="recovery_key_missing_title">这台设备上没有你的恢复密钥</string>
+    <string name="recovery_key_missing_body">这台设备是关联到你账号的，或者你的账号创建于设备开始保存密钥之前。创建一个新的恢复密钥后，就能在这里查看。旧密钥会失效。</string>
+    <string name="recovery_key_hidden_on_leave">离开这个页面后，密钥会重新隐藏。</string>
+    <string name="recovery_key_qr_show">显示二维码</string>
+    <string name="recovery_key_qr_hide">隐藏二维码</string>
+    <string name="recovery_key_qr_description">恢复包的二维码</string>
 </resources>

@@ -23,7 +23,7 @@
     <string name="onboarding_submitting">正在建立你的帳號</string>
 
     <string name="onboarding_kit_title">你的復原包</string>
-    <string name="onboarding_kit_explanation">這是你帳號的備用鑰匙。如果所有裝置都不見了，你的帳號 ID 和復原金鑰可以找回帳號。請保密。它們只會在這時顯示，所以請存放在安全的地方。</string>
+    <string name="onboarding_kit_explanation">這是你帳號的備用鑰匙。如果所有裝置都不見了，你的帳號 ID 和復原金鑰可以找回帳號。請保密，現在就把它們存放在安全的地方。之後你也可以在設定中再次查看。</string>
     <string name="onboarding_kit_account_id_label">帳號 ID</string>
     <string name="onboarding_kit_account_id_description">帳號 ID %1$s</string>
     <string name="onboarding_kit_recovery_key_label">復原金鑰</string>

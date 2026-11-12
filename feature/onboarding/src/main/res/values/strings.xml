@@ -23,7 +23,7 @@
     <string name="onboarding_submitting">Creating your account</string>
 
     <string name="onboarding_kit_title">Your recovery kit</string>
-    <string name="onboarding_kit_explanation">This is a spare key to your account. If you lose all your devices, your Account ID and recovery key get your account back. Keep them secret. You see them only now, so save them somewhere safe.</string>
+    <string name="onboarding_kit_explanation">This is a spare key to your account. If you lose all your devices, your Account ID and recovery key get your account back. Keep them secret and save them somewhere safe now. You can see them again later in Settings.</string>
     <string name="onboarding_kit_account_id_label">Account ID</string>
     <string name="onboarding_kit_account_id_description">Account ID %1$s</string>
     <string name="onboarding_kit_recovery_key_label">Recovery key</string>
