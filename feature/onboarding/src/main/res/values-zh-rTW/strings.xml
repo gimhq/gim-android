@@ -42,13 +42,6 @@
     <string name="onboarding_kit_check_label">最後 4 個字元</string>
     <string name="onboarding_kit_check_confirm">確認</string>
 
-    <string name="onboarding_handle_title">選擇使用者名稱</string>
-    <string name="onboarding_handle_explanation">朋友可以用它找到你。這不是必填的，你之後也可以再設定。</string>
-    <string name="onboarding_handle_label">使用者名稱</string>
-    <string name="onboarding_handle_supporting">3–32 個字元：a–z、0–9 和 _</string>
-    <string name="onboarding_claim_handle">儲存使用者名稱</string>
-    <string name="onboarding_claiming_handle">正在儲存使用者名稱</string>
-    <string name="onboarding_skip">先略過</string>
 
     <string name="onboarding_link_qr_title">用你的另一台裝置掃描</string>
     <string name="onboarding_link_qr_explanation">在你使用 gim 的裝置上，打開「聊天」裡的選單。選擇「連結新裝置」，然後掃描這個代碼。</string>
@@ -77,8 +70,6 @@
     <string name="onboarding_restoring">正在還原你的帳號</string>
 
     <string name="onboarding_error_server_url">請輸入完整的地址，例如 https://example.com</string>
-    <string name="onboarding_error_handle">請使用 3–32 個字元：a–z、0–9 和 _</string>
-    <string name="onboarding_error_handle_taken">這個使用者名稱已經有人使用了。請換一個試試。</string>
     <string name="onboarding_error_display_name">你的名字長度可以是 1–64 個字元。</string>
     <string name="onboarding_error_user_id">這不是帳號 ID。帳號 ID 以「u」開頭，共有 56 個字元。</string>
     <string name="onboarding_error_unknown_user">這個伺服器上沒有使用這個帳號 ID 的帳號。請檢查 ID 和伺服器。</string>

@@ -234,14 +234,6 @@ class OnboardingStepsTest {
         rule.onNodeWithText("under Devices", substring = true).assertDoesNotExist()
     }
 
-    @Test
-    fun username_explains_what_it_is_for() {
-        show(OnboardingUiState(step = OnboardingStep.HANDLE))
-        rule.onNodeWithText("Choose a username").assertExists()
-        rule.onNodeWithText("Friends can find you with it.", substring = true).assertExists()
-        rule.onNodeWithText("Username").assertExists()
-    }
-
     private companion object {
         const val USER_ID = "u" + "abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuv" + "q"
         const val RECOVERY_CODE = "7BQ2-K9MX-4TVA-0HZR-PC63-W8NE-1SJD-5GFY-QK2M-V7R"

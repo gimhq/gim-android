@@ -87,9 +87,6 @@ class OnboardingCallbacks(
     val onContinueFromKit: () -> Unit,
     val onKitCheckChange: (String) -> Unit,
     val onConfirmKitCheck: () -> Unit,
-    val onHandleChange: (String) -> Unit,
-    val onClaimHandle: () -> Unit,
-    val onSkipHandle: () -> Unit,
     val onLinkDevice: () -> Unit,
     val onCancelLink: () -> Unit,
     val onRetryLink: () -> Unit,
@@ -142,9 +139,6 @@ fun OnboardingRoute(
             onContinueFromKit = viewModel::continueFromKit,
             onKitCheckChange = viewModel::onKitCheckChange,
             onConfirmKitCheck = viewModel::confirmKitCheck,
-            onHandleChange = viewModel::onHandleChange,
-            onClaimHandle = viewModel::claimHandle,
-            onSkipHandle = viewModel::skipHandle,
             onLinkDevice = viewModel::linkDevice,
             onCancelLink = viewModel::cancelLink,
             onRetryLink = viewModel::retryLink,
@@ -198,7 +192,6 @@ fun OnboardingScreen(
                 OnboardingStep.DISPLAY_NAME -> DisplayNameStep(state, callbacks)
                 OnboardingStep.RECOVERY_KIT -> RecoveryKitStep(state, callbacks)
                 OnboardingStep.RECOVERY_CHECK -> RecoveryCheckStep(state, callbacks)
-                OnboardingStep.HANDLE -> HandleStep(state, callbacks)
                 OnboardingStep.LINK_QR -> LinkQrStep(state, callbacks)
                 OnboardingStep.LINK_SAS -> LinkSasStep(state, callbacks)
                 OnboardingStep.RESTORE -> RestoreStep(state, callbacks)
@@ -328,53 +321,6 @@ private fun ColumnScope.DisplayNameStep(state: OnboardingUiState, callbacks: Onb
             callbacks.onSubmitDisplayName()
         },
     )
-}
-
-@Composable
-private fun ColumnScope.HandleStep(state: OnboardingUiState, callbacks: OnboardingCallbacks) {
-    val focusManager = LocalFocusManager.current
-    StepHeader(R.string.onboarding_handle_title, R.string.onboarding_handle_explanation)
-    OnboardingField(
-        value = state.handle,
-        onValueChange = callbacks.onHandleChange,
-        label = R.string.onboarding_handle_label,
-        supporting = R.string.onboarding_handle_supporting,
-        error = state.handleError,
-        enabled = !state.isLoading,
-        keyboardOptions = KeyboardOptions(
-            capitalization = KeyboardCapitalization.None,
-            autoCorrectEnabled = false,
-            keyboardType = KeyboardType.Text,
-            imeAction = ImeAction.Done,
-        ),
-        keyboardActions = KeyboardActions(
-            onDone = {
-                focusManager.clearFocus()
-                callbacks.onClaimHandle()
-            },
-        ),
-        tag = OnboardingTestTags.HANDLE,
-    )
-    ProgressButton(
-        label = R.string.onboarding_claim_handle,
-        progressDescription = R.string.onboarding_claiming_handle,
-        isLoading = state.isLoading,
-        enabled = state.canClaimHandle,
-        tag = OnboardingTestTags.CLAIM_HANDLE,
-        onClick = {
-            focusManager.clearFocus()
-            callbacks.onClaimHandle()
-        },
-    )
-    TextButton(
-        onClick = callbacks.onSkipHandle,
-        enabled = !state.isLoading,
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag(OnboardingTestTags.SKIP_HANDLE),
-    ) {
-        Text(stringResource(R.string.onboarding_skip))
-    }
 }
 
 @Composable
@@ -670,8 +616,6 @@ private fun ProgressButton(
 @StringRes
 private fun FieldError.messageRes(): Int = when (this) {
     FieldError.InvalidServerUrl -> R.string.onboarding_error_server_url
-    FieldError.InvalidHandle -> R.string.onboarding_error_handle
-    FieldError.HandleTaken -> R.string.onboarding_error_handle_taken
     FieldError.InvalidDisplayName -> R.string.onboarding_error_display_name
     FieldError.InvalidUserId -> R.string.onboarding_error_user_id
     FieldError.UnknownUser -> R.string.onboarding_error_unknown_user
@@ -715,9 +659,6 @@ internal object OnboardingTestTags {
     const val CODE_CONTINUE = "onboarding_code_continue"
     const val KIT_CHECK = "onboarding_kit_check"
     const val KIT_CHECK_CONFIRM = "onboarding_kit_check_confirm"
-    const val HANDLE = "onboarding_handle"
-    const val CLAIM_HANDLE = "onboarding_claim_handle"
-    const val SKIP_HANDLE = "onboarding_skip_handle"
     const val LINK_CANCEL = "onboarding_link_cancel"
     const val LINK_QR = "onboarding_link_qr"
     const val LINK_COPY = "onboarding_link_copy"
@@ -738,7 +679,7 @@ private const val MULTI_LINE_MIN_LINES = 3
 internal val previewCallbacks =
     OnboardingCallbacks(
         {}, {}, {}, {}, {}, {}, {}, FakeRecoveryKitCodec::format, {}, { _, _ -> PasswordSaveResult.SAVED }, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
-        {}, {}, {}, {}, {}, {}, {}, {},
+        {}, {}, {}, {}, {},
     )
 
 @GimPreviews
@@ -772,22 +713,6 @@ private fun OnboardingRecoveryKitPreview() {
                 step = OnboardingStep.RECOVERY_KIT,
                 recoveryCode = "7BQ2-K9MX-4TVA-0HZR-PC63-W8NE-1SJD-5GFY-QK2M-V7A",
                 accountId = "ubiqcairaqfhdbnfqlq3ue7rfxpgtzwdmh7ghtghhkzdkyxbbg2ikmxwgy",
-            ),
-            previewCallbacks,
-        )
-    }
-}
-
-@GimPreviews
-@Composable
-private fun OnboardingHandleErrorPreview() {
-    GimTheme {
-        OnboardingScreen(
-            OnboardingUiState(
-                step = OnboardingStep.HANDLE,
-                handle = "sofia",
-                handleError = FieldError.HandleTaken,
-                error = OnboardingError.TryAgainLater(30),
             ),
             previewCallbacks,
         )

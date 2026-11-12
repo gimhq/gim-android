@@ -150,7 +150,7 @@ class OnboardingScreenTest {
     }
 
     @Test
-    fun create_account_flow_shows_the_recovery_kit_checks_it_and_finishes_with_a_handle() {
+    fun create_account_flow_shows_the_recovery_kit_checks_it_and_finishes() {
         setContent()
         rule.onNodeWithTag(OnboardingTestTags.SERVER_URL).performTextInput("https://gim.example.eu")
         rule.onNodeWithTag(OnboardingTestTags.CREATE_ACCOUNT).assertIsEnabled().performClick()
@@ -173,13 +173,10 @@ class OnboardingScreenTest {
         rule.onNodeWithTag(OnboardingTestTags.KIT_CHECK).performTextReplacement(code.replace("-", "").takeLast(4))
         rule.onNodeWithTag(OnboardingTestTags.KIT_CHECK_CONFIRM).performScrollTo().assertIsEnabled().performClick()
 
-        rule.onNodeWithTag(OnboardingTestTags.CLAIM_HANDLE).assertIsNotEnabled()
-        rule.onNodeWithTag(OnboardingTestTags.HANDLE).performTextInput("sofia")
-        rule.onNodeWithTag(OnboardingTestTags.CLAIM_HANDLE).performScrollTo().performClick()
         rule.waitUntil(timeoutMillis = 5_000) { finished == 1 }
         rule.waitForIdle()
         assertEquals(1, finished)
-        assertEquals("sofia", runBlocking { manager.client.value?.session()?.handle })
+        assertEquals("Sofia Costa", runBlocking { manager.client.value?.session()?.displayName })
     }
 
     @Test

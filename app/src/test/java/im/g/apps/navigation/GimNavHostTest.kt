@@ -88,8 +88,8 @@ class GimNavHostTest {
         rule.waitUntilAtLeastOneExists(hasTestTag("onboarding_server_url"), TIMEOUT)
     }
 
-    /** Runs the new-account onboarding from Welcome; claims "sofia" or skips the handle step. */
-    private fun register(claimHandle: Boolean) {
+    /** Runs the new-account onboarding from Welcome through the recovery kit check. */
+    private fun register() {
         rule.onNodeWithTag("onboarding_create_account").assertExists()
         useAnotherServer()
         rule.onNodeWithTag("onboarding_server_url").performTextReplacement(DemoData.SERVER_URL)
@@ -102,13 +102,6 @@ class GimNavHostTest {
         rule.onNodeWithTag("onboarding_code_continue").performScrollTo().performClick()
         rule.onNodeWithTag("onboarding_kit_check").performTextInput(code.replace("-", "").takeLast(4))
         rule.onNodeWithTag("onboarding_kit_check_confirm").performClick()
-        rule.waitUntilAtLeastOneExists(hasTestTag("onboarding_handle"), TIMEOUT)
-        if (claimHandle) {
-            rule.onNodeWithTag("onboarding_handle").performTextInput("sofia")
-            rule.onNodeWithTag("onboarding_claim_handle").performClick()
-        } else {
-            rule.onNodeWithTag("onboarding_skip_handle").performClick()
-        }
     }
 
     /** From the chat list: own avatar -> Settings -> the row labelled [row]. */
@@ -197,10 +190,10 @@ class GimNavHostTest {
         )
 
         skipIntro()
-        register(claimHandle = true)
+        register()
 
         rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
-        rule.onNodeWithTag("onboarding_handle").assertDoesNotExist()
+        rule.onNodeWithTag("onboarding_kit_check").assertDoesNotExist()
     }
 
     @Test
@@ -230,7 +223,7 @@ class GimNavHostTest {
         assertNull(store.get())
         assertNull(container.manager.client.value)
 
-        register(claimHandle = false)
+        register()
 
         rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
         rule.runOnIdle { assertNull(nav.previousBackStackEntry) }
@@ -276,7 +269,7 @@ class GimNavHostTest {
         assertNull(container.manager.client.value)
         assertNull(runBlocking { deleted.session() })
 
-        register(claimHandle = false)
+        register()
 
         rule.waitUntilAtLeastOneExists(hasText("Aegean Crew"), TIMEOUT)
         rule.runOnIdle { assertNull(nav.previousBackStackEntry) }

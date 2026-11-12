@@ -16,7 +16,6 @@ enum class OnboardingStep {
 
     /** The user types the code's last four symbols to show the kit was saved. */
     RECOVERY_CHECK,
-    HANDLE,
 
     /** Link to an existing device: the `startLink` QR code while `waitLink` runs. */
     LINK_QR,
@@ -31,8 +30,6 @@ enum class OnboardingStep {
 /** Inline error shown under a single text field. */
 enum class FieldError {
     InvalidServerUrl,
-    InvalidHandle,
-    HandleTaken,
     InvalidDisplayName,
     InvalidUserId,
 
@@ -101,8 +98,6 @@ data class OnboardingUiState(
     /** What the user typed on [OnboardingStep.RECOVERY_CHECK]. */
     val kitCheck: String = "",
     val kitCheckError: FieldError? = null,
-    val handle: String = "",
-    val handleError: FieldError? = null,
     /** `LinkSession.qrString()` while [step] is [OnboardingStep.LINK_QR] and the link is waiting; null otherwise. */
     val linkQr: String? = null,
     /** The six-digit SAS ("123 456") while [step] is [OnboardingStep.LINK_SAS]. */
@@ -128,9 +123,6 @@ data class OnboardingUiState(
 
     val canConfirmKitCheck: Boolean
         get() = !isLoading && normalizeRecoveryCode(kitCheck).length == KIT_CHECK_SYMBOLS
-
-    val canClaimHandle: Boolean
-        get() = !isLoading && isValidHandle(handle) && handleError == null
 
     /**
      * On [OnboardingStep.LINK_QR] after the wait ended with an error, unless suspended or not admitted: a new link can
@@ -179,6 +171,6 @@ internal fun serverUrlError(value: String): FieldError? =
     FieldError.InvalidServerUrl.takeIf { value.isNotBlank() && !isValidServerUrl(value) }
 
 sealed interface OnboardingEvent {
-    /** The account exists (with or without a handle), or this device is linked or restored: go to the chat list. */
+    /** The account exists and its kit was checked, or this device is linked or restored: go to the chat list. */
     data object Finished : OnboardingEvent
 }

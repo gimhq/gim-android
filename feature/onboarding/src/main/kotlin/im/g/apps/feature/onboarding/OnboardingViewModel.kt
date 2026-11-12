@@ -27,7 +27,7 @@ import kotlin.time.Duration.Companion.minutes
  * Every flow starts with the intro, then Welcome.
  *
  * New account: Welcome -> display name -> `createIdentity` -> recovery kit (user ID and recovery code, shown once)
- * -> kit check (the code's last four symbols typed back) -> optional `claimHandle` -> [OnboardingEvent.Finished].
+ * -> kit check (the code's last four symbols typed back) -> [OnboardingEvent.Finished].
  * The server address starts as [defaultServerUrl] (trimmed), validated like typed input; a valid one hides the
  * server field on Welcome until the user asks for another server. Field errors are computed as the user types;
  * server-side rejections replace them until the field changes.
@@ -70,15 +70,6 @@ class OnboardingViewModel(
         it.copy(
             displayName = value,
             displayNameError = FieldError.InvalidDisplayName.takeIf { value.isNotEmpty() && !isValidDisplayName(value) },
-            error = null,
-        )
-    }
-
-    fun onHandleChange(value: String) = edit {
-        val handle = normalizeHandle(value)
-        it.copy(
-            handle = handle,
-            handleError = FieldError.InvalidHandle.takeIf { handle.isNotEmpty() && !isValidHandle(handle) },
             error = null,
         )
     }
@@ -234,45 +225,17 @@ class OnboardingViewModel(
         if (it.step != OnboardingStep.RECOVERY_KIT) it else it.copy(step = OnboardingStep.RECOVERY_CHECK)
     }
 
-    /** Kit check -> handle when the typed symbols end the code; the code is then dropped from the state for good. */
-    fun confirmKitCheck() = _state.update {
-        val code = it.recoveryCode
-        when {
-            it.step != OnboardingStep.RECOVERY_CHECK || !it.canConfirmKitCheck || code == null -> it
-            recoveryKitCodec.matchesKeyEnding(code, it.kitCheck) ->
-                it.copy(step = OnboardingStep.HANDLE, recoveryCode = null, kitCheck = "", kitCheckError = null)
-            else -> it.copy(kitCheckError = FieldError.KitCheckMismatch)
-        }
-    }
-
-    /** Claims the handle and finishes; a taken handle (409) is reported on the field. */
-    fun claimHandle() {
+    /** Kit check -> finished when the typed symbols end the code; the code is then dropped from the state for good. */
+    fun confirmKitCheck() {
         val current = _state.value
-        val connected = client
-        if (current.step != OnboardingStep.HANDLE || !current.canClaimHandle || connected == null) return
-        _state.value = current.copy(isLoading = true, error = null)
-        viewModelScope.launch {
-            try {
-                connected.claimHandle(current.handle)
-                _state.update { it.copy(isLoading = false) }
-                _events.send(OnboardingEvent.Finished)
-            } catch (e: GimException) {
-                fail(e) { loaded ->
-                    when {
-                        e is GimException.Server && e.status == HTTP_CONFLICT -> loaded.copy(handleError = FieldError.HandleTaken)
-                        e is GimException.InvalidInput -> loaded.copy(handleError = FieldError.InvalidHandle)
-                        else -> null
-                    }
-                }
-            }
+        val code = current.recoveryCode
+        if (current.step != OnboardingStep.RECOVERY_CHECK || !current.canConfirmKitCheck || code == null) return
+        if (recoveryKitCodec.matchesKeyEnding(code, current.kitCheck)) {
+            _state.value = current.copy(recoveryCode = null, kitCheck = "", kitCheckError = null)
+            _events.trySend(OnboardingEvent.Finished)
+        } else {
+            _state.value = current.copy(kitCheckError = FieldError.KitCheckMismatch)
         }
-    }
-
-    /** Finishes without a handle; one can be claimed later. */
-    fun skipHandle() {
-        val current = _state.value
-        if (current.step != OnboardingStep.HANDLE || current.isLoading) return
-        _events.trySend(OnboardingEvent.Finished)
     }
 
     /** Welcome -> link QR code: connects to the server and starts a link through it. */
@@ -433,8 +396,6 @@ class OnboardingViewModel(
     }
 
     companion object {
-        private const val HTTP_CONFLICT = 409
-
         /** gim-core's own `waitLink` limit. */
         val LINK_TIMEOUT = 10.minutes
 

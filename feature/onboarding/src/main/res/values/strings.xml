@@ -42,13 +42,6 @@
     <string name="onboarding_kit_check_label">Last 4 characters</string>
     <string name="onboarding_kit_check_confirm">Confirm</string>
 
-    <string name="onboarding_handle_title">Choose a username</string>
-    <string name="onboarding_handle_explanation">Friends can find you with it. It’s optional. You can add one later.</string>
-    <string name="onboarding_handle_label">Username</string>
-    <string name="onboarding_handle_supporting">3–32 characters: a–z, 0–9 and _</string>
-    <string name="onboarding_claim_handle">Save username</string>
-    <string name="onboarding_claiming_handle">Saving username</string>
-    <string name="onboarding_skip">Skip for now</string>
 
     <string name="onboarding_link_qr_title">Scan with your other device</string>
     <string name="onboarding_link_qr_explanation">On a device where you use gim, open the menu in Chats. Choose “Link a new device” and scan this code.</string>
@@ -77,8 +70,6 @@
     <string name="onboarding_restoring">Restoring your account</string>
 
     <string name="onboarding_error_server_url">Enter a full address, like https://example.com</string>
-    <string name="onboarding_error_handle">Use 3–32 characters: a–z, 0–9 and _</string>
-    <string name="onboarding_error_handle_taken">Someone already has this username. Try another one.</string>
     <string name="onboarding_error_display_name">Your name can be 1–64 characters long.</string>
     <string name="onboarding_error_user_id">This isn’t an Account ID. It starts with “u” and has 56 characters.</string>
     <string name="onboarding_error_unknown_user">This server has no account with this Account ID. Check the ID and the server.</string>

@@ -8,7 +8,6 @@ import im.g.apps.core.bridge.GimException
 import im.g.apps.core.bridge.InMemoryServerUrlStore
 import im.g.apps.core.bridge.RecoveryKitCodec
 import im.g.apps.core.bridge.RecoveryKitLabels
-import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.fake.FakeGimClientFactory
 import im.g.apps.core.bridge.fake.FakePlatformHooks
@@ -47,17 +46,12 @@ class OnboardingViewModelTest {
         FakeGimClient(backgroundScope, outboxDelays = null).also(configure)
     }
 
-    /** A fake client whose `createIdentity` and/or `claimHandle` throw. */
-    private fun TestScope.failingFactory(
-        createIdentity: GimException? = null,
-        claimHandle: GimException? = null,
-    ) = GimClientFactory { _, _ ->
+    /** A fake client whose `createIdentity` throws. */
+    private fun TestScope.failingFactory(createIdentity: GimException? = null) = GimClientFactory { _, _ ->
         val fake = FakeGimClient(backgroundScope, outboxDelays = null)
         object : GimClient by fake {
             override suspend fun createIdentity(displayName: String): String =
                 createIdentity?.let { throw it } ?: fake.createIdentity(displayName)
-
-            override suspend fun claimHandle(handle: String) = claimHandle?.let { throw it } ?: fake.claimHandle(handle)
         }
     }
 
@@ -96,15 +90,6 @@ class OnboardingViewModelTest {
         vm.submitDisplayName()
         advanceUntilIdle()
         assertEquals(OnboardingStep.RECOVERY_KIT, vm.state.value.step)
-    }
-
-    /** Recovery kit -> check, typing the code's last four symbols. */
-    private fun TestScope.toHandle(vm: OnboardingViewModel) {
-        toRecoveryKit(vm)
-        vm.continueFromKit()
-        vm.onKitCheckChange(vm.state.value.recoveryCode!!.replace("-", "").takeLast(4))
-        vm.confirmKitCheck()
-        assertEquals(OnboardingStep.HANDLE, vm.state.value.step)
     }
 
     @Test
@@ -248,7 +233,7 @@ class OnboardingViewModelTest {
     }
 
     @Test
-    fun create_shows_recovery_kit_then_check_then_claims_handle_and_finishes() = runTest(dispatcher) {
+    fun create_shows_recovery_kit_then_check_and_finishes() = runTest(dispatcher) {
         val factory = fakeFactory()
         val vm = OnboardingViewModel(manager(factory), FakeRecoveryKitCodec)
         vm.finishIntro()
@@ -266,7 +251,6 @@ class OnboardingViewModelTest {
         val client = factory.created.single()
         assertEquals(client.userId(), vm.state.value.accountId)
         assertEquals("Sofia Costa", client.session()?.displayName)
-        assertEquals("", client.session()?.handle)
 
         // The kit must be passed; back does not leave it.
         assertTrue(vm.state.value.handlesBack)
@@ -279,82 +263,14 @@ class OnboardingViewModelTest {
         // Lower case with a dash and spaces still matches the last four symbols.
         val ending = code.replace("-", "").takeLast(4)
         vm.onKitCheckChange(" ${ending.take(2).lowercase()}-${ending.drop(2).lowercase()} ")
-        vm.confirmKitCheck()
-        assertEquals(OnboardingStep.HANDLE, vm.state.value.step)
+        vm.events.test {
+            vm.confirmKitCheck()
+            assertEquals(OnboardingEvent.Finished, awaitItem())
+        }
         assertNull(vm.state.value.recoveryCode)
         assertNull(vm.state.value.kitCheckError)
-        assertFalse(vm.state.value.handlesBack)
-
-        vm.onHandleChange(" @Sofia_C ")
-        assertEquals("sofia_c", vm.state.value.handle)
-        vm.events.test {
-            vm.claimHandle()
-            assertTrue(vm.state.value.isLoading)
-            assertEquals(OnboardingEvent.Finished, awaitItem())
-        }
         assertFalse(vm.state.value.isLoading)
-        assertEquals("sofia_c", client.session()?.handle)
         assertEquals(1, factory.created.size)
-    }
-
-    @Test
-    fun skip_finishes_without_a_handle() = runTest(dispatcher) {
-        val factory = fakeFactory()
-        val vm = OnboardingViewModel(manager(factory), FakeRecoveryKitCodec)
-        vm.finishIntro()
-        toHandle(vm)
-        vm.events.test {
-            vm.skipHandle()
-            assertEquals(OnboardingEvent.Finished, awaitItem())
-        }
-        assertEquals("", factory.created.single().session()?.handle)
-    }
-
-    @Test
-    fun handle_validation_matrix() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(manager(fakeFactory()), FakeRecoveryKitCodec)
-        vm.finishIntro()
-        toHandle(vm)
-        val valid = listOf("abc", "sofia_costa", "a1b2c3", "x".repeat(32))
-        val invalid = listOf("ab", "x".repeat(33), "s.costa", "sofia-costa", "sofia costa", "sofía", "sofia!")
-        for (handle in valid) {
-            vm.onHandleChange(handle)
-            assertNull(handle, vm.state.value.handleError)
-            assertTrue(handle, vm.state.value.canClaimHandle)
-        }
-        for (handle in invalid) {
-            vm.onHandleChange(handle)
-            assertEquals(handle, FieldError.InvalidHandle, vm.state.value.handleError)
-            assertFalse(handle, vm.state.value.canClaimHandle)
-        }
-        vm.onHandleChange("")
-        assertNull(vm.state.value.handleError)
-    }
-
-    @Test
-    fun taken_handle_maps_to_field_error_until_the_handle_changes() = runTest(dispatcher) {
-        val vm = OnboardingViewModel(
-            manager(fakeFactory { it.addDirectoryUser(UserProfile("u-other", "sofia", "Sofia")) }),
-            FakeRecoveryKitCodec,
-        )
-        vm.finishIntro()
-        toHandle(vm)
-        vm.onHandleChange("sofia")
-        vm.events.test {
-            vm.claimHandle()
-            advanceUntilIdle()
-            expectNoEvents()
-        }
-        assertEquals(FieldError.HandleTaken, vm.state.value.handleError)
-        assertNull(vm.state.value.error)
-        assertFalse(vm.state.value.canClaimHandle)
-
-        vm.onHandleChange("sofia2")
-        assertNull(vm.state.value.handleError)
-        vm.events.test {
-            vm.claimHandle()
-            assertEquals(OnboardingEvent.Finished, awaitItem())
-        }
     }
 
     @Test
@@ -523,7 +439,7 @@ class OnboardingViewModelTest {
     }
 
     @Test
-    fun retry_later_maps_to_try_again_later_on_create_and_on_claim() = runTest(dispatcher) {
+    fun retry_later_maps_to_try_again_later_on_create() = runTest(dispatcher) {
         val throttled = GimException.RetryLater(429, 30, "rate_limited")
         val create = OnboardingViewModel(manager(failingFactory(createIdentity = throttled)), FakeRecoveryKitCodec, SERVER_URL)
         create.finishIntro()
@@ -533,36 +449,6 @@ class OnboardingViewModelTest {
         advanceUntilIdle()
         assertEquals(OnboardingError.TryAgainLater(30), create.state.value.error)
 
-        val claim = OnboardingViewModel(manager(failingFactory(claimHandle = GimException.RetryLater(503, 0, "peer"))), FakeRecoveryKitCodec)
-        claim.finishIntro()
-        toHandle(claim)
-        claim.onHandleChange("sofia")
-        claim.claimHandle()
-        advanceUntilIdle()
-        assertEquals(OnboardingError.TryAgainLater(1), claim.state.value.error)
-        assertNull(claim.state.value.handleError)
-        assertTrue(claim.state.value.canClaimHandle)
-    }
-
-    @Test
-    fun claim_errors_map_to_field_or_general_errors() = runTest(dispatcher) {
-        val cases = mapOf<GimException, Pair<FieldError?, OnboardingError?>>(
-            GimException.InvalidInput("handle: reserved") to (FieldError.InvalidHandle to null),
-            GimException.Network("down") to (null to OnboardingError.CannotReachServer),
-            GimException.Server(500, "boom") to (null to OnboardingError.Generic),
-            GimException.NotRegistered() to (null to OnboardingError.Generic),
-        )
-        for ((error, expected) in cases) {
-            val vm = OnboardingViewModel(manager(failingFactory(claimHandle = error)), FakeRecoveryKitCodec)
-            vm.finishIntro()
-            toHandle(vm)
-            vm.onHandleChange("sofia")
-            vm.claimHandle()
-            advanceUntilIdle()
-            assertEquals(error.toString(), expected.first, vm.state.value.handleError)
-            assertEquals(error.toString(), expected.second, vm.state.value.error)
-            assertFalse(vm.state.value.isLoading)
-        }
     }
 
     @Test
@@ -606,11 +492,9 @@ class OnboardingViewModelTest {
         vm.submitDisplayName()
         vm.continueFromKit()
         vm.onKitCheckChange("ABCD")
-        vm.confirmKitCheck()
-        vm.claimHandle()
         vm.onRestoreKitTextChange("garbage")
         vm.events.test {
-            vm.skipHandle()
+            vm.confirmKitCheck()
             advanceUntilIdle()
             expectNoEvents()
         }
@@ -656,9 +540,11 @@ class OnboardingViewModelTest {
 
         vm.continueFromKit()
         vm.onKitCheckChange("ZZZZ")
-        vm.confirmKitCheck()
+        vm.events.test {
+            vm.confirmKitCheck()
+            assertEquals(OnboardingEvent.Finished, awaitItem())
+        }
         assertEquals(listOf(code to "ZZZZ"), checked)
-        assertEquals(OnboardingStep.HANDLE, vm.state.value.step)
     }
 
     @Test
