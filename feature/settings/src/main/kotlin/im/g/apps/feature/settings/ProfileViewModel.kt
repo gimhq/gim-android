@@ -56,6 +56,9 @@ sealed interface ProfileEvent {
 
     /** Put [accountId] on the clipboard and say so. */
     data class CopyAccountId(val accountId: String) : ProfileEvent
+
+    /** Open the note to self, the chat [chatId]. */
+    data class OpenNoteToSelf(val chatId: String) : ProfileEvent
 }
 
 /**
@@ -112,6 +115,18 @@ class ProfileViewModel(
         savePhoto(R.string.profile_photo_removed) {
             client.removeAvatar()
             true
+        }
+    }
+
+    /** Opens (or creates) the note to self: the direct chat with yourself ([GimClient.createDirectChat]). */
+    fun openNoteToSelf() {
+        val accountId = _state.value.accountId.takeIf { it.isNotEmpty() } ?: return
+        viewModelScope.launch {
+            try {
+                _events.send(ProfileEvent.OpenNoteToSelf(withContext(ioDispatcher) { client.createDirectChat(accountId) }))
+            } catch (e: GimException) {
+                _events.send(ProfileEvent.Message(errorMessage(e)))
+            }
         }
     }
 

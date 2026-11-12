@@ -4,12 +4,16 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -40,12 +45,15 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import im.g.apps.core.bridge.UserProfile
+import im.g.apps.core.designsystem.component.NoteToSelfAvatar
 import im.g.apps.core.designsystem.theme.GimTheme
+import im.g.apps.core.designsystem.R as DesignR
 
 object NewChatTestTags {
     const val SCAN_QR = "contacts_scan_qr"
     const val SCANNER = "contacts_scanner"
     const val CLOSE_SCANNER = "contacts_close_scanner"
+    const val NOTE_TO_SELF = "contacts_note_to_self"
 }
 
 /**
@@ -81,6 +89,7 @@ fun NewChatRoute(
         onQueryChange = viewModel::onQueryChange,
         onStartChat = viewModel::startChat,
         onBack = onBack,
+        onNoteToSelf = viewModel::openNoteToSelf,
         onScanQr = {
             val permission = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
             if (permission == PackageManager.PERMISSION_GRANTED) {
@@ -94,6 +103,31 @@ fun NewChatRoute(
     )
 }
 
+/** "Note to self": opens the direct chat with yourself. */
+@Composable
+private fun NoteToSelfRow(enabled: Boolean, onClick: () -> Unit) {
+    val title = stringResource(DesignR.string.gim_note_to_self)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = onClick)
+            .testTag(NewChatTestTags.NOTE_TO_SELF)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        NoteToSelfAvatar(name = title, imagePath = null, size = 40.dp)
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = stringResource(DesignR.string.gim_note_to_self_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun NewChatScreen(
@@ -102,6 +136,7 @@ internal fun NewChatScreen(
     onStartChat: () -> Unit,
     onBack: () -> Unit,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+    onNoteToSelf: () -> Unit = {},
     onScanQr: () -> Unit = {},
     onCloseScanner: () -> Unit = {},
     scanner: @Composable (Modifier) -> Unit = {},
@@ -122,6 +157,7 @@ internal fun NewChatScreen(
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            NoteToSelfRow(enabled = !state.starting, onClick = onNoteToSelf)
             UserSearchField(
                 query = state.query,
                 onQueryChange = onQueryChange,
@@ -199,7 +235,7 @@ private fun NewChatScreenPreview() {
         NewChatScreen(
             state = NewChatUiState(
                 query = "u-lukas",
-                search = UserSearchState.Found(UserProfile("u-lukas", "", "Lukas Berger")),
+                search = UserSearchState.Found(UserProfile("u-lukas", "Lukas Berger")),
             ),
             onQueryChange = {},
             onStartChat = {},

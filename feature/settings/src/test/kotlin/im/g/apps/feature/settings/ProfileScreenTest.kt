@@ -47,6 +47,16 @@ class ProfileScreenTest {
     }
 
     @Test
+    fun note_to_self_row_calls_the_action() {
+        var opened = 0
+        show(actions = ProfileActions(onNoteToSelf = { opened++ }))
+
+        rule.onNodeWithTag(ProfileTestTags.NOTE_TO_SELF).performScrollTo().assertTextContains("Note to self").performClick()
+
+        assertEquals(1, opened)
+    }
+
+    @Test
     fun qr_code_encodes_exactly_the_account_id() {
         show()
 

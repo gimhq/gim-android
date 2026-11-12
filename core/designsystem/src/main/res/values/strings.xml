@@ -24,4 +24,6 @@
     <string name="gim_error_user_not_admitted_on_hub">%1$s hasn\'t let your account in yet. Ask the server admin for access.</string>
     <string name="gim_error_not_admitted_by_peer">This chat\'s server doesn\'t accept messages from you.</string>
     <string name="designsystem_link_existing_device">Link to a device you already use</string>
+    <string name="gim_note_to_self">Note to self</string>
+    <string name="gim_note_to_self_hint">Notes, links and files for yourself, on all your devices</string>
 </resources>

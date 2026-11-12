@@ -8,7 +8,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
 /**
- * @property rows the chats that are not archived, pinned first.
+ * @property rows the chats that are not archived: the note to self first, then pinned ones.
  * @property archivedRows archived chats, shown apart; a new message does not move them back.
  * @property isEmpty true once the first chat list snapshot arrived and it has no chats, archived ones included;
  *   false while loading so the empty state does not flash before the first snapshot.
@@ -51,13 +51,15 @@ data class ChatRowUi(
     val tick: TickState? = null,
     /** What the last message is; media and deleted messages are rendered from string resources. */
     val previewKind: PreviewKind = PreviewKind.Text,
+    /** The note to self: always on top and never archived, titled "Note to self", the own photo with a note badge. */
+    val isNoteToSelf: Boolean = false,
 ) {
-    /** The long-press actions, in display order. */
+    /** The long-press actions, in display order; the note to self stays on top, so only muting applies. */
     val actions: List<ChatListAction>
-        get() = listOf(
+        get() = listOfNotNull(
             if (muted) ChatListAction.UNMUTE else ChatListAction.MUTE,
-            if (pinned) ChatListAction.UNPIN else ChatListAction.PIN,
-            if (archived) ChatListAction.UNARCHIVE else ChatListAction.ARCHIVE,
+            (if (pinned) ChatListAction.UNPIN else ChatListAction.PIN).takeUnless { isNoteToSelf },
+            (if (archived) ChatListAction.UNARCHIVE else ChatListAction.ARCHIVE).takeUnless { isNoteToSelf },
         )
 }
 

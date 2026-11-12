@@ -39,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,10 +57,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import im.g.apps.core.designsystem.component.Avatar
 import im.g.apps.core.designsystem.component.GimPreviews
 import im.g.apps.core.designsystem.theme.GimTheme
+import im.g.apps.core.designsystem.R as DesignR
 
 /** Test tags; the device E2E tests repeat these literals. */
 object ProfileTestTags {
     const val NAME = "settings_profile_name"
+    const val NOTE_TO_SELF = "settings_profile_note_to_self"
     const val NAME_FIELD = "settings_profile_name_field"
     const val NAME_SAVE = "settings_profile_name_save"
     const val ACCOUNT_ID = "settings_profile_account_id"
@@ -72,7 +75,12 @@ object ProfileTestTags {
 }
 
 @Composable
-fun ProfileRoute(viewModel: ProfileViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun ProfileRoute(
+    viewModel: ProfileViewModel,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    onOpenChat: (String) -> Unit = {},
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val clipboard = LocalClipboardManager.current
@@ -82,6 +90,7 @@ fun ProfileRoute(viewModel: ProfileViewModel, onBack: () -> Unit, modifier: Modi
         val resolver = context.applicationContext.contentResolver
         if (uri != null) viewModel.changePhoto { resolver.openInputStream(uri) }
     }
+    val currentOnOpenChat by rememberUpdatedState(onOpenChat)
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             val message = when (event) {
@@ -89,6 +98,10 @@ fun ProfileRoute(viewModel: ProfileViewModel, onBack: () -> Unit, modifier: Modi
                 is ProfileEvent.CopyAccountId -> {
                     clipboard.setText(AnnotatedString(event.accountId))
                     R.string.profile_account_id_copied
+                }
+                is ProfileEvent.OpenNoteToSelf -> {
+                    currentOnOpenChat(event.chatId)
+                    return@collect
                 }
             }
             snackbarHostState.showSnackbar(context.getString(message))
@@ -104,6 +117,7 @@ fun ProfileRoute(viewModel: ProfileViewModel, onBack: () -> Unit, modifier: Modi
             onCopyAccountId = viewModel::copyAccountId,
             onChangePhoto = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
             onRemovePhoto = viewModel::removePhoto,
+            onNoteToSelf = viewModel::openNoteToSelf,
         ),
         snackbarHostState = snackbarHostState,
         modifier = modifier,
@@ -119,6 +133,7 @@ class ProfileActions(
     val onCopyAccountId: () -> Unit = {},
     val onChangePhoto: () -> Unit = {},
     val onRemovePhoto: () -> Unit = {},
+    val onNoteToSelf: () -> Unit = {},
 )
 
 /** The own profile: photo, name, Account ID and "My QR code"; the open [ProfileUiState.editor] as a dialog. */
@@ -158,6 +173,12 @@ fun ProfileScreen(
                 onClick = actions.onEditName,
                 modifier = Modifier.testTag(ProfileTestTags.NAME),
                 value = stringResource(R.string.profile_name_edit),
+            )
+            SettingsRow(
+                title = stringResource(DesignR.string.gim_note_to_self),
+                onClick = actions.onNoteToSelf,
+                modifier = Modifier.testTag(ProfileTestTags.NOTE_TO_SELF),
+                value = stringResource(DesignR.string.gim_note_to_self_hint),
             )
             AccountIdSection(state.accountId, actions.onCopyAccountId)
             QrSection(state.accountId)

@@ -81,6 +81,13 @@ class NewChatViewModel(
         openChatWith((current.search as UserSearchState.Found).user)
     }
 
+    /** Opens (or creates) the note to self: the direct chat with yourself. */
+    fun openNoteToSelf() {
+        if (_state.value.starting) return
+        val self = client.userId() ?: return
+        openChatWith(UserProfile(self, ""))
+    }
+
     fun openScanner() {
         _state.update { it.copy(scannerOpen = true, scanNotice = null) }
     }
@@ -110,7 +117,7 @@ class NewChatViewModel(
             client.userId() -> ScanNotice.OWN_CODE
             else -> {
                 _state.update { it.copy(scannerOpen = false, scanNotice = null) }
-                openChatWith(UserProfile(id, "", ""))
+                openChatWith(UserProfile(id, ""))
                 return
             }
         }

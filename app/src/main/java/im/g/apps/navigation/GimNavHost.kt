@@ -297,6 +297,7 @@ fun GimNavHost(
             ProfileRoute(
                 viewModel = viewModel(factory = profileViewModelFactory(current, context.cacheDir)),
                 onBack = { navController.popBackStack() },
+                onOpenChat = { navController.openChatReplacing(it) },
             )
         }
         composable(Routes.SETTINGS_BLOCKED) {
@@ -410,6 +411,7 @@ fun GimNavHost(
                 // Back to the chat, which shows "Leaving…" until the own `Left` change arrives.
                 onLeftChat = { navController.popBackStack() },
                 onReport = { userId, reportChatId -> navController.navigate(Routes.report(userId, reportChatId)) },
+                onOpenChat = { navController.openChatReplacing(it) },
             )
         }
         composable(

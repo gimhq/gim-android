@@ -39,6 +39,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -192,7 +193,7 @@ class ContactsScreensTest {
     fun newChat_scanQrCode_showsScannerAndScannedIdOpensChat() {
         val app = ApplicationProvider.getApplicationContext<Application>()
         shadowOf(app).grantPermissions(Manifest.permission.CAMERA)
-        val friend = UserProfile("u" + "c".repeat(54) + "i", "cleo", "Cleo Marsh")
+        val friend = UserProfile("u" + "c".repeat(54) + "i", "Cleo Marsh")
         val fake = demoClient(scope).apply { addDirectoryUser(friend) }
         val vm = NewChatViewModel(TestClient(fake))
         var opened: String? = null
@@ -446,4 +447,33 @@ class ContactsScreensTest {
         rule.onNodeWithTag(ReportTestTags.DONE).performClick()
         assertEquals(1, done)
     }
+
+    @Test
+    fun newChat_noteToSelfRow_opensTheNoteToSelf() {
+        val fake = demoClient(scope)
+        val vm = NewChatViewModel(TestClient(fake))
+        var opened: String? = null
+        rule.setContent { GimTheme { NewChatRoute(viewModel = vm, onOpenChat = { opened = it }, onBack = {}, scanner = { _, _, _ -> }) } }
+
+        rule.onNodeWithText("Note to self").assertExists()
+        rule.onNodeWithTag(NewChatTestTags.NOTE_TO_SELF).performClick()
+        rule.waitUntil(5_000) { opened != null }
+        assertEquals(listOf(DemoData.me.userId), fake.chatMembersBlocking(opened!!))
+    }
+
+    @Test
+    fun groupInfo_tappingYourself_opensTheNoteToSelf() {
+        val fake = demoClient(scope)
+        val vm = GroupInfoViewModel(fake, DemoData.GROUP_CHAT_ID, avatarDir)
+        var opened: String? = null
+        rule.setContent { GimTheme { GroupInfoRoute(vm, onBack = {}, onOpenChat = { opened = it }) } }
+
+        scrollToTag(GroupInfoTestTags.SELF)
+        rule.onNodeWithTag(GroupInfoTestTags.SELF).performClick()
+        rule.waitUntil(5_000) { opened != null }
+        assertEquals(listOf(DemoData.me.userId), fake.chatMembersBlocking(opened!!))
+    }
+
+    private fun FakeGimClient.chatMembersBlocking(chatId: String): List<String> =
+        runBlocking { chatMembers(chatId).map { it.userId } }
 }

@@ -72,6 +72,18 @@ class ProfileViewModelTest {
     }
 
     @Test
+    fun note_to_self_opens_the_chat_with_only_you() = runTest {
+        val client = signedIn()
+        val vm = viewModel(client)
+
+        vm.openNoteToSelf()
+        advanceUntilIdle()
+
+        val chatId = (vm.events.first() as ProfileEvent.OpenNoteToSelf).chatId
+        assertEquals(listOf(client.userId()), client.chatMembers(chatId).map { it.userId })
+    }
+
+    @Test
     fun copy_event_carries_the_account_id() = runTest {
         val client = signedIn()
         val vm = viewModel(client)

@@ -35,7 +35,7 @@ class NewChatViewModelTest {
     fun accountId_isTakenFromPastedText() = runTest {
         val (vm, _) = newViewModel()
         vm.onQueryChange("  https://example.com/add?id=${SCANNED_USER.userId.uppercase()} ")
-        assertEquals(UserSearchState.Found(UserProfile(SCANNED_USER.userId, "", "")), vm.state.value.search)
+        assertEquals(UserSearchState.Found(UserProfile(SCANNED_USER.userId, "")), vm.state.value.search)
         assertTrue(vm.state.value.canStartChat)
     }
 
@@ -58,7 +58,7 @@ class NewChatViewModelTest {
 
     @Test
     fun ownAccountId_cannotStartChat() {
-        val own = UserProfile(SCANNED_USER.userId, "", "")
+        val own = UserProfile(SCANNED_USER.userId, "")
         val state = NewChatUiState(query = own.userId, search = UserSearchState.Found(own), selfUserId = own.userId)
         assertFalse(state.canStartChat)
     }
@@ -103,7 +103,7 @@ class NewChatViewModelTest {
         val (vm, client) = newViewModel()
         vm.onQueryChange(" ${UNKNOWN_USER_ID.uppercase()} ")
         advanceUntilIdle()
-        assertEquals(UserSearchState.Found(UserProfile(UNKNOWN_USER_ID, "", "")), vm.state.value.search)
+        assertEquals(UserSearchState.Found(UserProfile(UNKNOWN_USER_ID, "")), vm.state.value.search)
         assertTrue(vm.state.value.canStartChat)
 
         vm.startChat()
@@ -246,6 +246,18 @@ class NewChatViewModelTest {
         const val UNKNOWN_USER_ID = "u" + "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" + "a"
 
         /** A well-formed Account ID that exists in the directory. */
-        val SCANNED_USER = UserProfile("u" + "b".repeat(54) + "q", "bea", "Bea Lind")
+        val SCANNED_USER = UserProfile("u" + "b".repeat(54) + "q", "Bea Lind")
+    }
+
+    @Test
+    fun openNoteToSelf_opensTheChatWithOnlyYou() = runTest {
+        val (vm, client) = newViewModel()
+        vm.openNoteToSelf()
+        advanceUntilIdle()
+        val event = vm.events.first() as NewChatEvent.OpenChat
+        assertEquals(listOf(DemoData.me), client.chatMembers(event.chatId))
+        vm.openNoteToSelf()
+        advanceUntilIdle()
+        assertEquals(event, vm.events.first())
     }
 }

@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -30,6 +34,9 @@ import java.io.File
 object AvatarTestTags {
     /** The photo layer, present while an image path is set. */
     const val PHOTO = "avatar_photo"
+
+    /** The note badge of [NoteToSelfAvatar]. */
+    const val NOTE_BADGE = "avatar_note_badge"
 }
 
 /**
@@ -80,6 +87,36 @@ fun Avatar(
         }
     }
 }
+
+/**
+ * The note to self's avatar: the own [Avatar] (photo at [imagePath], else initials of [name]) with a note badge at
+ * its bottom end. Decorative; the row reads its title instead.
+ */
+@Composable
+fun NoteToSelfAvatar(name: String, imagePath: String?, size: Dp, modifier: Modifier = Modifier) {
+    Box(modifier = modifier.size(size)) {
+        Avatar(name = name, imagePath = imagePath, size = size)
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .size(size * NOTE_BADGE_FRACTION)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary)
+                .testTag(AvatarTestTags.NOTE_BADGE),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Edit,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(size * NOTE_BADGE_FRACTION * NOTE_ICON_FRACTION),
+            )
+        }
+    }
+}
+
+private const val NOTE_BADGE_FRACTION = 0.4f
+private const val NOTE_ICON_FRACTION = 0.6f
 
 /** Up to two initials: first letters of the first and last words, or "?" for a blank name. */
 internal fun avatarInitials(name: String): String {

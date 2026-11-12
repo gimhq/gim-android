@@ -107,6 +107,8 @@ data class ChatHeaderUi(
     val subtitle: UiText? = null,
     val avatarPath: String? = null,
     val isGroup: Boolean = false,
+    /** The note to self: titled "Note to self", the own photo with a note badge. */
+    val isNoteToSelf: Boolean = false,
 )
 
 @Immutable

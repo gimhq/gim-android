@@ -23,4 +23,6 @@
     <string name="gim_error_user_not_admitted_on_hub">%1$s 还没有允许你的账号加入。请向服务器管理员申请。</string>
     <string name="gim_error_not_admitted_by_peer">这个聊天所在的服务器不接收你的消息。</string>
     <string name="designsystem_link_existing_device">关联到已有设备</string>
+    <string name="gim_note_to_self">给自己的笔记</string>
+    <string name="gim_note_to_self_hint">写给自己的笔记、链接和文件，在你的所有设备上同步</string>
 </resources>

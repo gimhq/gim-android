@@ -75,6 +75,7 @@ import coil.compose.AsyncImage
 import im.g.apps.core.bridge.SendFailure
 import im.g.apps.core.designsystem.R as DesignR
 import im.g.apps.core.designsystem.component.Avatar
+import im.g.apps.core.designsystem.component.NoteToSelfAvatar
 import im.g.apps.core.designsystem.component.DateSeparator
 import im.g.apps.core.designsystem.component.GimConfirmDialog
 import im.g.apps.core.designsystem.component.GimSnackbarHost
@@ -229,7 +230,7 @@ fun ComposerPlaceholder(modifier: Modifier = Modifier) {
 @Composable
 private fun ChatTopBar(header: ChatHeaderUi, onBack: () -> Unit, onOpenGroupInfo: () -> Unit) {
     GimTopBar(
-        title = header.title,
+        title = if (header.isNoteToSelf) stringResource(DesignR.string.gim_note_to_self) else header.title,
         subtitle = header.subtitle?.asString(),
         navigationIcon = {
             GimTopBarIconButton(onClick = onBack, contentDescription = stringResource(R.string.chat_back)) {
@@ -238,12 +239,21 @@ private fun ChatTopBar(header: ChatHeaderUi, onBack: () -> Unit, onOpenGroupInfo
         },
         // Decorative: the title already names the chat, so TalkBack skips the initials.
         leading = {
-            Avatar(
-                name = header.title,
-                imagePath = header.avatarPath,
-                size = 40.dp,
-                modifier = Modifier.clearAndSetSemantics {},
-            )
+            if (header.isNoteToSelf) {
+                NoteToSelfAvatar(
+                    name = header.title,
+                    imagePath = header.avatarPath,
+                    size = 40.dp,
+                    modifier = Modifier.clearAndSetSemantics {},
+                )
+            } else {
+                Avatar(
+                    name = header.title,
+                    imagePath = header.avatarPath,
+                    size = 40.dp,
+                    modifier = Modifier.clearAndSetSemantics {},
+                )
+            }
         },
         actions = {
             val info = stringResource(if (header.isGroup) R.string.chat_group_info else R.string.chat_contact_info)

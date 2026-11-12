@@ -408,6 +408,25 @@ class ChatListViewModelTest {
     }
 
     @Test
+    fun note_to_self_stays_on_top_of_pinned_chats_and_is_never_archived() = runTest {
+        val client = demo()
+        val vm = viewModel(client)
+        val note = client.createDirectChat(DemoData.me.userId)
+        client.setChatPinned(DIRECT_CHAT_ID, true)
+        client.simulateIncoming(GROUP_CHAT_ID, "Ferry at 7", from = DemoData.nikos.userId)
+        advanceUntilIdle()
+
+        assertEquals(listOf(note, DIRECT_CHAT_ID, GROUP_CHAT_ID), vm.uiState.value.rows.map { it.id })
+        assertTrue(vm.row(note).isNoteToSelf)
+        assertFalse(vm.row(DIRECT_CHAT_ID).isNoteToSelf)
+        assertEquals(listOf(ChatListAction.MUTE), vm.row(note).actions)
+
+        client.setChatArchived(note, true)
+        advanceUntilIdle()
+        assertEquals(note, vm.uiState.value.rows.first().id)
+    }
+
+    @Test
     fun send_state_of_own_last_message_maps_to_ticks_and_others_have_none() = runTest {
         val client = demo()
         val vm = viewModel(client)

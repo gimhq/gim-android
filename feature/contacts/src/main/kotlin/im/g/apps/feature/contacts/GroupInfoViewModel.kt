@@ -110,6 +110,9 @@ sealed interface GroupInfoEvent {
 
     /** Open the report about [userId], with messages from [chatId]. */
     data class OpenReport(val userId: String, val chatId: String) : GroupInfoEvent
+
+    /** Open the chat [chatId] (the note to self, after tapping yourself). */
+    data class OpenChat(val chatId: String) : GroupInfoEvent
 }
 
 /**
@@ -282,6 +285,18 @@ class GroupInfoViewModel(
         mutate(refreshMembers = false, error = { e -> e.toChatActionError(action, client.suspendedHubName(e)) }, action = call)
 
     // endregion
+
+    /** Tapping yourself in the member list opens (or creates) the note to self. */
+    fun openNoteToSelf() {
+        val self = selfUserId ?: return
+        viewModelScope.launch {
+            try {
+                _events.send(GroupInfoEvent.OpenChat(client.createDirectChat(self)))
+            } catch (e: GimException) {
+                _events.send(GroupInfoEvent.ShowError(e.toContactsError(client.suspendedHubName(e))))
+            }
+        }
+    }
 
     /** Closes whichever dialog is open. */
     fun dismissDialog() {

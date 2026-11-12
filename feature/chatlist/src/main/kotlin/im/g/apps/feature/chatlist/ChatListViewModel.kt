@@ -178,17 +178,23 @@ class ChatListViewModel(
             state = state,
             muted = mutedUntilMs > nowMs,
             pinned = pinned,
-            archived = archived,
+            archived = archived && !isNoteToSelf,
             tick = last?.takeIf { it.isOwn }?.sendState?.toTick(),
             previewKind = last?.kind ?: PreviewKind.Text,
+            isNoteToSelf = isNoteToSelf,
         )
     }
 
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L
 
-        /** gim-core's order (pinned first, then the most recently updated), kept even if a client delivers rows out of order. */
-        val CHAT_ORDER = compareByDescending<ChatSummary> { it.pinned }.thenByDescending { it.updatedAtMs }
+        /**
+         * The note to self on top, then gim-core's order (pinned first, then the most recently updated), kept even if a
+         * client delivers rows out of order.
+         */
+        val CHAT_ORDER = compareByDescending<ChatSummary> { it.isNoteToSelf }
+            .thenByDescending { it.pinned }
+            .thenByDescending { it.updatedAtMs }
 
         fun SendState.toTick(): TickState = when (this) {
             SendState.Pending -> TickState.PENDING

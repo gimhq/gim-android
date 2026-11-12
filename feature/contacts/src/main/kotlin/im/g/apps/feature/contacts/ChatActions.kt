@@ -38,10 +38,12 @@ fun ChatSummary.isMuted(nowMs: Long): Boolean = mutedUntilMs > nowMs
 
 /**
  * The actions for [chat] at [nowMs]: mute, pin and archive (or their undo) for every chat; for a direct chat with a
- * known peer also block (or unblock) and, when [reportAvailable] (a keep server is configured), report.
+ * known peer also block (or unblock) and, when [reportAvailable] (a keep server is configured), report. The note to
+ * self stays on top of the chat list and holds only the own devices, so it offers muting only.
  */
 fun chatActions(chat: ChatSummary, nowMs: Long, reportAvailable: Boolean): List<ChatAction> = buildList {
     add(if (chat.isMuted(nowMs)) ChatAction.UNMUTE else ChatAction.MUTE)
+    if (chat.isNoteToSelf) return@buildList
     add(if (chat.pinned) ChatAction.UNPIN else ChatAction.PIN)
     add(if (chat.archived) ChatAction.UNARCHIVE else ChatAction.ARCHIVE)
     if (chat.kind == ChatKind.DIRECT && chat.peer != null) {

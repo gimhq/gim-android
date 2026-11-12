@@ -31,7 +31,7 @@ class GroupInfoViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
-    private val marta = UserProfile("u" + "m".repeat(54) + "a", "", "Marta Rossi")
+    private val marta = UserProfile("u" + "m".repeat(54) + "a", "Marta Rossi")
 
     private lateinit var fake: FakeGimClient
     private lateinit var client: TestClient
@@ -578,4 +578,33 @@ class GroupInfoViewModelTest {
     }
 
     private suspend fun FakeGimClient.chatIds(): List<String> = chatListFlow().first().map { it.chatId }
+
+    @Test
+    fun tappingYourself_opensTheNoteToSelf() = runTest {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        vm.openNoteToSelf()
+        advanceUntilIdle()
+        val chatId = (vm.events.first() as GroupInfoEvent.OpenChat).chatId
+        assertEquals(listOf(DemoData.me), client.chatMembers(chatId))
+        assertTrue(fake.chatListFlow().first().single { it.chatId == chatId }.isNoteToSelf)
+    }
+
+    @Test
+    fun tappingYourself_failure_showsTheError() = runTest {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        client.createDirectChatError = GimException.Network("timeout")
+        vm.openNoteToSelf()
+        advanceUntilIdle()
+        assertEquals(GroupInfoEvent.ShowError(ContactsError.Network), vm.events.first())
+    }
+
+    @Test
+    fun noteToSelf_offersOnlyMuting() = runTest {
+        newViewModel()
+        val noteId = fake.createDirectChat(DemoData.me.userId)
+        val note = fake.chatListFlow().first().single { it.chatId == noteId }
+        assertEquals(listOf(ChatAction.MUTE), chatActions(note, NOW, reportAvailable = true))
+    }
 }

@@ -58,6 +58,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import im.g.apps.core.bridge.ChatState
 import im.g.apps.core.bridge.PreviewKind
 import im.g.apps.core.designsystem.component.Avatar
+import im.g.apps.core.designsystem.component.NoteToSelfAvatar
 import im.g.apps.core.designsystem.component.ConnectionBanner
 import im.g.apps.core.designsystem.component.EmptyState
 import im.g.apps.core.designsystem.component.GimPreviews
@@ -66,6 +67,7 @@ import im.g.apps.core.designsystem.component.StatusTicks
 import im.g.apps.core.designsystem.component.UnreadBadge
 import im.g.apps.core.designsystem.component.tickLabel
 import im.g.apps.core.designsystem.theme.GimTheme
+import im.g.apps.core.designsystem.R as DesignR
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
 
@@ -316,8 +318,9 @@ private fun ChatRow(row: ChatRowUi, onClick: () -> Unit, onAction: (ChatListActi
         null
     }
     val tick = row.tick?.let { tickLabel(it) }
+    val title = if (row.isNoteToSelf) stringResource(DesignR.string.gim_note_to_self) else row.title
     // The muted and pinned marks add their own labels after this one.
-    val description = listOfNotNull(row.title, unread, preview, tick, time)
+    val description = listOfNotNull(title, unread, preview, tick, time)
         .joinToString(stringResource(R.string.chatlist_row_description_separator))
     Box {
         Row(
@@ -334,13 +337,17 @@ private fun ChatRow(row: ChatRowUi, onClick: () -> Unit, onAction: (ChatListActi
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Avatar(name = row.title, imagePath = row.avatarPath, size = 56.dp, colorKey = row.id)
+            if (row.isNoteToSelf) {
+                NoteToSelfAvatar(name = row.title, imagePath = row.avatarPath, size = 56.dp)
+            } else {
+                Avatar(name = row.title, imagePath = row.avatarPath, size = 56.dp, colorKey = row.id)
+            }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = row.title,
+                            text = title,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,

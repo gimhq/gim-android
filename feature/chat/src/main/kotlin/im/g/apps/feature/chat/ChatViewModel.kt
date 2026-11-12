@@ -319,6 +319,7 @@ class ChatViewModel(
                 subtitle = subtitle,
                 avatarPath = extras.avatarPath,
                 isGroup = isGroup,
+                isNoteToSelf = summary?.isNoteToSelf == true,
             ),
             items = mapper.map(
                 items,

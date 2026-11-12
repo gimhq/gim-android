@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import im.g.apps.core.bridge.ChatState
+import im.g.apps.core.designsystem.component.AvatarTestTags
 import im.g.apps.core.designsystem.theme.GimTheme
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Assert.assertEquals
@@ -63,6 +64,15 @@ class ChatListScreenTest {
         rule.onNodeWithText("Leaving…").assertExists()
         rule.onNodeWithText("You're no longer in this chat").assertExists()
         rule.onNodeWithText("Nikos: Table booked").assertDoesNotExist()
+    }
+
+    @Test
+    fun note_to_self_row_shows_the_localized_title_and_the_note_badge() {
+        show(ChatListUiState(rows = persistentListOf(rows[1].copy(id = "chat-n", title = "Sofia Costa", isNoteToSelf = true))))
+
+        rule.onNodeWithText("Note to self").assertExists()
+        rule.onNodeWithText("Sofia Costa").assertDoesNotExist()
+        rule.onNodeWithTag(AvatarTestTags.NOTE_BADGE, useUnmergedTree = true).assertExists()
     }
 
     @Test

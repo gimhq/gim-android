@@ -136,8 +136,7 @@ class ChatViewModelTest {
     fun grouping_showsSenderOnlyOnFirstOfRunInGroups() = test {
         val client = FakeGimClient(backgroundScope, clock, zone, outboxDelays = null)
         client.createIdentity("Sofia Costa")
-        client.claimHandle("sofia")
-        val ana = UserProfile("u-ana", "ana", "Ana Kovač")
+        val ana = UserProfile("u-ana", "Ana Kovač")
         client.addDirectoryUser(ana)
         val chatId = client.createGroupChat("Crew", listOf(ana.userId))
         client.simulateIncoming(chatId, "first", ana.userId)
@@ -176,6 +175,20 @@ class ChatViewModelTest {
         assertEquals("Lukas Berger", vm.uiState.value.header.title)
         assertFalse(vm.uiState.value.header.isGroup)
         assertNull(vm.uiState.value.header.subtitle)
+    }
+
+    @Test
+    fun header_noteToSelf_isMarked() = test {
+        val client = demoClient()
+        val chatId = client.createDirectChat(DemoData.me.userId)
+        val vm = viewModel(client, chatId)
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.header.isNoteToSelf)
+        assertFalse(vm.uiState.value.header.isGroup)
+        val direct = viewModel(client, DemoData.DIRECT_CHAT_ID)
+        advanceUntilIdle()
+        assertFalse(direct.uiState.value.header.isNoteToSelf)
     }
 
     @Test

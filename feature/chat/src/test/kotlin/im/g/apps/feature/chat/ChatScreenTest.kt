@@ -281,6 +281,13 @@ class ChatScreenTest {
     }
 
     @Test
+    fun header_noteToSelf_showsTheLocalizedTitleAndTheNoteBadge() {
+        show(listOf(message("m1", "Hello")), header = ChatHeaderUi(title = "Sofia Costa", isNoteToSelf = true))
+        rule.onNodeWithText("Note to self").assertExists()
+        rule.onNodeWithTag(AvatarTestTags.NOTE_BADGE, useUnmergedTree = true).assertExists()
+    }
+
+    @Test
     fun blockedChat_showsUnblockInsteadOfTheComposer_andUnblocksAfterConfirming() {
         show(listOf(message("m1", "Hello")), header = ChatHeaderUi(title = "Lukas Berger"), blocked = true)
 

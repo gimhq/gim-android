@@ -1,6 +1,7 @@
 package im.g.apps.feature.contacts
 
 import android.text.format.DateUtils
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,8 +47,16 @@ import im.g.apps.core.bridge.displayNameOrShortId
 import im.g.apps.core.designsystem.component.Avatar
 import im.g.apps.core.designsystem.component.EmptyState
 import im.g.apps.core.designsystem.component.GimConfirmDialog
+import im.g.apps.core.designsystem.component.NoteToSelfAvatar
 import im.g.apps.core.designsystem.theme.GimTheme
+import im.g.apps.core.designsystem.R as DesignR
 import kotlinx.collections.immutable.persistentListOf
+
+/** Test tags of the group info screen. */
+object GroupInfoTestTags {
+    /** Your own row in the member list; tapping it opens the note to self. */
+    const val SELF = "group_info_self"
+}
 
 /** Test tags of the "Chat actions" group and its dialogs. */
 object ChatActionsTestTags {
@@ -66,17 +75,20 @@ fun GroupInfoRoute(
     onBack: () -> Unit,
     onLeftChat: () -> Unit = onBack,
     onReport: (userId: String, chatId: String) -> Unit = { _, _ -> },
+    onOpenChat: (chatId: String) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     val currentOnLeftChat by rememberUpdatedState(onLeftChat)
     val currentOnReport by rememberUpdatedState(onReport)
+    val currentOnOpenChat by rememberUpdatedState(onOpenChat)
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
                 GroupInfoEvent.LeftChat -> currentOnLeftChat()
                 is GroupInfoEvent.OpenReport -> currentOnReport(event.userId, event.chatId)
+                is GroupInfoEvent.OpenChat -> currentOnOpenChat(event.chatId)
                 is GroupInfoEvent.ShowError -> snackbarHostState.showSnackbar(event.error.message(context))
             }
         }
@@ -100,6 +112,7 @@ fun GroupInfoRoute(
             onChatAction = viewModel::onChatAction,
             onMute = viewModel::mute,
             onConfirmBlock = viewModel::confirmBlock,
+            onOpenNoteToSelf = viewModel::openNoteToSelf,
         ),
     )
 }
@@ -122,6 +135,7 @@ internal class GroupInfoActions(
     val onChatAction: (ChatAction) -> Unit = {},
     val onMute: (MuteOption) -> Unit = {},
     val onConfirmBlock: () -> Unit = {},
+    val onOpenNoteToSelf: () -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -181,11 +195,17 @@ private fun ChatDetails(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                val peer = if (isGroup) null else state.peer
-                val title = peer?.displayLabel ?: displayNameOrShortId(chat.name)
-                Avatar(name = title, imagePath = state.headerPhotoPath, size = 72.dp)
+                val peer = if (isGroup || chat.isNoteToSelf) null else state.peer
+                val name = peer?.displayLabel ?: displayNameOrShortId(chat.name)
+                val title = if (chat.isNoteToSelf) stringResource(DesignR.string.gim_note_to_self) else name
+                if (chat.isNoteToSelf) {
+                    NoteToSelfAvatar(name = name, imagePath = state.headerPhotoPath, size = 72.dp)
+                } else {
+                    Avatar(name = title, imagePath = state.headerPhotoPath, size = 72.dp)
+                }
                 Text(text = title, style = MaterialTheme.typography.titleLarge)
                 val subtitle = when {
+                    chat.isNoteToSelf -> stringResource(DesignR.string.gim_note_to_self_hint)
                     peer != null -> userSubtitle(peer)
                     isGroup -> {
                         val count = if (state.membersUnavailable) chat.memberCount else state.members.size
@@ -238,7 +258,18 @@ private fun ChatDetails(
             }
         }
         items(state.members, key = { it.user.userId }) { member ->
-            UserRow(user = member.user, photoPath = state.photos[member.user.userId], isSelf = member.isSelf) {
+            UserRow(
+                user = member.user,
+                photoPath = state.photos[member.user.userId],
+                isSelf = member.isSelf,
+                modifier = if (member.isSelf) {
+                    Modifier
+                        .clickable(onClickLabel = stringResource(DesignR.string.gim_note_to_self), onClick = actions.onOpenNoteToSelf)
+                        .testTag(GroupInfoTestTags.SELF)
+                } else {
+                    Modifier
+                },
+            ) {
                 if (!member.isSelf) {
                     RemoveButton(
                         description = stringResource(R.string.contacts_remove_member_description, member.user.displayLabel),
@@ -430,8 +461,8 @@ private fun ConfirmDialog(text: String, confirmLabel: String, onConfirm: () -> U
 @Preview
 @Composable
 private fun GroupInfoScreenPreview() {
-    val me = UserProfile("u-sofia", "", "Sofia Costa")
-    val ana = UserProfile("u-ana", "", "Ana Kovač")
+    val me = UserProfile("u-sofia", "Sofia Costa")
+    val ana = UserProfile("u-ana", "Ana Kovač")
     GimTheme {
         GroupInfoScreen(
             state = GroupInfoUiState(
