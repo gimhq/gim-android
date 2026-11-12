@@ -112,9 +112,7 @@ class MessagingE2eTest {
     /** Per-wait timeout; CI's software-rendered emulator passes `timeoutScale` > 1. */
     private val timeoutMs = TIMEOUT_MS * (args.getString("timeoutScale")?.toLongOrNull()?.coerceAtLeast(1) ?: 1)
     private val suffix = UUID.randomUUID().toString().replace("-", "").take(10)
-    private val appHandle = "app_$suffix"
     private val appName = "App $suffix"
-    private val peerHandle = "peer_$suffix"
     private val peerName = "Peer $suffix"
     private val groupName = "E2E $suffix"
 
@@ -152,7 +150,7 @@ class MessagingE2eTest {
             Log.w(LOG_TAG, "app window still has no focus; continuing")
         }
 
-        // Onboarding (skip the intro, create identity, pass the recovery kit check, claim a handle) -> chat list.
+        // Onboarding (skip the intro, create identity, pass the recovery kit check) -> chat list.
         // Input goes through Compose semantics only (no Espresso root lookups, which wait for window focus); hide the
         // soft keyboard and scroll each button into view in case the keyboard covers it.
         compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
@@ -170,20 +168,16 @@ class MessagingE2eTest {
         val code = compose.completeRecoveryKit(LOG_TAG, timeoutMs, ::failStep).recoveryKey
         // Never log the code itself.
         assertTrue("recovery code (${code.length} chars) is not 39 symbols in groups of four", RECOVERY_CODE.matches(code))
-        enterText("handle", TAG_HANDLE, appHandle)
-        click("claim handle", TAG_CLAIM_HANDLE)
-        Log.i(LOG_TAG, "claim handle clicked")
         val chatList = hasText(string(ChatListR.string.chatlist_title))
         waitFor("chat list after onboarding", chatList)
         Log.i(LOG_TAG, "chat list visible")
 
-        // Peer creates its identity, claims a handle and syncs.
+        // Peer creates its identity and syncs.
         val peer = runBlocking {
             UniffiGimClientFactory().create(ClientConfig(serverUrl), InMemoryHooks(peerDir)).also { peerClient = it }
         }
         runBlocking {
             peer.createIdentity(peerName)
-            peer.claimHandle(peerHandle)
             peer.startSync()
         }
 
@@ -192,9 +186,9 @@ class MessagingE2eTest {
         waitForText("new message menu", string(ChatListR.string.chatlist_new_group))
         compose.onNodeWithText(string(ChatListR.string.chatlist_new_group)).performClick()
         waitFor("new group member search", hasSetTextAction())
-        compose.onNode(hasSetTextAction()).performTextInput(peerHandle)
+        compose.onNode(hasSetTextAction()).performTextInput(checkNotNull(peer.userId()))
         val add = hasText(string(ContactsR.string.contacts_add)) and hasClickAction()
-        waitFor("peer found by handle", add)
+        waitFor("peer taken by Account ID", add)
         click("add peer", add)
         click("next", hasText(string(ContactsR.string.contacts_next)))
         waitForText("group name step", string(ContactsR.string.contacts_create_group))
@@ -576,8 +570,6 @@ class MessagingE2eTest {
         const val TAG_DISPLAY_NAME = "onboarding_display_name"
         const val TAG_SUBMIT = "onboarding_submit"
         const val TAG_RECOVERY_CODE = "onboarding_recovery_code"
-        const val TAG_HANDLE = "onboarding_handle"
-        const val TAG_CLAIM_HANDLE = "onboarding_claim_handle"
         const val TAG_COMPOSER = "composer-input"
         const val TAG_BANNER = "composer-membership-banner"
     }

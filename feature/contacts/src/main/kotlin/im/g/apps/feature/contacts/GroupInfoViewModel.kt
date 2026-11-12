@@ -39,7 +39,7 @@ import java.io.File
 @Immutable
 data class GroupMember(val user: UserProfile, val isSelf: Boolean)
 
-/** The add-member dialog: a handle search. */
+/** The add-member dialog: an Account ID field. */
 @Immutable
 data class AddMemberDialogState(
     val query: String = "",
@@ -142,9 +142,8 @@ class GroupInfoViewModel(
         _state.update { it.copy(photos = it.photos.put(key, path)) }
     }
 
-    private val search = UserSearch(client, viewModelScope) { result ->
+    private val search = UserSearch { result ->
         _state.update { state -> state.copy(addMemberDialog = state.addMemberDialog?.copy(search = result)) }
-        if (result is UserSearchState.Found) photos.requestUser(result.user)
     }
 
     init {

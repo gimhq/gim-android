@@ -14,7 +14,7 @@
     <string name="explainer_locked_messages_body">訊息都經過端對端加密。只有聊天裡的人可以讀取，連伺服器也看不到。</string>
 
     <string name="explainer_account_id_title">你的帳號 ID 就是你的地址</string>
-    <string name="explainer_account_id_body">分享你的帳號 ID，朋友就能聯絡你。你也可以設定使用者名稱，讓別人更容易找到你。</string>
+    <string name="explainer_account_id_body">分享你的帳號 ID，朋友就能聯絡你。出示你的 QR 碼或傳送這個 ID，這是別人找到你的唯一方式。</string>
 
     <string name="explainer_recovery_key_title">你的復原金鑰是一把備用鑰匙</string>
     <string name="explainer_recovery_key_body">所有裝置都不見了嗎？用復原金鑰和帳號 ID 就能找回你的帳號。舊的聊天不會回來。請把金鑰保密並收好，絕對不要給任何人看。</string>

@@ -96,7 +96,7 @@ class DevicesE2eTest {
             Log.w(LOG_TAG, "app window still has no focus; continuing")
         }
 
-        // Onboarding: skip the intro, create identity, pass the recovery kit check, skip the handle -> chat list.
+        // Onboarding: skip the intro, create identity, pass the recovery kit check -> chat list.
         compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
         waitFor("onboarding shown", hasText(string(OnboardingR.string.onboarding_welcome_title)))
         compose.showServerField(LOG_TAG, timeoutMs, ::failStep)
@@ -106,8 +106,6 @@ class DevicesE2eTest {
         enterText("display name", TAG_DISPLAY_NAME, "Devices $suffix")
         click("create account", TAG_SUBMIT)
         compose.completeRecoveryKit(LOG_TAG, timeoutMs, ::failStep)
-        waitFor("handle step", hasTestTag(TAG_SKIP_HANDLE))
-        click("skip handle", TAG_SKIP_HANDLE)
         waitFor("chat list", hasText(string(ChatListR.string.chatlist_title)))
 
         // Link handshake through the bridge: peer (new device) and the app's client (old device).
@@ -240,7 +238,6 @@ class DevicesE2eTest {
         const val TAG_CREATE_ACCOUNT = "onboarding_create_account"
         const val TAG_DISPLAY_NAME = "onboarding_display_name"
         const val TAG_SUBMIT = "onboarding_submit"
-        const val TAG_SKIP_HANDLE = "onboarding_skip_handle"
         const val TAG_USER_ID = "devices_user_id"
         const val TAG_ROW_PREFIX = "devices_row_"
     }

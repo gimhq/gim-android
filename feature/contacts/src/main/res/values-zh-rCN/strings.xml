@@ -3,16 +3,14 @@
 <resources>
     <string name="contacts_back">返回</string>
     <string name="contacts_you">你</string>
-    <string name="contacts_search_label">用户名或账号 ID</string>
-    <string name="contacts_search_placeholder">\@用户名</string>
-    <string name="contacts_search_hint">输入用户名的至少 3 个字符，或粘贴账号 ID。</string>
-    <string name="contacts_search_searching">正在搜索…</string>
-    <string name="contacts_search_not_found">没有人使用用户名 \@%1$s。请检查拼写后重试。</string>
+    <string name="contacts_search_label">账号 ID</string>
+    <string name="contacts_search_hint">粘贴朋友的账号 ID。朋友可以在“设置 &gt; 个人资料”中找到它。</string>
+    <string name="contacts_search_not_account_id">这不是账号 ID。请粘贴朋友分享的完整 ID。</string>
     <string name="contacts_error_network">无法连接服务器。请检查网络后重试。</string>
     <string name="contacts_error_not_registered">你已退出登录。请重新登录后继续。</string>
     <string name="contacts_error_invalid_input">无法完成。请检查你输入的内容后重试。</string>
     <string name="contacts_error_not_found">这项内容已经不在了。请返回后重试。</string>
-    <string name="contacts_error_user_not_found">找不到这个人。请检查用户名后重试。</string>
+    <string name="contacts_error_user_not_found">找不到这个人。请检查账号 ID 后重试。</string>
     <string name="contacts_error_contact_not_admitted">无法添加 %1$s。对方的服务器不接受你。请试试其他人。</string>
     <string name="contacts_error_retry_later">尝试次数太多。请在 %1$d 秒后重试。</string>
     <string name="contacts_error_server">服务器出了问题。请稍后重试。</string>
@@ -26,8 +24,8 @@
     <string name="contacts_scan_close">关闭</string>
     <string name="contacts_scan_not_account_id">这个二维码不是 gim 账号 ID。请让朋友出示个人资料里的二维码。</string>
     <string name="contacts_scan_own_code">这是你自己的二维码。</string>
-    <string name="contacts_scan_camera_denied">你需要允许使用摄像头才能扫描二维码。你也可以改用用户名搜索。</string>
-    <string name="contacts_scan_camera_unavailable">现在无法使用摄像头。你可以改用用户名搜索。</string>
+    <string name="contacts_scan_camera_denied">你需要允许使用摄像头才能扫描二维码。你也可以改为粘贴对方的账号 ID。</string>
+    <string name="contacts_scan_camera_unavailable">现在无法使用摄像头。你可以改为粘贴对方的账号 ID。</string>
     <string name="contacts_new_group_title">新群组</string>
     <string name="contacts_new_group_members_title">添加成员</string>
     <string name="contacts_new_group_name_title">群组名称</string>

@@ -103,9 +103,8 @@ class BlockedPeopleViewModel(
         }
     }
 
-    /** The display name unless it is empty or the bare user id, else "@handle"; null when neither is known. */
-    private fun UserProfile.bestName(): String? =
-        displayName.takeIf { it.isNotBlank() && it != userId } ?: handle.takeIf { it.isNotEmpty() }?.let { "@$it" }
+    /** The display name unless it is empty or the bare user id; null when not known. */
+    private fun UserProfile.bestName(): String? = displayName.takeIf { it.isNotBlank() && it != userId }
 }
 
 fun blockedPeopleViewModelFactory(client: GimClient): ViewModelProvider.Factory = viewModelFactory {

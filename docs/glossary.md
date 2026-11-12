@@ -7,7 +7,6 @@ screen.
 | Old term (code, logs, SDK) | User-facing word | What it means |
 |---|---|---|
 | Hub | Server | The computer that passes your messages on. It can't read them. |
-| Handle | Username | A name friends can type to find you. |
 | User ID | Account ID | A long code that is your account's real address. |
 | Recovery code | Recovery key | A spare key that brings your account back on a new phone. |
 | Revoke device | Remove device | Sign a phone or tablet out of your account. |
@@ -16,7 +15,7 @@ screen.
 | Home hub / Primary hub | Main server | The server your account lives on. |
 | Keep server | Keep server | Backs up your privacy settings and receives the reports you send. |
 
-Plurals follow the same mapping (hubs → servers, handles → usernames).
+Plurals follow the same mapping (hubs → servers).
 
 ## Writing rules
 
@@ -47,7 +46,6 @@ are a first draft: native-speaker review is still pending.
 | English | Simplified Chinese (zh-CN) | Traditional Chinese (zh-TW) | Spanish (es) |
 |---|---|---|---|
 | Server | 服务器 | 伺服器 | servidor |
-| Username | 用户名 | 使用者名稱 | nombre de usuario |
 | Account ID | 账号 ID | 帳號 ID | ID de cuenta |
 | Recovery key | 恢复密钥 | 復原金鑰 | clave de recuperación |
 | Remove device | 移除设备 | 移除裝置 | Quitar dispositivo |
@@ -74,6 +72,7 @@ Tone, matching Signal and Telegram in each language:
 ## Code keeps the old terms
 
 Only the text a user reads changes. Code, identifiers, string resource keys,
-logs, test tags and the gim-client-sdk keep the old terms (hub, handle, user
-ID, ...). Support and developers can use the table above to map between what
-a user sees and what the code and logs say.
+logs, test tags and the gim-client-sdk keep the old terms (hub, user ID,
+...). Support and developers can use the table above to map between what a
+user sees and what the code and logs say. The app has no usernames: people are
+found by Account ID only.

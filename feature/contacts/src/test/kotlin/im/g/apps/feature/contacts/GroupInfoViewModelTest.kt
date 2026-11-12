@@ -31,7 +31,7 @@ class GroupInfoViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
-    private val marta = UserProfile("u-marta", "marta", "Marta Rossi")
+    private val marta = UserProfile("u" + "m".repeat(54) + "a", "", "Marta Rossi")
 
     private lateinit var fake: FakeGimClient
     private lateinit var client: TestClient
@@ -76,7 +76,7 @@ class GroupInfoViewModelTest {
         assertTrue(client.avatarFetches.isEmpty())
 
         vm.openAddMember()
-        vm.onAddMemberQueryChange("marta")
+        vm.onAddMemberQueryChange(marta.userId)
         advanceUntilIdle()
         vm.addMember(martaWithPhoto)
         advanceUntilIdle()
@@ -170,13 +170,12 @@ class GroupInfoViewModelTest {
     }
 
     @Test
-    fun addMember_viaSearchDialog_updatesMembers() = runTest {
+    fun addMember_viaAccountIdDialog_updatesMembers() = runTest {
         val vm = newViewModel()
         advanceUntilIdle()
         vm.openAddMember()
-        vm.onAddMemberQueryChange("@Marta")
-        advanceUntilIdle()
-        assertEquals(UserSearchState.Found(marta), vm.state.value.addMemberDialog?.search)
+        vm.onAddMemberQueryChange(" ${marta.userId.uppercase()} ")
+        assertEquals(UserSearchState.Found(marta.copy(displayName = "")), vm.state.value.addMemberDialog?.search)
 
         vm.addMember(marta)
         advanceUntilIdle()

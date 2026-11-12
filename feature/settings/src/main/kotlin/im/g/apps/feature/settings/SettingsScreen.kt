@@ -180,13 +180,6 @@ private fun ProfileHeader(state: SettingsUiState, onOpenProfile: (() -> Unit)?) 
         Spacer(Modifier.width(16.dp))
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(text = state.displayName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-            state.username?.let {
-                Text(
-                    text = stringResource(R.string.settings_username, it),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
     }
 }
@@ -342,7 +335,7 @@ private fun SignOutDialog(enabled: Boolean, onConfirm: () -> Unit, onDismiss: ()
 private fun SettingsScreenPreview() {
     GimTheme {
         SettingsScreen(
-            state = SettingsUiState(displayName = "Sofia Costa", username = "sofia", accountId = "u-7f3a9c21"),
+            state = SettingsUiState(displayName = "Sofia Costa", accountId = "u-7f3a9c21"),
             actions = SettingsActions(),
         )
     }

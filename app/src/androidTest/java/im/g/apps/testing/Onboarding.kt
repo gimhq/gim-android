@@ -27,7 +27,6 @@ object OnboardingTags {
     const val CODE_CONTINUE = "onboarding_code_continue"
     const val KIT_CHECK = "onboarding_kit_check"
     const val KIT_CHECK_CONFIRM = "onboarding_kit_check_confirm"
-    const val HANDLE = "onboarding_handle"
     const val SERVER_URL = "onboarding_server_url"
     const val USE_ANOTHER_SERVER = "onboarding_use_another_server"
 }
@@ -69,7 +68,7 @@ fun AndroidComposeTestRule<*, out ComponentActivity>.showServerField(
 
 /**
  * On the recovery kit: reads the Account ID and recovery key, taps "I saved it", types the key's last four symbols
- * into the check, confirms and waits for the username step. Never logs the key.
+ * into the check and confirms; onboarding then finishes, so callers wait for the chat list. Never logs the key.
  */
 fun AndroidComposeTestRule<*, out ComponentActivity>.completeRecoveryKit(
     logTag: String,
@@ -84,9 +83,7 @@ fun AndroidComposeTestRule<*, out ComponentActivity>.completeRecoveryKit(
     onNodeWithTag(OnboardingTags.KIT_CHECK).performTextReplacement(kit.recoveryKey.replace("-", "").takeLast(4))
     val confirm = hasTestTag(OnboardingTags.KIT_CHECK_CONFIRM) and isEnabled()
     awaitNode("recovery check confirm enabled", confirm, timeoutMs, fail)
-    val username = hasTestTag(OnboardingTags.HANDLE)
-    clickWhenSettled(logTag, "confirm recovery check", OnboardingTags.KIT_CHECK_CONFIRM, timeoutMs, next = username)
-    awaitNode("username step", username, timeoutMs, fail)
+    clickWhenSettled(logTag, "confirm recovery check", OnboardingTags.KIT_CHECK_CONFIRM, timeoutMs)
     return kit
 }
 

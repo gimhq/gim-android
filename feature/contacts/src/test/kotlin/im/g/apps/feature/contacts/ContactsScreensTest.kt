@@ -29,6 +29,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import im.g.apps.core.bridge.ReportReason
 import im.g.apps.core.bridge.UserProfile
+import im.g.apps.core.bridge.shortUserId
 import im.g.apps.core.bridge.fake.DemoData
 import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.designsystem.R as DesignR
@@ -83,9 +84,25 @@ class ContactsScreensTest {
             }
         }
         rule.onNodeWithText("Lukas Berger").assertExists()
-        rule.onNodeWithText("@lukas").assertExists()
+        rule.onNodeWithText(shortUserId(DemoData.lukas.userId)).assertExists()
         rule.onNodeWithText("Start chat").assertIsEnabled().performClick()
         assertEquals(1, started)
+    }
+
+    @Test
+    fun newChat_textWithoutAccountId_explainsWhatToPaste() {
+        rule.setContent {
+            GimTheme {
+                NewChatScreen(
+                    state = NewChatUiState(query = "lukas", search = UserSearchState.NotAccountId),
+                    onQueryChange = {},
+                    onStartChat = {},
+                    onBack = {},
+                )
+            }
+        }
+        rule.onNodeWithText("This isn't an Account ID. Paste the whole ID your friend shared.").assertExists()
+        rule.onNodeWithText("Start chat").assertDoesNotExist()
     }
 
     @Test
@@ -140,13 +157,13 @@ class ContactsScreensTest {
         rule.setContent {
             GimTheme {
                 Column {
-                    Text(ContactsError.ContactNotAdmitted(listOf("Ana Kovač", "@nikos")).message())
+                    Text(ContactsError.ContactNotAdmitted(listOf("Ana Kovač", "Nikos")).message())
                     Text(ContactsError.NotAdmittedByPeer.message())
                     Text(ContactsError.NotAdmitted(null).message())
                 }
             }
         }
-        rule.onNodeWithText("Couldn't add Ana Kovač and @nikos. Their server doesn't accept you. Try someone else.")
+        rule.onNodeWithText("Couldn't add Ana Kovač and Nikos. Their server doesn't accept you. Try someone else.")
             .assertExists()
         rule.onNodeWithText(ApplicationProvider.getApplicationContext<Context>().getString(DesignR.string.gim_error_not_admitted_by_peer)).assertExists()
         rule.onNodeWithText(ApplicationProvider.getApplicationContext<Context>().getString(DesignR.string.gim_error_user_not_admitted)).assertExists()
@@ -158,7 +175,7 @@ class ContactsScreensTest {
             GimTheme {
                 NewChatScreen(
                     state = NewChatUiState(
-                        query = DemoData.me.handle,
+                        query = DemoData.me.userId,
                         search = UserSearchState.Found(DemoData.me),
                         selfUserId = DemoData.me.userId,
                     ),
@@ -177,7 +194,7 @@ class ContactsScreensTest {
         shadowOf(app).grantPermissions(Manifest.permission.CAMERA)
         val friend = UserProfile("u" + "c".repeat(54) + "i", "cleo", "Cleo Marsh")
         val fake = demoClient(scope).apply { addDirectoryUser(friend) }
-        val vm = NewChatViewModel(TestClient(fake), avatarDir)
+        val vm = NewChatViewModel(TestClient(fake))
         var opened: String? = null
         rule.setContent {
             GimTheme {
@@ -220,7 +237,7 @@ class ContactsScreensTest {
 
     @Test
     fun newGroup_nextAndCreateFollowValidation() {
-        val vm = NewGroupViewModel(demoClient(scope), avatarDir)
+        val vm = NewGroupViewModel(demoClient(scope))
         var openedChatId: String? = null
         rule.setContent {
             GimTheme { NewGroupRoute(vm, onOpenChat = { openedChatId = it }, onBack = {}) }

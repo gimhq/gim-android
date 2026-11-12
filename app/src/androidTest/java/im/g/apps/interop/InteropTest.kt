@@ -102,8 +102,9 @@ class InteropTest {
     @Test
     fun interopWithCliPeers() {
         keepScreenOn(instrumentation, compose.activity)
-        // a. Skip the intro, create the identity through onboarding, pass the recovery kit check and claim the
-        // handle. Buttons are scrolled into view with the soft keyboard hidden, which can cover them.
+        // a. Skip the intro, create the identity through onboarding and pass the recovery kit check. Buttons are
+        // scrolled into view with the soft keyboard hidden, which can cover them. The app has no username UI; the
+        // handle the CLI script addresses android by is claimed through the client until the CLI moves to user ids.
         awaitServerReachable(instrumentation.targetContext, serverUrl)
         compose.skipIntro(Rendezvous.TAG, TIMEOUT_MS, ::fail)
         compose.waitForText(string(OnboardingR.string.onboarding_welcome_title))
@@ -114,14 +115,13 @@ class InteropTest {
         compose.onNodeWithTag(TAG_DISPLAY_NAME).performTextReplacement(androidName)
         click(TAG_SUBMIT)
         compose.completeRecoveryKit(Rendezvous.TAG, TIMEOUT_MS, ::fail)
-        compose.onNodeWithTag(TAG_HANDLE).performTextReplacement(androidHandle)
-        click(TAG_CLAIM_HANDLE)
         compose.waitForText(string(ChatListR.string.chatlist_title))
+        val client = checkNotNull((compose.activity.application as GimApplication).container.manager.client.value)
+        runBlocking { client.claimHandle(androidHandle) }
         rendezvous.mark("registered")
 
         // h. User ids: the app finds alice by her claimed handle with the id from her CLI JSON; the script checks
         // that alice's lookup of the app's handle returns the app's own id.
-        val client = checkNotNull((compose.activity.application as GimApplication).container.manager.client.value)
         val alice = runBlocking { client.findUser(aliceHandle) }
         assertEquals("user id of @$aliceHandle", aliceUserId, alice?.userId)
         rendezvous.value("android-user-id", checkNotNull(client.userId()))
@@ -314,8 +314,6 @@ class InteropTest {
         const val TAG_CREATE_ACCOUNT = "onboarding_create_account"
         const val TAG_DISPLAY_NAME = "onboarding_display_name"
         const val TAG_SUBMIT = "onboarding_submit"
-        const val TAG_HANDLE = "onboarding_handle"
-        const val TAG_CLAIM_HANDLE = "onboarding_claim_handle"
         const val TAG_COMPOSER = "composer-input"
     }
 }

@@ -10,7 +10,7 @@
     <string name="explainer_locked_messages_title">你的消息是加密的</string>
     <string name="explainer_locked_messages_body">消息采用端到端加密。只有聊天里的人能看到。连服务器也看不到。</string>
     <string name="explainer_account_id_title">账号 ID 就是你的地址</string>
-    <string name="explainer_account_id_body">把你的账号 ID 分享给朋友，他们就能找到你。你也可以设置一个用户名，让别人更容易找到你。</string>
+    <string name="explainer_account_id_body">把你的账号 ID 分享给朋友，他们就能找到你。出示你的二维码或发送这个 ID，这是别人找到你的唯一方式。</string>
     <string name="explainer_recovery_key_title">恢复密钥是你的备用钥匙</string>
     <string name="explainer_recovery_key_body">设备全丢了？用恢复密钥和账号 ID 就能找回账号。以前的聊天不会回来。请把密钥保密并放在安全的地方。不要给任何人看。</string>
 </resources>

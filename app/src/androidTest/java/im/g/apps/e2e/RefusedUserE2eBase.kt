@@ -168,7 +168,6 @@ abstract class RefusedUserE2eBase {
         val welcome = "Welcome aboard $suffix"
         val chatId = runBlocking {
             peer.createIdentity("Peer $suffix")
-            peer.claimHandle("peer_$suffix")
             peer.startSync()
             peer.createGroupChat(groupName, listOf(userId)).also { peer.sendText(it, welcome, null) }
         }
@@ -238,8 +237,6 @@ abstract class RefusedUserE2eBase {
         val recoveryCode = hasTestTag(TAG_RECOVERY_CODE)
         waitFor("identity creation started (loading or recovery code)") { exists(creating) || exists(recoveryCode) }
         compose.completeRecoveryKit(logTag, timeoutMs, ::failStep)
-        enterText("handle", TAG_HANDLE, "app_$suffix")
-        click("claim handle", TAG_CLAIM_HANDLE)
         waitForText("chat list after onboarding", string(ChatListR.string.chatlist_title))
     }
 
@@ -358,8 +355,6 @@ abstract class RefusedUserE2eBase {
         const val TAG_DISPLAY_NAME = "onboarding_display_name"
         const val TAG_SUBMIT = "onboarding_submit"
         const val TAG_RECOVERY_CODE = "onboarding_recovery_code"
-        const val TAG_HANDLE = "onboarding_handle"
-        const val TAG_CLAIM_HANDLE = "onboarding_claim_handle"
         const val TAG_COMPOSER = "composer-input"
     }
 }

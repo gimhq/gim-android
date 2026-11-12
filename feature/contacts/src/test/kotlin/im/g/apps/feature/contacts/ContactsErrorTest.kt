@@ -66,14 +66,14 @@ class ContactsErrorTest {
     }
 
     @Test
-    fun contactNotAdmitted_namesKnownInvitees_elseHandleOrUserId() {
+    fun contactNotAdmitted_namesKnownInvitees_elseUserId() {
         val invitees = listOf(
             UserProfile("u-a", "ana", "Ana"),
             UserProfile("u-b", "bo", ""),
             UserProfile("u-c", "", "u-c"),
         )
         assertEquals(
-            ContactsError.ContactNotAdmitted(listOf("Ana", "@bo", "u-c", "u-d")),
+            ContactsError.ContactNotAdmitted(listOf("Ana", "u-b", "u-c", "u-d")),
             GimException.ContactNotAdmitted(listOf("u-a", "u-b", "u-c", "u-d")).toInviteError(invitees = invitees),
         )
     }

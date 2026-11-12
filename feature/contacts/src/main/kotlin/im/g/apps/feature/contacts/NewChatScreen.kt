@@ -126,7 +126,6 @@ internal fun NewChatScreen(
                 query = state.query,
                 onQueryChange = onQueryChange,
                 state = state.search,
-                photos = state.photos,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Button(onClick = onStartChat, enabled = state.canStartChat) {
@@ -199,8 +198,8 @@ private fun NewChatScreenPreview() {
     GimTheme {
         NewChatScreen(
             state = NewChatUiState(
-                query = "lukas",
-                search = UserSearchState.Found(UserProfile("u-lukas", "lukas", "Lukas Berger")),
+                query = "u-lukas",
+                search = UserSearchState.Found(UserProfile("u-lukas", "", "Lukas Berger")),
             ),
             onQueryChange = {},
             onStartChat = {},

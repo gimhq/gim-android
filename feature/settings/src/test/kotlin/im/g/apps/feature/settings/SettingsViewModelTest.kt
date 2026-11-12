@@ -33,23 +33,11 @@ class SettingsViewModelTest {
     @Test
     fun loads_the_session_into_the_state() = runTest {
         val client = signedIn()
-        client.claimHandle("sofia")
 
         val state = viewModel(client).state.value
 
         assertEquals("Sofia Costa", state.displayName)
-        assertEquals("sofia", state.username)
         assertEquals(client.userId(), state.accountId)
-    }
-
-    @Test
-    fun no_username_is_null() = runTest {
-        val client = signedIn()
-
-        val state = viewModel(client).state.value
-
-        assertEquals("Sofia Costa", state.displayName)
-        assertNull(state.username)
     }
 
     @Test

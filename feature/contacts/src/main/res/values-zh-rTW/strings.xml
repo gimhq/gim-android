@@ -4,17 +4,15 @@
     <string name="contacts_back">返回</string>
     <string name="contacts_you">你</string>
 
-    <string name="contacts_search_label">使用者名稱或帳號 ID</string>
-    <string name="contacts_search_placeholder">\@使用者名稱</string>
-    <string name="contacts_search_hint">輸入使用者名稱的至少 3 個字元，或貼上帳號 ID。</string>
-    <string name="contacts_search_searching">搜尋中…</string>
-    <string name="contacts_search_not_found">沒有人使用 \@%1$s 這個使用者名稱。請檢查拼字後再試一次。</string>
+    <string name="contacts_search_label">帳號 ID</string>
+    <string name="contacts_search_hint">貼上朋友的帳號 ID。他們可以在「設定」&gt;「個人資料」中找到。</string>
+    <string name="contacts_search_not_account_id">這不是帳號 ID。請貼上朋友分享的完整 ID。</string>
 
     <string name="contacts_error_network">無法連線到伺服器。請檢查網路連線後再試一次。</string>
     <string name="contacts_error_not_registered">你已經登出了。請重新登入以繼續。</string>
     <string name="contacts_error_invalid_input">無法執行。請檢查你輸入的內容後再試一次。</string>
     <string name="contacts_error_not_found">這個項目已經不在了。請返回後再試一次。</string>
-    <string name="contacts_error_user_not_found">找不到這個人。請檢查使用者名稱後再試一次。</string>
+    <string name="contacts_error_user_not_found">找不到這個人。請檢查帳號 ID 後再試一次。</string>
     <string name="contacts_error_contact_not_admitted">無法新增 %1$s。對方的伺服器不接受你。請試試其他人。</string>
     <string name="contacts_error_retry_later">嘗試次數太多。請在 %1$d 秒後再試一次。</string>
     <string name="contacts_error_server">伺服器發生問題。請稍後再試。</string>
@@ -29,8 +27,8 @@
     <string name="contacts_scan_close">關閉</string>
     <string name="contacts_scan_not_account_id">這個 QR 碼不是 gim 帳號 ID。請朋友出示他們個人資料裡的 QR 碼。</string>
     <string name="contacts_scan_own_code">這是你自己的 QR 碼。</string>
-    <string name="contacts_scan_camera_denied">你需要允許使用相機才能掃描 QR 碼。你也可以改用使用者名稱搜尋。</string>
-    <string name="contacts_scan_camera_unavailable">現在無法使用相機。你可以改用使用者名稱搜尋。</string>
+    <string name="contacts_scan_camera_denied">你需要允許使用相機才能掃描 QR 碼。你也可以改為貼上對方的帳號 ID。</string>
+    <string name="contacts_scan_camera_unavailable">現在無法使用相機。你可以改為貼上對方的帳號 ID。</string>
 
     <string name="contacts_new_group_title">新群組</string>
     <string name="contacts_new_group_members_title">新增成員</string>

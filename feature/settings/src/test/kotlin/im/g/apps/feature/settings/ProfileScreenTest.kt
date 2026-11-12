@@ -21,30 +21,19 @@ class ProfileScreenTest {
     @get:Rule
     val rule = createComposeRule()
 
-    private val state = ProfileUiState(displayName = "Sofia Costa", username = "sofia", accountId = ACCOUNT_ID)
+    private val state = ProfileUiState(displayName = "Sofia Costa", accountId = ACCOUNT_ID)
 
     private fun show(state: ProfileUiState = this.state, actions: ProfileActions = ProfileActions()) =
         rule.setContent { GimTheme { ProfileScreen(state, actions) } }
 
     @Test
-    fun shows_the_name_username_and_account_id() {
+    fun shows_the_name_and_account_id_without_a_username() {
         show()
 
         rule.onNodeWithText("Profile").assertExists()
         rule.onNodeWithText("Sofia Costa").assertExists()
-        rule.onNodeWithText("@sofia").performScrollTo().assertExists()
         rule.onNodeWithText(ACCOUNT_ID).performScrollTo().assertExists()
-    }
-
-    @Test
-    fun without_a_username_offers_to_add_one() {
-        var add = 0
-        show(state.copy(username = null), ProfileActions(onEditUsername = { add++ }))
-
-        rule.onNodeWithText("Friends can find you with it.", substring = true).performScrollTo().assertExists()
-        rule.onNodeWithTag(ProfileTestTags.USERNAME_ADD).performScrollTo().performClick()
-
-        assertEquals(1, add)
+        rule.onNodeWithText("Username").assertDoesNotExist()
     }
 
     @Test
@@ -68,30 +57,6 @@ class ProfileScreenTest {
     }
 
     @Test
-    fun remove_asks_for_confirmation_first() {
-        val calls = mutableListOf<String>()
-        show(actions = ProfileActions(onAskRemoveUsername = { calls += "ask" }, onRemoveUsername = { calls += "remove" }))
-
-        rule.onNodeWithTag(ProfileTestTags.USERNAME_REMOVE).performScrollTo().performClick()
-
-        assertEquals(listOf("ask"), calls)
-    }
-
-    @Test
-    fun remove_dialog_explains_and_confirms() {
-        val calls = mutableListOf<String>()
-        show(
-            state.copy(editor = ProfileEditor.REMOVE_USERNAME),
-            ProfileActions(onRemoveUsername = { calls += "remove" }, onCancelEdit = { calls += "cancel" }),
-        )
-
-        rule.onNodeWithText("Friends can't find you by username anymore. Your chats stay.").assertExists()
-        rule.onNodeWithTag(ProfileTestTags.USERNAME_REMOVE_CONFIRM).performClick()
-
-        assertEquals(listOf("remove"), calls)
-    }
-
-    @Test
     fun name_dialog_saves_what_was_typed_and_shows_the_error() {
         val saved = mutableListOf<String>()
         show(
@@ -107,29 +72,13 @@ class ProfileScreenTest {
     }
 
     @Test
-    fun username_dialog_claims_what_was_typed_and_shows_taken() {
-        val saved = mutableListOf<String>()
-        show(
-            state.copy(editor = ProfileEditor.USERNAME, usernameError = ProfileFieldError.USERNAME_TAKEN),
-            ProfileActions(onSaveUsername = { saved += it }),
-        )
-
-        rule.onNodeWithText("That username is taken. Try another one.").assertExists()
-        rule.onNodeWithTag(ProfileTestTags.USERNAME_FIELD).performTextReplacement("sofia_2")
-        rule.onNodeWithTag(ProfileTestTags.USERNAME_CLAIM).performClick()
-
-        assertEquals(listOf("sofia_2"), saved)
-    }
-
-    @Test
-    fun change_and_name_rows_open_their_editors() {
+    fun name_row_opens_its_editor() {
         val calls = mutableListOf<String>()
-        show(actions = ProfileActions(onEditName = { calls += "name" }, onEditUsername = { calls += "username" }))
+        show(actions = ProfileActions(onEditName = { calls += "name" }))
 
         rule.onNodeWithTag(ProfileTestTags.NAME).performScrollTo().performClick()
-        rule.onNodeWithTag(ProfileTestTags.USERNAME_CHANGE).performScrollTo().performClick()
 
-        assertEquals(listOf("name", "username"), calls)
+        assertEquals(listOf("name"), calls)
     }
 
     @Test

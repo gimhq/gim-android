@@ -3,16 +3,14 @@
 <resources>
     <string name="contacts_back">Volver</string>
     <string name="contacts_you">Tú</string>
-    <string name="contacts_search_label">Nombre de usuario o ID de cuenta</string>
-    <string name="contacts_search_placeholder">\@nombredeusuario</string>
-    <string name="contacts_search_hint">Escribe al menos 3 letras de un nombre de usuario o pega un ID de cuenta.</string>
-    <string name="contacts_search_searching">Buscando…</string>
-    <string name="contacts_search_not_found">Nadie tiene el nombre de usuario \@%1$s. Revisa cómo está escrito e inténtalo de nuevo.</string>
+    <string name="contacts_search_label">ID de cuenta</string>
+    <string name="contacts_search_hint">Pega el ID de cuenta de tu amigo. Lo encuentra en Ajustes &gt; Perfil.</string>
+    <string name="contacts_search_not_account_id">Esto no es un ID de cuenta. Pega el ID completo que te compartió tu amigo.</string>
     <string name="contacts_error_network">No se puede conectar con el servidor. Revisa tu conexión a internet e inténtalo de nuevo.</string>
     <string name="contacts_error_not_registered">Cerraste sesión. Vuelve a iniciar sesión para continuar.</string>
     <string name="contacts_error_invalid_input">No se pudo hacer. Revisa lo que escribiste e inténtalo de nuevo.</string>
     <string name="contacts_error_not_found">Esto ya no existe. Vuelve atrás e inténtalo de nuevo.</string>
-    <string name="contacts_error_user_not_found">No se encontró a esta persona. Revisa el nombre de usuario e inténtalo de nuevo.</string>
+    <string name="contacts_error_user_not_found">No se encontró a esta persona. Revisa el ID de cuenta e inténtalo de nuevo.</string>
     <string name="contacts_error_contact_not_admitted">No se pudo añadir a %1$s. Su servidor no te acepta. Prueba con otra persona.</string>
     <string name="contacts_error_retry_later">Demasiados intentos. Inténtalo de nuevo en %1$d s.</string>
     <string name="contacts_error_server">Algo salió mal en el servidor. Inténtalo más tarde.</string>
@@ -26,8 +24,8 @@
     <string name="contacts_scan_close">Cerrar</string>
     <string name="contacts_scan_not_account_id">Este código QR no es un ID de cuenta de gim. Pide a tu amigo que te muestre el código QR de su Perfil.</string>
     <string name="contacts_scan_own_code">Este es tu propio código QR.</string>
-    <string name="contacts_scan_camera_denied">Tienes que permitir el uso de la cámara para escanear un código QR. También puedes buscar por nombre de usuario.</string>
-    <string name="contacts_scan_camera_unavailable">Ahora no se puede usar la cámara. También puedes buscar por nombre de usuario.</string>
+    <string name="contacts_scan_camera_denied">Tienes que permitir el uso de la cámara para escanear un código QR. También puedes pegar su ID de cuenta.</string>
+    <string name="contacts_scan_camera_unavailable">Ahora no se puede usar la cámara. También puedes pegar su ID de cuenta.</string>
     <string name="contacts_new_group_title">Nuevo grupo</string>
     <string name="contacts_new_group_members_title">Añadir miembros</string>
     <string name="contacts_new_group_name_title">Nombre del grupo</string>

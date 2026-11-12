@@ -7,12 +7,8 @@ import im.g.apps.core.bridge.fake.FakeGimClient
 import im.g.apps.core.bridge.flow.chatListFlow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -20,8 +16,6 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.TemporaryFolder
-import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class NewChatViewModelTest {
@@ -29,121 +23,62 @@ class NewChatViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
-    @get:Rule
-    val tmp = TemporaryFolder()
-
-    private val avatarDir by lazy { tmp.newFolder("avatars") }
-
     private fun TestScope.newViewModel(setup: (FakeGimClient) -> Unit = {}): Pair<NewChatViewModel, TestClient> {
         val fake = demoClient(backgroundScope)
         fake.addDirectoryUser(SCANNED_USER)
         setup(fake)
         val client = TestClient(fake)
-        return NewChatViewModel(client, avatarDir, StandardTestDispatcher(testScheduler)) to client
+        return NewChatViewModel(client) to client
     }
 
     @Test
-    fun shortQuery_staysIdleWithoutLookup() = runTest {
-        val (vm, client) = newViewModel()
-        vm.onQueryChange(" @Lu ")
-        advanceUntilIdle()
-        assertEquals(UserSearchState.Idle, vm.state.value.search)
-        assertEquals(" @Lu ", vm.state.value.query)
-        assertTrue(client.lookups.isEmpty())
-    }
-
-    @Test
-    fun search_isDebouncedAndNormalized() = runTest {
-        val (vm, client) = newViewModel()
-        vm.onQueryChange("@LUK")
-        runCurrent()
-        assertEquals(UserSearchState.Searching, vm.state.value.search)
-
-        advanceTimeBy(200)
-        vm.onQueryChange("  @LuKaS ")
-        runCurrent()
-        advanceTimeBy(SEARCH_DEBOUNCE_MS - 1)
-        runCurrent()
-        assertEquals(UserSearchState.Searching, vm.state.value.search)
-        assertTrue(client.lookups.isEmpty())
-
-        advanceTimeBy(1)
-        runCurrent()
-        assertEquals(UserSearchState.Found(DemoData.lukas), vm.state.value.search)
-        assertEquals(listOf("lukas"), client.lookups)
+    fun accountId_isTakenFromPastedText() = runTest {
+        val (vm, _) = newViewModel()
+        vm.onQueryChange("  https://example.com/add?id=${SCANNED_USER.userId.uppercase()} ")
+        assertEquals(UserSearchState.Found(UserProfile(SCANNED_USER.userId, "", "")), vm.state.value.search)
         assertTrue(vm.state.value.canStartChat)
     }
 
     @Test
-    fun unknownHandle_isNotFound() = runTest {
+    fun textWithoutAccountId_isNotAnAccountId() = runTest {
         val (vm, _) = newViewModel()
-        vm.onQueryChange("nobody")
-        advanceUntilIdle()
-        assertEquals(UserSearchState.NotFound("nobody"), vm.state.value.search)
-        assertFalse(vm.state.value.canStartChat)
-    }
-
-    @Test
-    fun lookupFailure_isMappedToError() = runTest {
-        val (vm, client) = newViewModel()
-        client.findUserError = GimException.Network("offline")
         vm.onQueryChange("lukas")
-        advanceUntilIdle()
-        assertEquals(UserSearchState.Error(ContactsError.Network), vm.state.value.search)
-
-        client.findUserError = GimException.Server(503, "busy")
-        vm.onQueryChange("nikos")
-        advanceUntilIdle()
-        assertEquals(UserSearchState.Error(ContactsError.Server), vm.state.value.search)
+        assertEquals(UserSearchState.NotAccountId, vm.state.value.search)
+        assertEquals("lukas", vm.state.value.query)
+        assertFalse(vm.state.value.canStartChat)
     }
 
     @Test
     fun clearingQuery_returnsToIdle() = runTest {
         val (vm, _) = newViewModel()
-        vm.onQueryChange("lukas")
-        advanceUntilIdle()
-        vm.onQueryChange("")
-        advanceUntilIdle()
+        vm.onQueryChange(SCANNED_USER.userId)
+        vm.onQueryChange(" ")
         assertEquals(UserSearchState.Idle, vm.state.value.search)
     }
 
     @Test
-    fun ownHandle_cannotStartChat() = runTest {
-        val (vm, _) = newViewModel()
-        vm.onQueryChange(DemoData.me.handle)
-        advanceUntilIdle()
-        assertEquals(UserSearchState.Found(DemoData.me), vm.state.value.search)
-        assertFalse(vm.state.value.canStartChat)
-    }
-
-    @Test
-    fun startChat_withExistingContact_opensExistingChat() = runTest {
-        val (vm, _) = newViewModel()
-        vm.onQueryChange("lukas")
-        advanceUntilIdle()
-        vm.startChat()
-        advanceUntilIdle()
-        assertEquals(NewChatEvent.OpenChat(DemoData.DIRECT_CHAT_ID), vm.events.first())
-        assertFalse(vm.state.value.starting)
+    fun ownAccountId_cannotStartChat() {
+        val own = UserProfile(SCANNED_USER.userId, "", "")
+        val state = NewChatUiState(query = own.userId, search = UserSearchState.Found(own), selfUserId = own.userId)
+        assertFalse(state.canStartChat)
     }
 
     @Test
     fun startChat_withNewContact_createsDirectChat() = runTest {
         val (vm, client) = newViewModel()
-        vm.onQueryChange("ana")
+        vm.onQueryChange(SCANNED_USER.userId)
         advanceUntilIdle()
         vm.startChat()
         advanceUntilIdle()
         val event = vm.events.first() as NewChatEvent.OpenChat
-        assertEquals(event.chatId, client.createDirectChat(DemoData.ana.userId))
-        assertEquals(listOf(DemoData.me, DemoData.ana), client.chatMembers(event.chatId))
+        assertEquals(listOf(DemoData.me, SCANNED_USER), client.chatMembers(event.chatId))
     }
 
     @Test
     fun startChat_failure_emitsError() = runTest {
         val (vm, client) = newViewModel()
         client.createDirectChatError = GimException.Network("timeout")
-        vm.onQueryChange("ana")
+        vm.onQueryChange(SCANNED_USER.userId)
         advanceUntilIdle()
         vm.startChat()
         advanceUntilIdle()
@@ -154,8 +89,8 @@ class NewChatViewModelTest {
     @Test
     fun startChat_withBlockedUser_saysTheyAreBlocked() = runTest {
         val (vm, client) = newViewModel()
-        client.blockUser(DemoData.ana.userId)
-        vm.onQueryChange("ana")
+        client.blockUser(SCANNED_USER.userId)
+        vm.onQueryChange(SCANNED_USER.userId)
         advanceUntilIdle()
         vm.startChat()
         advanceUntilIdle()
@@ -169,7 +104,6 @@ class NewChatViewModelTest {
         vm.onQueryChange(" ${UNKNOWN_USER_ID.uppercase()} ")
         advanceUntilIdle()
         assertEquals(UserSearchState.Found(UserProfile(UNKNOWN_USER_ID, "", "")), vm.state.value.search)
-        assertTrue(client.lookups.isEmpty())
         assertTrue(vm.state.value.canStartChat)
 
         vm.startChat()
@@ -182,7 +116,7 @@ class NewChatViewModelTest {
     fun startChat_suspendedWithOneHub_showsTheGenericSuspendedError() = runTest {
         val (vm, client) = newViewModel()
         client.createDirectChatError = GimException.UserSuspended(client.hubs().single().hubId)
-        vm.onQueryChange("ana")
+        vm.onQueryChange(SCANNED_USER.userId)
         advanceUntilIdle()
         vm.startChat()
         advanceUntilIdle()
@@ -195,12 +129,12 @@ class NewChatViewModelTest {
     fun startChat_contactNotAdmitted_namesTheUserAndCreatesNoChat() = runTest {
         val (vm, client) = newViewModel()
         val before = client.chatListFlow().first().size
-        client.createDirectChatError = GimException.ContactNotAdmitted(listOf(DemoData.ana.userId))
-        vm.onQueryChange("ana")
+        client.createDirectChatError = GimException.ContactNotAdmitted(listOf(SCANNED_USER.userId))
+        vm.onQueryChange(SCANNED_USER.userId)
         advanceUntilIdle()
         vm.startChat()
         advanceUntilIdle()
-        assertEquals(NewChatEvent.ShowError(ContactsError.ContactNotAdmitted(listOf("Ana Kovač"))), vm.events.first())
+        assertEquals(NewChatEvent.ShowError(ContactsError.ContactNotAdmitted(listOf(SCANNED_USER.userId))), vm.events.first())
         assertEquals(before, client.chatListFlow().first().size)
         assertFalse(vm.state.value.starting)
     }
@@ -209,7 +143,7 @@ class NewChatViewModelTest {
     fun startChat_notAdmitted_showsTheHubRefusalAndKeepsTheSession() = runTest {
         val (vm, client) = newViewModel()
         client.createDirectChatError = GimException.UserNotAdmitted(client.hubs().single().hubId)
-        vm.onQueryChange("ana")
+        vm.onQueryChange(SCANNED_USER.userId)
         advanceUntilIdle()
         vm.startChat()
         advanceUntilIdle()
@@ -221,7 +155,7 @@ class NewChatViewModelTest {
     fun startChat_retryLater_showsTheWait() = runTest {
         val (vm, client) = newViewModel()
         client.createDirectChatError = GimException.RetryLater(503, 12, "peer_unavailable")
-        vm.onQueryChange("ana")
+        vm.onQueryChange(SCANNED_USER.userId)
         advanceUntilIdle()
         vm.startChat()
         advanceUntilIdle()
@@ -305,51 +239,6 @@ class NewChatViewModelTest {
         vm.onCameraUnavailable()
         assertFalse(vm.state.value.scannerOpen)
         assertEquals(ScanNotice.CAMERA_UNAVAILABLE, vm.state.value.scanNotice)
-    }
-
-    @Test
-    fun foundUserWithAPhoto_downloadsItOnce() = runTest {
-        val lukas = DemoData.lukas.copy(hasAvatar = true)
-        val (vm, client) = newViewModel { it.addDirectoryUser(lukas) }
-        vm.onQueryChange("lukas")
-        advanceUntilIdle()
-        val path = vm.state.value.photos[lukas.userId]
-        assertEquals(File(avatarDir, lukas.userId).path, path)
-        assertTrue(File(path!!).isFile)
-
-        vm.onQueryChange("nobody")
-        advanceUntilIdle()
-        vm.onQueryChange("lukas")
-        advanceUntilIdle()
-        assertEquals(UserSearchState.Found(lukas), vm.state.value.search)
-        assertEquals(listOf(lukas.userId), client.avatarFetches)
-    }
-
-    @Test
-    fun foundUserWithoutAPhoto_fetchesNothing() = runTest {
-        val (vm, client) = newViewModel()
-        vm.onQueryChange("lukas")
-        advanceUntilIdle()
-        assertEquals(UserSearchState.Found(DemoData.lukas), vm.state.value.search)
-        assertTrue(vm.state.value.photos.isEmpty())
-        assertTrue(client.avatarFetches.isEmpty())
-    }
-
-    @Test
-    fun photoDownloadFailure_keepsTheInitialsWithoutAnError() = runTest {
-        val lukas = DemoData.lukas.copy(hasAvatar = true)
-        val (vm, client) = newViewModel { fake ->
-            fake.addDirectoryUser(lukas)
-            fake.failNext("fetchUserAvatar", GimException.Network("offline"))
-        }
-        val events = mutableListOf<NewChatEvent>()
-        backgroundScope.launch { vm.events.collect { events += it } }
-        vm.onQueryChange("lukas")
-        advanceUntilIdle()
-        assertEquals(listOf(lukas.userId), client.avatarFetches)
-        assertEquals(UserSearchState.Found(lukas), vm.state.value.search)
-        assertTrue(vm.state.value.photos.isEmpty())
-        assertTrue(events.isEmpty())
     }
 
     private companion object {

@@ -46,17 +46,6 @@
     <string name="profile_name_title">Tu nombre</string>
     <string name="profile_name_label">Nombre</string>
     <string name="profile_name_saved">Nombre guardado.</string>
-    <string name="profile_section_username">Nombre de usuario</string>
-    <string name="profile_username_add">Añadir un nombre de usuario</string>
-    <string name="profile_username_why">Tus amigos pueden encontrarte con él.</string>
-    <string name="profile_username_change">Cambiar</string>
-    <string name="profile_username_change_title">Cambiar nombre de usuario</string>
-    <string name="profile_username_remove">Quitar</string>
-    <string name="profile_username_rule">De 3 a 32 letras, números o _</string>
-    <string name="profile_username_saved">Nombre de usuario guardado.</string>
-    <string name="profile_username_remove_title">¿Quitar el nombre de usuario?</string>
-    <string name="profile_username_remove_body">Tus amigos ya no podrán encontrarte por nombre de usuario. Tus chats se quedan.</string>
-    <string name="profile_username_removed">Nombre de usuario quitado.</string>
     <string name="profile_section_account_id">ID de cuenta</string>
     <string name="profile_copy">Copiar</string>
     <string name="profile_account_id_copied">ID de cuenta copiado</string>
@@ -65,8 +54,6 @@
     <string name="profile_qr_caption">Tus amigos pueden escanearlo para iniciar un chat contigo.</string>
     <string name="profile_save">Guardar</string>
     <string name="profile_error_name">Escribe un nombre de 1 a 64 caracteres.</string>
-    <string name="profile_error_username">Usa de 3 a 32 letras, números o _.</string>
-    <string name="profile_error_username_taken">Ese nombre de usuario ya existe. Prueba con otro.</string>
     <string name="profile_error_network">No se pudo guardar. Revisa tu conexión a internet e inténtalo de nuevo.</string>
     <string name="profile_error_unknown">No se pudo guardar. Inténtalo de nuevo.</string>
     <string name="blocked_title">Personas bloqueadas</string>

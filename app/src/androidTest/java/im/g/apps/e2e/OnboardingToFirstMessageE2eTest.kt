@@ -68,7 +68,7 @@ import im.g.apps.feature.onboarding.R as OnboardingR
 
 /**
  * A new user's first minutes against a live gim-hub (instrumentation argument `gimServerUrl`): every intro page with
- * Next and Get started, a new account, the recovery kit and its check, a username, then a direct chat with an
+ * Next and Get started, a new account, the recovery kit and its check, then a direct chat with an
  * in-process peer (a second gim-core client, as in [MessagingE2eTest]) and the first message, shown as sent and
  * received by the peer.
  */
@@ -84,7 +84,6 @@ class OnboardingToFirstMessageE2eTest {
     /** Per-wait timeout; CI's software-rendered emulator passes `timeoutScale` > 1. */
     private val timeoutMs = TIMEOUT_MS * (args.getString("timeoutScale")?.toLongOrNull()?.coerceAtLeast(1) ?: 1)
     private val suffix = UUID.randomUUID().toString().replace("-", "").take(10)
-    private val peerHandle = "peer_$suffix"
 
     // The test runs in the app process, which cannot write to the test APK's own data dir.
     private val peerDir = File(instrumentation.targetContext.cacheDir, "e2e-first-peer-$suffix")
@@ -112,13 +111,12 @@ class OnboardingToFirstMessageE2eTest {
             Log.w(LOG_TAG, "app window still has no focus; continuing")
         }
 
-        // The peer: an identity with a username, syncing.
+        // The peer: an identity, syncing.
         val peer = runBlocking {
             UniffiGimClientFactory().create(ClientConfig(serverUrl), InMemoryHooks(peerDir)).also { peerClient = it }
         }
         runBlocking {
             peer.createIdentity("Peer $suffix")
-            peer.claimHandle(peerHandle)
             peer.startSync()
         }
 
@@ -136,7 +134,7 @@ class OnboardingToFirstMessageE2eTest {
         }
         click("get started", OnboardingTags.INTRO_START, next = hasTestTag(TAG_CREATE_ACCOUNT))
 
-        // Welcome -> name -> recovery kit (heading shown) -> check -> username -> chat list.
+        // Welcome -> name -> recovery kit (heading shown) -> check -> chat list.
         waitForText("welcome", string(OnboardingR.string.onboarding_welcome_title))
         compose.showServerField(LOG_TAG, timeoutMs, ::failStep)
         enterText("server address", TAG_SERVER_URL, serverUrl)
@@ -146,19 +144,17 @@ class OnboardingToFirstMessageE2eTest {
         click("create account", TAG_SUBMIT)
         waitForText("recovery kit heading", string(OnboardingR.string.onboarding_kit_title))
         val kit = compose.completeRecoveryKit(LOG_TAG, timeoutMs, ::failStep)
-        enterText("username", OnboardingTags.HANDLE, "first_$suffix")
-        click("save username", TAG_CLAIM_HANDLE)
         waitForText("chat list after onboarding", string(ChatListR.string.chatlist_title))
         assertEquals(kit.accountId, appClient().userId())
 
-        // New chat with the peer's username.
+        // New chat with the peer's Account ID.
         compose.onNodeWithContentDescription(string(ChatListR.string.chatlist_new_message)).performClick()
         waitForText("new message menu", string(ChatListR.string.chatlist_new_chat))
         compose.onNodeWithText(string(ChatListR.string.chatlist_new_chat)).performClick()
         waitFor("new chat search", hasSetTextAction())
-        compose.onNode(hasSetTextAction()).performTextInput(peerHandle)
+        compose.onNode(hasSetTextAction()).performTextInput(checkNotNull(peer.userId()))
         val startChat = hasText(string(ContactsR.string.contacts_start_chat)) and hasClickAction() and isEnabled()
-        waitFor("peer found by username", startChat)
+        waitFor("peer taken by Account ID", startChat)
         click("start chat", startChat)
         waitFor("direct chat opened", hasTestTag(TAG_COMPOSER))
 
@@ -284,7 +280,6 @@ class OnboardingToFirstMessageE2eTest {
         const val TAG_CREATE_ACCOUNT = "onboarding_create_account"
         const val TAG_DISPLAY_NAME = "onboarding_display_name"
         const val TAG_SUBMIT = "onboarding_submit"
-        const val TAG_CLAIM_HANDLE = "onboarding_claim_handle"
         const val TAG_COMPOSER = "composer-input"
     }
 }

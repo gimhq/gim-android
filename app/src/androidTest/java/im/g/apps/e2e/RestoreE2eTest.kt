@@ -107,7 +107,6 @@ class RestoreE2eTest {
         enterText("display name", TAG_DISPLAY_NAME, "Lost $suffix")
         click("create account", TAG_CREATE_SUBMIT)
         val kit = compose.completeRecoveryKit(LOG_TAG, timeoutMs, ::failStep)
-        click("skip handle", TAG_SKIP_HANDLE)
         waitFor("chat list after creating", hasText(string(ChatListR.string.chatlist_title)))
         val userId = kit.accountId
         assertEquals(userId, appClient().userId())
@@ -159,7 +158,7 @@ class RestoreE2eTest {
         peerWait("lost device rejected with NotRegistered") {
             while (true) {
                 try {
-                    peer.findUser("nobody_$suffix")
+                    peer.devices()
                 } catch (_: GimException.NotRegistered) {
                     break
                 } catch (e: GimException) {
@@ -266,7 +265,6 @@ class RestoreE2eTest {
         const val TAG_CREATE_ACCOUNT = "onboarding_create_account"
         const val TAG_DISPLAY_NAME = "onboarding_display_name"
         const val TAG_CREATE_SUBMIT = "onboarding_submit"
-        const val TAG_SKIP_HANDLE = "onboarding_skip_handle"
         const val TAG_RESTORE = "onboarding_restore"
         const val TAG_KIT = "onboarding_restore_kit"
         const val TAG_USER_ID = "onboarding_restore_user_id"

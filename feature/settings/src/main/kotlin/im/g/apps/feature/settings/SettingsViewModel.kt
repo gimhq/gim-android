@@ -24,8 +24,6 @@ import java.io.File
 @Immutable
 data class SettingsUiState(
     val displayName: String = "",
-    /** The claimed username without "@"; null when none is claimed. */
-    val username: String? = null,
     val accountId: String? = null,
     /** The downloaded own profile photo; null shows initials. */
     val photoPath: String? = null,
@@ -34,7 +32,7 @@ data class SettingsUiState(
 )
 
 /**
- * The signed-in user's name, username, Account ID and photo for the settings header, from [GimClient.session] and
+ * The signed-in user's name, Account ID and photo for the settings header, from [GimClient.session] and
  * [GimClient.ownProfile], and the privacy switches, from [GimClient.privacy]. A switch moves at once and moves back if
  * saving fails.
  */
@@ -75,7 +73,6 @@ class SettingsViewModel(
             _state.update {
                 it.copy(
                     displayName = session.displayName,
-                    username = session.handle.ifEmpty { null },
                     accountId = session.userId,
                     photoPath = photoPath,
                     readReceipts = privacy?.readReceipts ?: it.readReceipts,

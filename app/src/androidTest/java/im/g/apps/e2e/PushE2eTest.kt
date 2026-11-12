@@ -114,7 +114,7 @@ class PushE2eTest {
         Log.i(LOG_TAG, "hub $serverUrl, push mock $mockUrl")
         mock.setBaseUrl(mockUrl)
 
-        // Onboarding: skip the intro, create identity, pass the recovery kit check, skip the handle -> chat list.
+        // Onboarding: skip the intro, create identity, pass the recovery kit check -> chat list.
         compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
         waitFor("onboarding shown", hasText(string(OnboardingR.string.onboarding_welcome_title)))
         compose.showServerField(LOG_TAG, timeoutMs, ::failStep)
@@ -124,8 +124,6 @@ class PushE2eTest {
         enterText("display name", TAG_DISPLAY_NAME, "Push $suffix")
         click("create account", TAG_SUBMIT)
         compose.completeRecoveryKit(LOG_TAG, timeoutMs, ::failStep)
-        waitFor("handle step", hasTestTag(TAG_SKIP_HANDLE))
-        click("skip handle", TAG_SKIP_HANDLE)
         waitFor("chat list", hasText(string(ChatListR.string.chatlist_title)))
 
         // Registered with the hub (mock-android token) and polling the mock from its newest delivery on.
@@ -282,7 +280,6 @@ class PushE2eTest {
         const val TAG_CREATE_ACCOUNT = "onboarding_create_account"
         const val TAG_DISPLAY_NAME = "onboarding_display_name"
         const val TAG_SUBMIT = "onboarding_submit"
-        const val TAG_SKIP_HANDLE = "onboarding_skip_handle"
         const val TAG_COMPOSER = "composer-input"
     }
 }

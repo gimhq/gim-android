@@ -119,12 +119,8 @@ internal fun GimException.toChatActionError(action: ChatAction, suspendedHub: St
         else -> error
     }
 
-/** The display name, else "@handle", else the user id. */
-private fun UserProfile.contactName(): String = when {
-    displayName.isNotBlank() && displayName != userId -> displayName
-    handle.isNotBlank() -> "@$handle"
-    else -> userId
-}
+/** The display name, else the user id. */
+private fun UserProfile.contactName(): String = displayName.takeIf { it.isNotBlank() && it != userId } ?: userId
 
 internal fun ContactsError.message(context: Context): String = when (this) {
     ContactsError.Network -> context.getString(R.string.contacts_error_network)

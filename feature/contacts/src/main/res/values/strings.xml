@@ -2,19 +2,16 @@
 <resources>
     <string name="contacts_back">Go back</string>
     <string name="contacts_you">You</string>
-    <string name="contacts_handle" translatable="false">\@%1$s</string>
 
-    <string name="contacts_search_label">Username or account ID</string>
-    <string name="contacts_search_placeholder">\@username</string>
-    <string name="contacts_search_hint">Type at least 3 letters of a username, or paste an account ID.</string>
-    <string name="contacts_search_searching">Searching…</string>
-    <string name="contacts_search_not_found">No one has the username \@%1$s. Check the spelling and try again.</string>
+    <string name="contacts_search_label">Account ID</string>
+    <string name="contacts_search_hint">Paste your friend\'s Account ID. They can find it in Settings &gt; Profile.</string>
+    <string name="contacts_search_not_account_id">This isn\'t an Account ID. Paste the whole ID your friend shared.</string>
 
     <string name="contacts_error_network">Can\'t connect to the server. Check your internet and try again.</string>
     <string name="contacts_error_not_registered">You\'re signed out. Sign in again to continue.</string>
     <string name="contacts_error_invalid_input">Couldn\'t do that. Check what you entered and try again.</string>
     <string name="contacts_error_not_found">This is no longer there. Go back and try again.</string>
-    <string name="contacts_error_user_not_found">Couldn\'t find this person. Check the username and try again.</string>
+    <string name="contacts_error_user_not_found">Couldn\'t find this person. Check the Account ID and try again.</string>
     <string name="contacts_error_contact_not_admitted">Couldn\'t add %1$s. Their server doesn\'t accept you. Try someone else.</string>
     <string name="contacts_error_retry_later">Too many tries. Try again in %1$d s.</string>
     <string name="contacts_error_server">Something went wrong on the server. Try again later.</string>
@@ -29,8 +26,8 @@
     <string name="contacts_scan_close">Close</string>
     <string name="contacts_scan_not_account_id">This QR code isn\'t a gim Account ID. Ask your friend to show the QR code from their Profile.</string>
     <string name="contacts_scan_own_code">This is your own QR code.</string>
-    <string name="contacts_scan_camera_denied">You need to allow the camera to scan a QR code. You can search by username instead.</string>
-    <string name="contacts_scan_camera_unavailable">Can\'t use the camera right now. You can search by username instead.</string>
+    <string name="contacts_scan_camera_denied">You need to allow the camera to scan a QR code. You can paste their Account ID instead.</string>
+    <string name="contacts_scan_camera_unavailable">Can\'t use the camera right now. You can paste their Account ID instead.</string>
 
     <string name="contacts_new_group_title">New group</string>
     <string name="contacts_new_group_members_title">Add members</string>

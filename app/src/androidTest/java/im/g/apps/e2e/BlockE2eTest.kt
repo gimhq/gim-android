@@ -93,7 +93,7 @@ class BlockE2eTest {
             Log.w(LOG_TAG, "app window still has no focus; continuing")
         }
 
-        // Onboarding: skip the intro, create an account, pass the recovery kit check, skip the username.
+        // Onboarding: skip the intro, create an account, pass the recovery kit check.
         compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
         compose.showServerField(LOG_TAG, timeoutMs, ::failStep)
         enterText("server address", TAG_SERVER_URL, serverUrl)
@@ -102,8 +102,6 @@ class BlockE2eTest {
         enterText("display name", TAG_DISPLAY_NAME, "Block $suffix")
         click("create account", TAG_SUBMIT)
         compose.completeRecoveryKit(LOG_TAG, timeoutMs, ::failStep)
-        waitFor("username step", hasTestTag(TAG_SKIP_HANDLE))
-        click("skip username", TAG_SKIP_HANDLE)
         waitForText("chat list", string(ChatListR.string.chatlist_title))
         val appUserId = checkNotNull(checkNotNull(app.container.manager.client.value).userId())
 
@@ -240,7 +238,6 @@ class BlockE2eTest {
         const val TAG_CREATE_ACCOUNT = "onboarding_create_account"
         const val TAG_DISPLAY_NAME = "onboarding_display_name"
         const val TAG_SUBMIT = "onboarding_submit"
-        const val TAG_SKIP_HANDLE = "onboarding_skip_handle"
         const val TAG_COMPOSER = "composer-input"
         const val TAG_UNBLOCK = "chat-unblock"
         const val TAG_ACTION_BLOCK = "chat_action_block"

@@ -324,8 +324,7 @@ private fun GroupInfoDialogs(state: GroupInfoUiState, actions: GroupInfoActions)
                     query = dialog.query,
                     onQueryChange = actions.onAddMemberQueryChange,
                     state = dialog.search,
-                    photos = state.photos,
-                ) { user ->
+                    ) { user ->
                     Button(onClick = { actions.onConfirmAddMember(user) }, enabled = state.canAdd(user)) {
                         Text(stringResource(if (state.canAdd(user)) R.string.contacts_add else R.string.contacts_added))
                     }
@@ -431,8 +430,8 @@ private fun ConfirmDialog(text: String, confirmLabel: String, onConfirm: () -> U
 @Preview
 @Composable
 private fun GroupInfoScreenPreview() {
-    val me = UserProfile("u-sofia", "sofia", "Sofia Costa")
-    val ana = UserProfile("u-ana", "ana", "Ana Kovač")
+    val me = UserProfile("u-sofia", "", "Sofia Costa")
+    val ana = UserProfile("u-ana", "", "Ana Kovač")
     GimTheme {
         GroupInfoScreen(
             state = GroupInfoUiState(

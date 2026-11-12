@@ -58,7 +58,7 @@ import im.g.apps.feature.settings.R as SettingsR
 
 /**
  * Settings against a live gim-hub (instrumentation argument `gimServerUrl`) with a fresh account: the own avatar
- * opens Settings; Profile shows the Account ID and its QR code, renames and claims and removes a username;
+ * opens Settings; Profile shows the Account ID and its QR code and renames;
  * Appearance keeps Dark across an activity recreation; Language and Help and about open; the sign-out dialog
  * names the recovery kit. Then New chat -> Scan QR code asks for the camera: on an emulator without a camera the
  * scanner falls back to "can't use the camera" (CameraScannerE2eTest opens a real back camera on a phone).
@@ -94,7 +94,7 @@ class SettingsE2eTest {
         }
         waitForApp("app shown")
 
-        // Onboarding: skip the intro, create an account, pass the recovery kit check, skip the username.
+        // Onboarding: skip the intro, create an account, pass the recovery kit check.
         val name = "Settings $suffix"
         compose.skipIntro(LOG_TAG, timeoutMs, ::failStep)
         compose.showServerField(LOG_TAG, timeoutMs, ::failStep)
@@ -104,8 +104,6 @@ class SettingsE2eTest {
         enterText("display name", TAG_DISPLAY_NAME, name)
         click("create account", TAG_SUBMIT)
         compose.completeRecoveryKit(LOG_TAG, timeoutMs, ::failStep)
-        waitFor("username step", hasTestTag(TAG_SKIP_HANDLE))
-        click("skip username", TAG_SKIP_HANDLE)
         waitForText("chat list", string(ChatListR.string.chatlist_title))
 
         // The own avatar opens Settings; the header shows the display name.
@@ -135,20 +133,6 @@ class SettingsE2eTest {
         goBack("chat list after settings", hasText(string(ChatListR.string.chatlist_title)))
         openSettings()
         waitFor("settings header shows the new name", header(newName))
-
-        // Username: claim one, then remove it.
-        val username = "set_$suffix"
-        click("settings header", TAG_HEADER, next = hasTestTag(TAG_USERNAME_ADD))
-        click("add username", TAG_USERNAME_ADD, next = hasTestTag(TAG_USERNAME_FIELD))
-        waitFor("username dialog", hasTestTag(TAG_USERNAME_FIELD))
-        enterText("username", TAG_USERNAME_FIELD, username)
-        click("save username", TAG_USERNAME_CLAIM)
-        waitForText("profile shows the username", string(SettingsR.string.settings_username, username))
-        click("remove username", TAG_USERNAME_REMOVE, next = hasTestTag(TAG_USERNAME_REMOVE_CONFIRM))
-        waitFor("remove username dialog", hasTestTag(TAG_USERNAME_REMOVE_CONFIRM))
-        click("confirm remove username", TAG_USERNAME_REMOVE_CONFIRM)
-        waitFor("add username shown again", hasTestTag(TAG_USERNAME_ADD))
-        goBack("settings after profile", hasTestTag(TAG_HEADER))
 
         // Appearance: Dark stays selected after the activity is recreated; then back to the phone setting.
         click("appearance row", TAG_APPEARANCE, next = hasTestTag(TAG_DARK))
@@ -338,7 +322,6 @@ class SettingsE2eTest {
         const val TAG_CREATE_ACCOUNT = "onboarding_create_account"
         const val TAG_DISPLAY_NAME = "onboarding_display_name"
         const val TAG_SUBMIT = "onboarding_submit"
-        const val TAG_SKIP_HANDLE = "onboarding_skip_handle"
         const val TAG_OPEN_SETTINGS = "chatlist_settings"
         const val TAG_HEADER = "settings_header"
         const val TAG_APPEARANCE = "settings_appearance"
@@ -349,11 +332,6 @@ class SettingsE2eTest {
         const val TAG_NAME = "settings_profile_name"
         const val TAG_NAME_FIELD = "settings_profile_name_field"
         const val TAG_NAME_SAVE = "settings_profile_name_save"
-        const val TAG_USERNAME_ADD = "settings_profile_username_add"
-        const val TAG_USERNAME_REMOVE = "settings_profile_username_remove"
-        const val TAG_USERNAME_REMOVE_CONFIRM = "settings_profile_username_remove_confirm"
-        const val TAG_USERNAME_FIELD = "settings_profile_username_field"
-        const val TAG_USERNAME_CLAIM = "settings_profile_username_claim"
         const val TAG_ACCOUNT_ID = "settings_profile_account_id"
         const val TAG_QR_CODE = "settings_profile_qr"
         const val TAG_SYSTEM = "appearance_system"

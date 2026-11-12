@@ -130,7 +130,6 @@ private fun MembersStep(
         query = state.query,
         onQueryChange = onQueryChange,
         state = state.search,
-        photos = state.photos,
     ) { user ->
         val selected = state.members.any { it.userId == user.userId }
         Button(onClick = { onAddMember(user) }, enabled = state.canAdd(user)) {
@@ -183,7 +182,7 @@ private fun NameStep(
         text = pluralStringResource(R.plurals.contacts_member_count, state.members.size + 1, state.members.size + 1),
         style = MaterialTheme.typography.titleSmall,
     )
-    state.members.forEach { UserRow(user = it, photoPath = state.photos[it.userId]) }
+    state.members.forEach { UserRow(user = it) }
     Button(onClick = onCreate, enabled = state.canCreate, modifier = Modifier.fillMaxWidth()) {
         Text(stringResource(R.string.contacts_create_group))
     }
@@ -195,9 +194,9 @@ private fun NewGroupScreenPreview() {
     GimTheme {
         NewGroupScreen(
             state = NewGroupUiState(
-                query = "nikos",
-                search = UserSearchState.Found(UserProfile("u-nikos", "nikos", "Nikos Papadakis")),
-                members = persistentListOf(UserProfile("u-ana", "ana", "Ana Kovač")),
+                query = "u-nikos",
+                search = UserSearchState.Found(UserProfile("u-nikos", "", "Nikos Papadakis")),
+                members = persistentListOf(UserProfile("u-ana", "", "Ana Kovač")),
             ),
             onQueryChange = {},
             onAddMember = {},

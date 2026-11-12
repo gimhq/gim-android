@@ -11,7 +11,7 @@ the native libraries and bindings are vendored into `:core:bridge`.
 | `:app`                | Application entry point, navigation, dependency wiring           |
 | `:core:bridge`        | gim-core UniFFI bindings and vendored `libgim_core.so`           |
 | `:core:designsystem`  | Shared Compose theme and components                              |
-| `:feature:onboarding` | Onboarding (hub URL, new identity, recovery code, handle)        |
+| `:feature:onboarding` | Onboarding (hub URL, new identity, recovery code)                |
 | `:feature:chatlist`   | Conversation list                                                |
 | `:feature:chat`       | Conversation screen                                              |
 | `:feature:contacts`   | Contacts and groups                                              |
@@ -92,10 +92,10 @@ hub commit, `Dockerfile.push-mock`) as every hub's push webhook with a random sh
 
 ## Onboarding
 
-New accounts follow gim-core's identity model: Welcome (hub address) -> **Create new account** -> display name
-(`createIdentity`) -> the recovery code, shown once (copy button; "I have saved my recovery code" must be ticked)
--> optional handle (`claimHandle`; a taken handle is reported on the field, **Skip for now** finishes without
-one). **Link to existing device** and **Restore with recovery code** are shown disabled until their flows land.
+New accounts follow gim-core's identity model: Welcome (hub address) -> **Create new account** -> one name, the
+display name (`createIdentity`) -> the recovery kit, shown once -> the check of the key's last four symbols ->
+chat list. There are no usernames: people are found by Account ID only (QR code or pasted ID), since self-hosted
+hubs keep no shared user directory.
 The app also starts at onboarding when gim-core reports `localStateReset()` (the local database was discarded).
 
 ## Device tests
@@ -149,8 +149,8 @@ comes from the `gimServerUrl` instrumentation argument, default `http://10.0.2.2
 `scripts/e2e-interop.sh` runs two gim CLI users (alice, bob; `gim-cli` built from gim-core `GIM_CORE_REF`,
 default `c1b7503`) and the app (`app/src/androidTest/.../interop/InteropTest`, real UI and gim-core) against the
 pinned gim-hub on the same emulator setup as the device tests. alice and bob create identities and claim handles
-with `gim register`; the app goes through onboarding (create identity, acknowledge the recovery code, claim a
-handle). Steps: DM both ways with read receipts, bob's group of three, text and images both ways, reply,
+with `gim register`; the app goes through onboarding (create identity, pass the recovery kit check) and, having no
+username UI, claims the handle the CLI addresses it by through the client. Steps: DM both ways with read receipts, bob's group of three, text and images both ways, reply,
 reaction, edit, delete, typing, rename from the app, bob removes alice (alice gets nothing new), and user ids
 resolved by handle on both sides (CLI JSON and the app's `findUser`). `leave_chat` is not exercised. Each run
 writes its logs to `LOG_DIR` (default `/tmp/gim-interop-<timestamp>`) and prints the passed steps; see `--help`.

@@ -30,7 +30,7 @@ class SettingsScreenTest {
     @get:Rule
     val rule = createComposeRule()
 
-    private val state = SettingsUiState(displayName = "Sofia Costa", username = "sofia", accountId = "u-7f3a9c21")
+    private val state = SettingsUiState(displayName = "Sofia Costa", accountId = "u-7f3a9c21")
 
     private fun show(state: SettingsUiState = this.state, actions: SettingsActions = SettingsActions()) =
         rule.setContent { GimTheme { SettingsScreen(state, actions) } }
@@ -41,12 +41,11 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun header_shows_the_name_and_username() {
+    fun header_shows_the_name() {
         show()
 
         rule.onNodeWithText("Settings").assertExists()
         rule.onNodeWithText("Sofia Costa").assertExists()
-        rule.onNodeWithText("@sofia").assertExists()
     }
 
     @Test
@@ -54,7 +53,7 @@ class SettingsScreenTest {
         show(actions = SettingsActions(onOpenProfile = {}))
 
         val header = rule.onNodeWithTag(SettingsTestTags.HEADER).fetchSemanticsNode()
-        assertEquals(listOf("Sofia Costa", "@sofia"), header.config[SemanticsProperties.Text].map { it.text })
+        assertEquals(listOf("Sofia Costa"), header.config[SemanticsProperties.Text].map { it.text })
         assertEquals(null, header.config.getOrNull(SemanticsProperties.ContentDescription))
         rule.onAllNodesWithText("SC").assertCountEquals(0)
     }
@@ -76,10 +75,9 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun header_without_username_or_profile_is_not_clickable() {
-        show(state.copy(username = null))
+    fun header_without_profile_is_not_clickable() {
+        show()
 
-        rule.onNodeWithText("@sofia").assertDoesNotExist()
         rule.onNode(hasClickAction() and hasTestTag(SettingsTestTags.HEADER)).assertDoesNotExist()
     }
 

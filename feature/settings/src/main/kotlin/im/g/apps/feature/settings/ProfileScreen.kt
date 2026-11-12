@@ -50,9 +50,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import im.g.apps.core.designsystem.component.Avatar
@@ -64,12 +62,6 @@ object ProfileTestTags {
     const val NAME = "settings_profile_name"
     const val NAME_FIELD = "settings_profile_name_field"
     const val NAME_SAVE = "settings_profile_name_save"
-    const val USERNAME_ADD = "settings_profile_username_add"
-    const val USERNAME_CHANGE = "settings_profile_username_change"
-    const val USERNAME_REMOVE = "settings_profile_username_remove"
-    const val USERNAME_REMOVE_CONFIRM = "settings_profile_username_remove_confirm"
-    const val USERNAME_FIELD = "settings_profile_username_field"
-    const val USERNAME_CLAIM = "settings_profile_username_claim"
     const val ACCOUNT_ID = "settings_profile_account_id"
     const val COPY_ACCOUNT_ID = "settings_profile_copy_account_id"
     const val QR_CODE = "settings_profile_qr"
@@ -108,10 +100,6 @@ fun ProfileRoute(viewModel: ProfileViewModel, onBack: () -> Unit, modifier: Modi
             onBack = onBack,
             onEditName = viewModel::editName,
             onSaveName = viewModel::saveName,
-            onEditUsername = viewModel::editUsername,
-            onSaveUsername = viewModel::saveUsername,
-            onAskRemoveUsername = viewModel::askRemoveUsername,
-            onRemoveUsername = viewModel::removeUsername,
             onCancelEdit = viewModel::cancelEdit,
             onCopyAccountId = viewModel::copyAccountId,
             onChangePhoto = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
@@ -127,17 +115,13 @@ class ProfileActions(
     val onBack: () -> Unit = {},
     val onEditName: () -> Unit = {},
     val onSaveName: (String) -> Unit = {},
-    val onEditUsername: () -> Unit = {},
-    val onSaveUsername: (String) -> Unit = {},
-    val onAskRemoveUsername: () -> Unit = {},
-    val onRemoveUsername: () -> Unit = {},
     val onCancelEdit: () -> Unit = {},
     val onCopyAccountId: () -> Unit = {},
     val onChangePhoto: () -> Unit = {},
     val onRemovePhoto: () -> Unit = {},
 )
 
-/** The own profile: photo, name, username, Account ID and "My QR code"; the open [ProfileUiState.editor] as a dialog. */
+/** The own profile: photo, name, Account ID and "My QR code"; the open [ProfileUiState.editor] as a dialog. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
@@ -175,7 +159,6 @@ fun ProfileScreen(
                 modifier = Modifier.testTag(ProfileTestTags.NAME),
                 value = stringResource(R.string.profile_name_edit),
             )
-            UsernameSection(state.username, actions)
             AccountIdSection(state.accountId, actions.onCopyAccountId)
             QrSection(state.accountId)
             Spacer(Modifier.height(16.dp))
@@ -183,8 +166,6 @@ fun ProfileScreen(
     }
     when (state.editor) {
         ProfileEditor.NAME -> NameDialog(state, actions)
-        ProfileEditor.USERNAME -> UsernameDialog(state, actions)
-        ProfileEditor.REMOVE_USERNAME -> RemoveUsernameDialog(state.saving, actions)
         null -> Unit
     }
 }
@@ -222,38 +203,6 @@ private fun PhotoHeader(state: ProfileUiState, actions: ProfileActions) {
                     modifier = Modifier.testTag(ProfileTestTags.PHOTO_REMOVE),
                 ) { Text(stringResource(R.string.profile_remove_photo), color = MaterialTheme.colorScheme.error) }
             }
-        }
-    }
-}
-
-@Composable
-private fun UsernameSection(username: String?, actions: ProfileActions) {
-    SettingsSectionHeader(stringResource(R.string.profile_section_username))
-    if (username == null) {
-        SettingsRow(
-            title = stringResource(R.string.profile_username_add),
-            onClick = actions.onEditUsername,
-            modifier = Modifier.testTag(ProfileTestTags.USERNAME_ADD),
-            value = stringResource(R.string.profile_username_why),
-        )
-        return
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(R.string.settings_username, username),
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f),
-        )
-        TextButton(onClick = actions.onEditUsername, modifier = Modifier.testTag(ProfileTestTags.USERNAME_CHANGE)) {
-            Text(stringResource(R.string.profile_username_change))
-        }
-        TextButton(onClick = actions.onAskRemoveUsername, modifier = Modifier.testTag(ProfileTestTags.USERNAME_REMOVE)) {
-            Text(stringResource(R.string.profile_username_remove), color = MaterialTheme.colorScheme.error)
         }
     }
 }
@@ -333,32 +282,6 @@ private fun NameDialog(state: ProfileUiState, actions: ProfileActions) {
 }
 
 @Composable
-private fun UsernameDialog(state: ProfileUiState, actions: ProfileActions) {
-    var username by rememberSaveable { mutableStateOf(state.username.orEmpty()) }
-    EditDialog(
-        title = stringResource(if (state.username == null) R.string.profile_username_add else R.string.profile_username_change_title),
-        saving = state.saving,
-        confirmTag = ProfileTestTags.USERNAME_CLAIM,
-        onConfirm = { actions.onSaveUsername(username) },
-        onDismiss = actions.onCancelEdit,
-    ) {
-        OutlinedTextField(
-            value = username,
-            onValueChange = { username = it },
-            label = { Text(stringResource(R.string.profile_section_username)) },
-            prefix = { Text(stringResource(R.string.profile_username_prefix)) },
-            singleLine = true,
-            isError = state.usernameError != null,
-            supportingText = {
-                Text(stringResource(state.usernameError?.message ?: R.string.profile_username_rule))
-            },
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, keyboardType = KeyboardType.Ascii),
-            modifier = Modifier.testTag(ProfileTestTags.USERNAME_FIELD),
-        )
-    }
-}
-
-@Composable
 private fun EditDialog(
     title: String,
     saving: Boolean,
@@ -382,25 +305,6 @@ private fun EditDialog(
     )
 }
 
-@Composable
-private fun RemoveUsernameDialog(saving: Boolean, actions: ProfileActions) {
-    AlertDialog(
-        onDismissRequest = actions.onCancelEdit,
-        title = { Text(stringResource(R.string.profile_username_remove_title)) },
-        text = { Text(stringResource(R.string.profile_username_remove_body)) },
-        confirmButton = {
-            TextButton(
-                onClick = actions.onRemoveUsername,
-                enabled = !saving,
-                modifier = Modifier.testTag(ProfileTestTags.USERNAME_REMOVE_CONFIRM),
-            ) { Text(stringResource(R.string.profile_username_remove), fontWeight = FontWeight.SemiBold) }
-        },
-        dismissButton = {
-            TextButton(onClick = actions.onCancelEdit, enabled = !saving) { Text(stringResource(R.string.settings_cancel)) }
-        },
-    )
-}
-
 @GimPreviews
 @Composable
 private fun ProfileScreenPreview() {
@@ -408,7 +312,6 @@ private fun ProfileScreenPreview() {
         ProfileScreen(
             state = ProfileUiState(
                 displayName = "Sofia Costa",
-                username = "sofia",
                 accountId = "uabcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuvq",
             ),
             actions = ProfileActions(),

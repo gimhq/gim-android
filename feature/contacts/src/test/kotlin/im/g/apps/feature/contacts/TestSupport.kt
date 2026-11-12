@@ -25,10 +25,8 @@ class MainDispatcherRule(private val dispatcher: TestDispatcher = StandardTestDi
 /** Demo-data fake whose outbox only advances manually, so nothing runs on its own. */
 fun demoClient(scope: CoroutineScope): FakeGimClient = FakeGimClient.withDemoData(scope, outboxDelays = null)
 
-/** [GimClient] wrapper that records lookups and can fail selected calls. */
+/** [GimClient] wrapper that can fail selected calls. */
 class TestClient(private val delegate: GimClient) : GimClient by delegate {
-    val lookups = mutableListOf<String>()
-    var findUserError: GimException? = null
     var createDirectChatError: GimException? = null
     var createGroupChatError: GimException? = null
     var chatMembersError: GimException? = null
@@ -43,12 +41,6 @@ class TestClient(private val delegate: GimClient) : GimClient by delegate {
     var selfUserId: String? = null
 
     override fun userId(): String? = selfUserId ?: delegate.userId()
-
-    override suspend fun findUser(handle: String): UserProfile? {
-        lookups += handle
-        findUserError?.let { throw it }
-        return delegate.findUser(handle)
-    }
 
     override suspend fun createDirectChat(userId: String): String {
         createDirectChatCalls++

@@ -1,6 +1,5 @@
 package im.g.apps.feature.settings
 
-import im.g.apps.core.bridge.UserProfile
 import im.g.apps.core.bridge.fake.FakeGimClient
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -31,12 +30,10 @@ class ProfileViewModelTest {
     @Test
     fun loads_the_session_into_the_state() = runTest {
         val client = signedIn()
-        client.claimHandle("sofia")
 
         val state = viewModel(client).state.value
 
         assertEquals("Sofia Costa", state.displayName)
-        assertEquals("sofia", state.username)
         assertEquals(client.userId(), state.accountId)
     }
 
@@ -72,84 +69,6 @@ class ProfileViewModelTest {
         assertEquals("Sofia Costa", client.session()!!.displayName)
         assertEquals(ProfileEditor.NAME, vm.state.value.editor)
         assertFalse(vm.state.value.saving)
-    }
-
-    @Test
-    fun claim_normalizes_and_saves_the_username() = runTest {
-        val client = signedIn()
-        val vm = viewModel(client)
-
-        vm.editUsername()
-        vm.saveUsername(" @Sofia_C ")
-        advanceUntilIdle()
-
-        assertEquals("sofia_c", client.session()!!.handle)
-        assertEquals("sofia_c", vm.state.value.username)
-        assertNull(vm.state.value.editor)
-        assertEquals(ProfileEvent.Message(R.string.profile_username_saved), vm.events.first())
-    }
-
-    @Test
-    fun change_claims_the_new_username() = runTest {
-        val client = signedIn()
-        client.claimHandle("sofia")
-        val vm = viewModel(client)
-
-        vm.editUsername()
-        vm.saveUsername("sofia_new")
-        advanceUntilIdle()
-
-        assertEquals("sofia_new", vm.state.value.username)
-    }
-
-    @Test
-    fun invalid_username_is_rejected_locally() = runTest {
-        val client = signedIn()
-        val vm = viewModel(client)
-        vm.editUsername()
-
-        vm.saveUsername("ab")
-        advanceUntilIdle()
-        assertEquals(ProfileFieldError.USERNAME_INVALID, vm.state.value.usernameError)
-
-        vm.saveUsername("no spaces")
-        advanceUntilIdle()
-        assertEquals(ProfileFieldError.USERNAME_INVALID, vm.state.value.usernameError)
-
-        assertEquals("", client.session()!!.handle)
-        assertEquals(ProfileEditor.USERNAME, vm.state.value.editor)
-    }
-
-    @Test
-    fun taken_username_shows_the_taken_message() = runTest {
-        val client = signedIn()
-        client.addDirectoryUser(UserProfile(userId = "u-other", handle = "lukas", displayName = "Lukas"))
-        val vm = viewModel(client)
-        vm.editUsername()
-
-        vm.saveUsername("lukas")
-        advanceUntilIdle()
-
-        assertEquals(ProfileFieldError.USERNAME_TAKEN, vm.state.value.usernameError)
-        assertEquals(ProfileEditor.USERNAME, vm.state.value.editor)
-        assertNull(vm.state.value.username)
-    }
-
-    @Test
-    fun remove_releases_the_username_and_clears_it() = runTest {
-        val client = signedIn()
-        client.claimHandle("sofia")
-        val vm = viewModel(client)
-
-        vm.askRemoveUsername()
-        assertEquals(ProfileEditor.REMOVE_USERNAME, vm.state.value.editor)
-        vm.removeUsername()
-        advanceUntilIdle()
-
-        assertEquals("", client.session()!!.handle)
-        assertNull(vm.state.value.username)
-        assertNull(vm.state.value.editor)
-        assertEquals(ProfileEvent.Message(R.string.profile_username_removed), vm.events.first())
     }
 
     @Test

@@ -13,7 +13,7 @@
     <string name="explainer_locked_messages_body">Messages are end-to-end encrypted. Only the people in the chat can read them. Not even the server can.</string>
 
     <string name="explainer_account_id_title">Your Account ID is your address</string>
-    <string name="explainer_account_id_body">Share your Account ID so friends can reach you. You can also pick a username to make you easier to find.</string>
+    <string name="explainer_account_id_body">Share your Account ID so friends can reach you. Show your QR code or send the ID: it\'s the only way to find you.</string>
 
     <string name="explainer_recovery_key_title">Your recovery key is a spare key</string>
     <string name="explainer_recovery_key_body">Lost all your devices? Your recovery key and Account ID bring your account back. Old chats don\'t come back. Keep the key secret and safe. Never show it to anyone.</string>

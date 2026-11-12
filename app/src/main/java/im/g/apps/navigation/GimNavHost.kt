@@ -361,9 +361,8 @@ fun GimNavHost(
         }
         composable(Routes.NEW_CHAT) {
             val current = client ?: return@composable
-            val context = LocalContext.current
             NewChatRoute(
-                viewModel = viewModel(factory = newChatViewModelFactory(current, File(context.cacheDir, AVATAR_DIR))),
+                viewModel = viewModel(factory = newChatViewModelFactory(current)),
                 onOpenChat = { navController.openChatReplacing(it) },
                 onBack = { navController.popBackStack() },
                 scanner = { onQrCode, onUnavailable, modifier -> QrScanner(onQrCode, onUnavailable, modifier) },
@@ -371,9 +370,7 @@ fun GimNavHost(
         }
         composable(Routes.NEW_GROUP) {
             val current = client ?: return@composable
-            val context = LocalContext.current
-            val vm: NewGroupViewModel =
-                viewModel(factory = newGroupViewModelFactory(current, File(context.cacheDir, AVATAR_DIR)))
+            val vm: NewGroupViewModel = viewModel(factory = newGroupViewModelFactory(current))
             val state by vm.state.collectAsState()
             // Same action as the toolbar back: from the name step return to member selection.
             BackHandler(enabled = state.step == NewGroupStep.NAME) { vm.back() }
