@@ -158,7 +158,7 @@ class RestoreE2eTest {
         peerWait("lost device rejected with NotRegistered") {
             while (true) {
                 try {
-                    peer.devices()
+                    peer.findUser("nobody_$suffix")
                 } catch (_: GimException.NotRegistered) {
                     break
                 } catch (e: GimException) {
