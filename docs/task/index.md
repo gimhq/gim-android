@@ -41,4 +41,5 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261024-1415-contacts-peer-photos Show peer photos in contacts rows**](20261024-1415-contacts-peer-photos.md) `P3`
 - [x] [**20261024-1415-forced-theme-cold-start Apply forced light or dark theme from the first frame**](20261024-1415-forced-theme-cold-start.md) `P3`
 - [ ] [**20261024-1415-new-chat-camera-real-phone Check the New chat QR scanner camera on real phones**](20261024-1415-new-chat-camera-real-phone.md) `P3`
-- [-] [**20261112-1924-icon-one-name-no-usernames App icon, one-name onboarding, no username UI**](20261112-1924-icon-one-name-no-usernames.md) `P1`
+- [x] [**20261112-1924-icon-one-name-no-usernames App icon, one-name onboarding, no username UI**](20261112-1924-icon-one-name-no-usernames.md) `P1`
+- [x] [**20261112-1924-recovery-key-note-to-self Recovery key reveal, note to self, no handle code**](20261112-1924-recovery-key-note-to-self.md) `P1`

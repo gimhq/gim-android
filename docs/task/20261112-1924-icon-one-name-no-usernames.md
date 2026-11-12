@@ -1,6 +1,6 @@
 # 20261112-1924-icon-one-name-no-usernames App icon, one-name onboarding, no username UI
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P1
 - **owner**: bkd-l1/0xhhlawj
 - **createdAt**: 2026-11-12 19:24
@@ -19,16 +19,17 @@ Phase A of campaign l1-0xhhlawj-20261112-1924 (no SDK change needed):
 
 Phase B (after the SDK lane): re-vendor the SDK, recovery key reveal in Settings, note to self, and removal of
 the remaining handle code (`GimClient.claimHandle`, `releaseHandle`, `findUser`, `Session.handle`,
-`UserProfile.handle` and the fakes).
+`UserProfile.handle` and the fakes). Phase B is tracked in
+[20261112-1924-recovery-key-note-to-self](20261112-1924-recovery-key-note-to-self.md).
 
 ## ActiveForm
 
-Removing usernames and adding the app icon
+Removed usernames and added the app icon
 
 ## Dependencies
 
 - **blocked by**: (none)
-- **blocks**: (none)
+- **blocks**: 20261112-1924-recovery-key-note-to-self
 
 ## Notes
 
