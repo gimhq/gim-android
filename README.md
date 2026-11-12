@@ -146,14 +146,14 @@ comes from the `gimServerUrl` instrumentation argument, default `http://10.0.2.2
 
 ### CLI x Android interop
 
-`scripts/e2e-interop.sh` runs two gim CLI users (alice, bob; `gim-cli` built from gim-core `GIM_CORE_REF`,
-default `c1b7503`) and the app (`app/src/androidTest/.../interop/InteropTest`, real UI and gim-core) against the
-pinned gim-hub on the same emulator setup as the device tests. alice and bob create identities and claim handles
-with `gim register`; the app goes through onboarding (create identity, pass the recovery kit check) and, having no
-username UI, claims the handle the CLI addresses it by through the client. Steps: DM both ways with read receipts, bob's group of three, text and images both ways, reply,
-reaction, edit, delete, typing, rename from the app, bob removes alice (alice gets nothing new), and user ids
-resolved by handle on both sides (CLI JSON and the app's `findUser`). `leave_chat` is not exercised. Each run
-writes its logs to `LOG_DIR` (default `/tmp/gim-interop-<timestamp>`) and prints the passed steps; see `--help`.
+`scripts/e2e-interop.sh` runs two gim CLI users (alice, bob; `gim-cli` built from gim-client-sdk `GIM_CORE_REF`,
+default the commit `GIM_CORE_VERSION` pins) and the app (`app/src/androidTest/.../interop/InteropTest`, real UI and
+gim-core) against the pinned gim-hub on the same emulator setup as the device tests. Users are addressed by Account ID
+only: alice and bob create identities with `gim register <name>` (their ids from the CLI JSON), the app goes through
+onboarding and reports its own Account ID. Steps: DM both ways with read receipts, bob's group of three, text and
+images both ways, reply, reaction, edit, delete, typing, rename from the app, bob removes alice (alice gets nothing
+new), and alice's stored recovery key (`gim recovery-key show`). `leave_chat` is not exercised. Each run writes its
+logs to `LOG_DIR` (default `/tmp/gim-interop-<timestamp>`) and prints the passed steps; see `--help`.
 `InteropTest` is skipped in plain `connectedDebugAndroidTest` runs.
 
 ### Real device
@@ -200,7 +200,7 @@ running, after a UI dump shows the dialog names GIM, by tapping the accept butto
 ### Pinned gim-hub
 
 `e2e/GIM_HUB_VERSION` holds the full gim-hub commit the device tests run against. Locally the image is built
-from `git archive <commit>` of the checkout in `GIM_HUB_SRC` (default `/srv/gimhq/im-client/hub`) with the hub's
+from `git archive <commit>` of the checkout in `GIM_HUB_SRC` (default `/srv/gimhq/gim-hub`) with the hub's
 own Dockerfile and reused while the tag exists. To move to another hub commit, change the file; both the local
 script and CI follow it.
 
@@ -212,14 +212,14 @@ script and CI follow it.
 - `core/bridge/src/main/kotlin/im/g/gimcore/gim_core.kt` (UniFFI bindings)
 
 The vendored version and source commit are pinned in `GIM_CORE_VERSION` at the repo root (currently gim-core
-`c1b7503`, tested against gim-hub `0d756b9` from `e2e/GIM_HUB_VERSION`). Refresh them from a gim-core checkout, or
+`2e2e5d4` of gim-client-sdk, tested against gim-hub `b9020f2` from `e2e/GIM_HUB_VERSION`). Refresh them from a gim-core checkout, or
 from a clean export of a commit (then `--commit` with its full sha is required):
 
 ```bash
-scripts/sync-gim-core.sh [--build] [--commit SHA] [GIM_CORE_DIR]   # default /srv/gimhq/im-client/core
+scripts/sync-gim-core.sh [--build] [--commit SHA] [GIM_CORE_DIR]   # default /srv/gimhq/gim-client-sdk
 
-sha=$(git -C /srv/gimhq/im-client/core rev-parse c1b7503)
-mkdir -p .tmp/gim-core-$sha && git -C /srv/gimhq/im-client/core archive $sha | tar -x -m -C .tmp/gim-core-$sha
+sha=$(sed -n 's/^commit=//p' GIM_CORE_VERSION)
+mkdir -p .tmp/gim-core-$sha && git -C /srv/gimhq/gim-client-sdk archive $sha | tar -x -m -C .tmp/gim-core-$sha
 SKIP_IMAGE_BUILD=1 scripts/sync-gim-core.sh --build --commit $sha .tmp/gim-core-$sha
 ```
 

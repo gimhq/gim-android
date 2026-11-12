@@ -6,7 +6,7 @@
 #   gim_ensure_emulator_image     build ai-agent/gim-android-emulator once (REBUILD_IMAGE=1 forces it)
 #   gim_ensure_hub_image ROOT     build ai-agent/gim-hub:<sha12> once from `git archive` of the commit in
 #                                 ROOT/e2e/GIM_HUB_VERSION (checkout: GIM_HUB_SRC, default
-#                                 /srv/gimhq/im-client/hub) with the hub's own Dockerfile; sets GIM_HUB_IMAGE
+#                                 /srv/gimhq/gim-hub) with the hub's own Dockerfile; sets GIM_HUB_IMAGE
 #   gim_start_hub NAME ROOT [fed] run that image as NAME with GIM_HUB_PUBLIC_URL=$GIM_EMULATOR_SERVER_URL and an
 #                                 ephemeral /data (tmpfs), wait for /healthz, then gim_alias_emulator_host NAME. With
 #                                 `fed`, NAME runs federated and ready for gim_start_hub2 (see below): /data and the hub
@@ -63,7 +63,7 @@ GIM_EMULATOR_API=35
 GIM_SYSTEM_IMAGE="system-images;android-$GIM_EMULATOR_API;google_apis;x86_64"
 GIM_EMULATOR_SERVER_URL=http://10.0.2.2:8080
 GIM_EMULATOR_SERVER_URL2=http://10.0.2.2:8081
-GIM_HUB_SRC=${GIM_HUB_SRC:-/srv/gimhq/im-client/hub}
+GIM_HUB_SRC=${GIM_HUB_SRC:-/srv/gimhq/gim-hub}
 GIM_RUN_LABEL=${GIM_RUN_LABEL:-gim-android-$$}
 GIM_HUB_PUSH_ARGS=()
 GIM_HUB_ADMIN_ARGS=()

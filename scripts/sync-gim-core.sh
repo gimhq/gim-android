@@ -6,14 +6,14 @@
 #   --commit SHA  gim-core commit GIM_CORE_DIR holds (also GIM_CORE_COMMIT). Required, as a full 40-hex sha, unless
 #                 GIM_CORE_DIR is the top level of a git checkout; for a checkout it must match its HEAD.
 #   GIM_CORE_DIR  gim-core source: a checkout, or an export such as `git archive <sha> | tar -x -m -C DIR`;
-#                 default /srv/gimhq/im-client/core
+#                 default /srv/gimhq/gim-client-sdk
 #
 # Copies $GIM_CORE_DIR/out/android/* into the paths below and pins GIM_CORE_VERSION at the repo root as
 # <crate version>+<commit, 7 hex> and commit=<full sha>. Re-running with unchanged inputs produces no diff.
 set -euo pipefail
 
 build=0
-gim_core_dir=/srv/gimhq/im-client/core
+gim_core_dir=/srv/gimhq/gim-client-sdk
 commit=${GIM_CORE_COMMIT:-}
 while (($#)); do
     case "$1" in

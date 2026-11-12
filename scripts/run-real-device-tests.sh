@@ -21,7 +21,7 @@
 #   INSTRUMENT_TIMEOUT  seconds per `am instrument` run, default 1800
 #   LOG_DIR             run log directory, default /tmp/gim-realdevice-<timestamp>
 #   GRADLE_CACHE        Gradle user home on the host, default /srv/.tmp/cache/gradle
-#   GIM_HUB_SRC         gim-hub checkout the image is exported from, default /srv/gimhq/im-client/hub
+#   GIM_HUB_SRC         gim-hub checkout the image is exported from, default /srv/gimhq/gim-hub
 #   GIM_PUSH_MOCK=0     do not start gim-push-mock (default 1, lan mode only: built from the pinned gim-hub commit,
 #                       published on a free host port from 18190, the hub's push webhook with a random shared secret;
 #                       its phone URL is passed as instrumentation argument gimPushMockUrl, which PushE2eTest needs)

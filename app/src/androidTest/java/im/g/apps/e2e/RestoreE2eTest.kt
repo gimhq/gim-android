@@ -154,11 +154,12 @@ class RestoreE2eTest {
         assertTrue("devices: $devices", devices.single { it.deviceId == firstDeviceId }.revoked)
         assertEquals("devices: $devices", listOf(current.deviceId), devices.filterNot { it.revoked }.map { it.deviceId })
 
-        // The lost device can no longer sign in: its calls fail with NotRegistered.
+        // The lost device can no longer sign in: an authenticated call (a rotation needs the session) fails with
+        // NotRegistered.
         peerWait("lost device rejected with NotRegistered") {
             while (true) {
                 try {
-                    peer.findUser("nobody_$suffix")
+                    peer.rotateRecoveryCode()
                 } catch (_: GimException.NotRegistered) {
                     break
                 } catch (e: GimException) {

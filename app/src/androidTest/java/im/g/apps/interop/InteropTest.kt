@@ -37,12 +37,20 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import im.g.apps.GimApplication
 import im.g.apps.MainActivity
+import im.g.apps.core.bridge.ChatKind
+import im.g.apps.core.bridge.flow.chatListFlow
+import im.g.apps.core.designsystem.R as DesignR
+import im.g.apps.feature.chat.R as ChatR
+import im.g.apps.feature.chatlist.R as ChatListR
+import im.g.apps.feature.contacts.R as ContactsR
+import im.g.apps.feature.onboarding.R as OnboardingR
 import im.g.apps.testing.awaitServerReachable
 import im.g.apps.testing.completeRecoveryKit
 import im.g.apps.testing.keepScreenOn
 import im.g.apps.testing.showServerField
 import im.g.apps.testing.skipIntro
 import java.io.File
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.hamcrest.CoreMatchers.not
 import org.junit.After
@@ -52,18 +60,13 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import im.g.apps.core.designsystem.R as DesignR
-import im.g.apps.feature.chat.R as ChatR
-import im.g.apps.feature.chatlist.R as ChatListR
-import im.g.apps.feature.contacts.R as ContactsR
-import im.g.apps.feature.onboarding.R as OnboardingR
 
 /**
  * Android side of scripts/e2e-interop.sh: the app user ("android") drives the real UI against the hub while the
  * script plays alice and bob with the gim CLI. Skipped unless the script passes `interopRun`.
  *
  * Instrumentation arguments: `gimServerUrl`, `interopRun` (suffix of every text below), `aliceName`,
- * `aliceHandle`, `aliceUserId`, `bobName`, `androidHandle`, `androidName`. Each [Rendezvous.mark] hands over to the script; the test
+ * `aliceUserId`, `bobName`, `androidName`. Each [Rendezvous.mark] hands over to the script; the test
  * then waits on UI state the CLI side produces. Message texts must match the script's.
  */
 @RunWith(AndroidJUnit4::class)
@@ -77,9 +80,7 @@ class InteropTest {
     private val serverUrl = args.getString("gimServerUrl") ?: DEFAULT_SERVER_URL
     private val aliceName = args.getString("aliceName").orEmpty()
     private val bobName = args.getString("bobName").orEmpty()
-    private val aliceHandle = args.getString("aliceHandle").orEmpty()
     private val aliceUserId = args.getString("aliceUserId").orEmpty()
-    private val androidHandle = args.getString("androidHandle").orEmpty()
     private val androidName = args.getString("androidName").orEmpty()
 
     private lateinit var rendezvous: Rendezvous
@@ -102,9 +103,9 @@ class InteropTest {
     @Test
     fun interopWithCliPeers() {
         keepScreenOn(instrumentation, compose.activity)
-        // a. Skip the intro, create the identity through onboarding and pass the recovery kit check. Buttons are
-        // scrolled into view with the soft keyboard hidden, which can cover them. The app has no username UI; the
-        // handle the CLI script addresses android by is claimed through the client until the CLI moves to user ids.
+        // a. Skip the intro, create the identity through onboarding and pass the recovery kit check, then report the
+        // app's Account ID, which the CLI addresses it by. Buttons are scrolled into view with the soft keyboard
+        // hidden, which can cover them.
         awaitServerReachable(instrumentation.targetContext, serverUrl)
         compose.skipIntro(Rendezvous.TAG, TIMEOUT_MS, ::fail)
         compose.waitForText(string(OnboardingR.string.onboarding_welcome_title))
@@ -117,18 +118,14 @@ class InteropTest {
         compose.completeRecoveryKit(Rendezvous.TAG, TIMEOUT_MS, ::fail)
         compose.waitForText(string(ChatListR.string.chatlist_title))
         val client = checkNotNull((compose.activity.application as GimApplication).container.manager.client.value)
-        runBlocking { client.claimHandle(androidHandle) }
+        rendezvous.value("android-user-id", checkNotNull(client.userId()))
         rendezvous.mark("registered")
 
-        // h. User ids: the app finds alice by her claimed handle with the id from her CLI JSON; the script checks
-        // that alice's lookup of the app's handle returns the app's own id.
-        val alice = runBlocking { client.findUser(aliceHandle) }
-        assertEquals("user id of @$aliceHandle", aliceUserId, alice?.userId)
-        rendezvous.value("android-user-id", checkNotNull(client.userId()))
-        rendezvous.mark("user-ids")
-
-        // b. alice's DM shows up; reply; alice reads the reply -> read tick.
+        // b. alice's DM shows up, with her Account ID from her CLI JSON as its peer; reply; alice reads the reply ->
+        // read tick.
         openChat(aliceName)
+        val dmPeers = runBlocking { client.chatListFlow().first() }.filter { it.kind == ChatKind.DIRECT }.map { it.peer?.userId }
+        assertEquals("peer of alice's DM", listOf(aliceUserId), dmPeers)
         compose.waitForText(text("Ahoy from alice"))
         send(text("Ahoy from android"))
         rendezvous.mark("dm-replied")

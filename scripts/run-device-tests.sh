@@ -10,7 +10,7 @@
 # Environment:
 #   REBUILD_IMAGE=1   rebuild the emulator image even if it exists
 #   GRADLE_CACHE      Gradle user home on the host, default /srv/.tmp/cache/gradle
-#   GIM_HUB_SRC       gim-hub checkout the image is exported from, default /srv/gimhq/im-client/hub
+#   GIM_HUB_SRC       gim-hub checkout the image is exported from, default /srv/gimhq/gim-hub
 #   CI_LIKE=1         reproduce CI's emulator: presets DEVICE_PROFILE=default (320x640 @160dpi) CORES=2
 #                     RAM_SIZE=3072 DISK_SIZE=4096M SNAPSHOT_BOOT=1 TIMEOUT_SCALE=2; each can be overridden
 #   DEVICE_PROFILE, GPU, CORES, RAM_SIZE, DISK_SIZE, SNAPSHOT_BOOT

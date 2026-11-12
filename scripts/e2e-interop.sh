@@ -5,9 +5,9 @@
 # Usage: scripts/e2e-interop.sh
 #
 # Environment:
-#   GIM_CORE_REPO   gim-core checkout the CLI is built from (read only), default /srv/gimhq/im-client/core
-#   GIM_CORE_REF    gim-core commit of the CLI, default c1b7503 (the commit GIM_CORE_VERSION pins)
-#   GIM_HUB_SRC     gim-hub checkout the hub image is exported from, default /srv/gimhq/im-client/hub
+#   GIM_CORE_REPO   gim-client-sdk checkout the CLI is built from (read only), default /srv/gimhq/gim-client-sdk
+#   GIM_CORE_REF    gim-client-sdk commit of the CLI, default the commit GIM_CORE_VERSION pins
+#   GIM_HUB_SRC     gim-hub checkout the hub image is exported from, default /srv/gimhq/gim-hub
 #   LOG_DIR         run log directory, default /tmp/gim-interop-<timestamp>
 #   GRADLE_CACHE    Gradle user home, default /srv/.tmp/cache/gradle
 #   CARGO_CACHE     CARGO_HOME, default /srv/.tmp/cache/cargo
@@ -42,7 +42,7 @@
 #      emulator's host loopback, the CLI through 10.0.2.2 added to lo in that namespace (scripts/lib/device.sh).
 #   2. gim-cli is built from `git archive GIM_CORE_REF` (exported to .tmp/gim-core-<sha>/, reused) in rust:1;
 #      the debug and androidTest APKs in ghcr.io/cirruslabs/android-sdk:35.
-#   3. app/src/androidTest/.../interop/InteropTest runs with `am instrument`, getting the run id, handles and
+#   3. app/src/androidTest/.../interop/InteropTest runs with `am instrument`, getting the run id, Account IDs and
 #      names as instrumentation arguments, while this script drives alice and bob step by step.
 #
 # Handshake: the test logs `STEP <name>` under logcat tag GimInterop (followed into markers.log) when it has
@@ -71,8 +71,8 @@ device=${GIM_DEVICE:-emulator}
 gim_check_host_paths "$repo_root"
 command -v jq >/dev/null || { echo "error: jq is required" >&2; exit 1; }
 
-core_repo=${GIM_CORE_REPO:-/srv/gimhq/im-client/core}
-core_ref=${GIM_CORE_REF:-c1b7503}
+core_repo=${GIM_CORE_REPO:-/srv/gimhq/gim-client-sdk}
+core_ref=${GIM_CORE_REF:-$(sed -n 's/^commit=//p' "$repo_root/GIM_CORE_VERSION")}
 gradle_cache=${GRADLE_CACHE:-/srv/.tmp/cache/gradle}
 cargo_cache=${CARGO_CACHE:-/srv/.tmp/cache/cargo}
 cargo_target=${CARGO_TARGET:-}
@@ -85,9 +85,6 @@ work=$repo_root/.tmp/e2e-interop-$run
 photo=$repo_root/app/src/androidTest/assets/e2e-photo.png
 timeout=60
 
-alice=alice_$run
-bob=bob_$run
-droid=droid_$run
 alice_name="Alice $run"
 bob_name="Bob $run"
 droid_name="Android $run"
@@ -367,12 +364,14 @@ echo "setup done after ${SECONDS}s"
 
 # --- Scenario -----------------------------------------------------------------------------------------
 
-# a. alice and bob create identities and claim handles (CLI `register`), then the test does it through onboarding.
-cli_ok alice --server "$url" register "$alice" "$alice_name"
-expect ".handle == \"$alice\" and (.user_id | length > 0) and (.recovery_code | length > 0)" "alice registered"
+# a. alice and bob create identities (CLI `register`), then the test does it through onboarding. Users are
+# addressed by Account ID only: the ids come from the CLI JSON and from the app's marker.
+cli_ok alice --server "$url" register "$alice_name"
+expect "(.user_id | length > 0) and (.recovery_code | length > 0)" "alice registered"
 alice_id=$(out .user_id)
-cli_ok bob --server "$url" register "$bob" "$bob_name"
-expect ".handle == \"$bob\"" "bob registered"
+cli_ok bob --server "$url" register "$bob_name"
+expect "(.user_id | length > 0)" "bob registered"
+bob_id=$(out .user_id)
 
 if [[ $device == real ]]; then
     gim_real_wake
@@ -392,62 +391,55 @@ adb_bg markers logcat -v brief "${logcat_args[@]}" -s GimInterop:I >"$log_dir/ma
 bg_pids+=($!)
 adb_bg instrument shell "am instrument -w -r -e class im.g.apps.interop.InteropTest \
     -e gimServerUrl $app_url -e interopRun $run \
-    -e aliceName '$alice_name' -e aliceHandle $alice -e aliceUserId $alice_id -e bobName '$bob_name' -e androidHandle $droid -e androidName '$droid_name' \
+    -e aliceName '$alice_name' -e aliceUserId $alice_id -e bobName '$bob_name' -e androidName '$droid_name' \
     im.g.apps.test/androidx.test.runner.AndroidJUnitRunner" >"$log_dir/instrumentation.txt" 2>&1 &
 instrument_pid=$!
 bg_pids+=("$instrument_pid")
 
 wait_marker registered
-cli_ok alice users search "$droid"
-# The hub directory knows handles only; display names travel in chats (findUser shows the handle).
-expect "(.users | length == 1) and .users[0].handle == \"$droid\"" "alice finds android"
-pass "a. identities + handles: alice (CLI), bob (CLI), android (onboarding UI); alice finds android"
-
-# h. User ids: android found alice by handle with the id from alice's register JSON (asserted in the test);
-# alice's lookup of android's handle returns the id android reports for itself.
-wait_marker user-ids
 droid_id=$(sed -nE 's/.*VALUE android-user-id ([^[:space:]]+).*/\1/p' "$log_dir/markers.log" | tail -n 1)
-[[ -n $droid_id ]] || fail "android did not report its user id"
-expect ".users[0].user_id == \"$droid_id\"" "alice's lookup of @$droid returns android's user id $droid_id"
-pass "h. user ids: android looks up @$alice -> $alice_id (alice's CLI JSON); alice looks up @$droid -> $droid_id (android's own)"
+[[ -n $droid_id ]] || fail "android did not report its Account ID"
+cli_ok alice recovery-key show
+expect ".user_id == \"$alice_id\" and (.recovery_code | length > 0)" "alice's stored recovery key"
+pass "a. identities: alice (CLI, $alice_id), bob (CLI, $bob_id), android (onboarding UI, $droid_id)"
 
 # b. alice DMs android; android replies; alice gets the reply. Read receipts both ways.
-cli_ok alice dm "$droid"
+cli_ok alice dm "$droid_id"
 dm=$(out .chat_id)
 cli_ok alice send "$dm" "Ahoy from alice $run"
 alice_dm_msg=$(out .message_id)
 wait_marker dm-replied
-cli_ok alice wait-for "$dm" --text "Ahoy from android $run" --from "$droid" --timeout "$timeout"
+cli_ok alice wait-for "$dm" --text "Ahoy from android $run" --from "$droid_id" --timeout "$timeout"
 pass "b. alice -> android DM shown on Android; android reply received by alice"
-cli_ok alice wait-for "$dm" --msg "$alice_dm_msg" --read-by "$droid" --timeout "$timeout"
-expect ".message.receipts[\"$droid\"] == \"read\"" "android's read receipt"
+cli_ok alice wait-for "$dm" --msg "$alice_dm_msg" --read-by "$droid_id" --timeout "$timeout"
+expect ".message.receipts[\"$droid_id\"] == \"read\"" "android's read receipt"
 pass "e. read: android viewed alice's DM -> CLI JSON shows read"
 cli_ok alice read "$dm"
 wait_marker dm-read-tick
 pass "e. read: alice read the chat -> android shows the read tick"
 
 # c. bob creates a group with alice and android.
-cli_ok bob group create "Crew $run" "$alice" "$droid"
+cli_ok bob group create "Crew $run" "$alice_id" "$droid_id"
 group=$(out .chat_id)
 cli_ok bob send "$group" "Welcome aboard $run"
-cli_ok alice wait-for "$group" --text "Welcome aboard $run" --from "$bob" --timeout "$timeout"
+cli_ok alice wait-for "$group" --text "Welcome aboard $run" --from "$bob_id" --timeout "$timeout"
 wait_marker group-open
 cli_ok bob members "$group"
 expect '.members | length == 3' "three members"
 pass "c. bob's group with alice + android seen by all three"
 
 # d. Text both ways, images both ways.
-cli_ok alice wait-for "$group" --text "Android in the group $run" --from "$droid" --timeout "$timeout"
+cli_ok alice wait-for "$group" --text "Android in the group $run" --from "$droid_id" --timeout "$timeout"
 droid_group_msg=$(out .message.id)
-cli_ok bob wait-for "$group" --text "Android in the group $run" --from "$droid" --timeout "$timeout"
+cli_ok bob wait-for "$group" --text "Android in the group $run" --from "$droid_id" --timeout "$timeout"
 cli_ok alice send "$group" "Alice in the group $run"
-cli_ok bob wait-for "$group" --text "Alice in the group $run" --from "$alice" --timeout "$timeout"
+cli_ok bob wait-for "$group" --text "Alice in the group $run" --from "$alice_id" --timeout "$timeout"
 cli_ok bob send-image "$group" "$work/bob-photo.png" --caption "Bob photo $run"
 wait_marker cli-image-shown
 pass "d. group text android <-> alice/bob"
 pass "d. image bob (CLI) -> shown on android"
 wait_marker photo-sent
-cli_ok bob wait-for "$group" --text "Android photo $run" --from "$droid" --timeout "$timeout"
+cli_ok bob wait-for "$group" --text "Android photo $run" --from "$droid_id" --timeout "$timeout"
 expect '.message.kind == "media" and (.message.media.mime | startswith("image/"))' "android's photo is an image"
 cli_ok bob download "$(out .message.id)" "$work/android-photo.png"
 cmp "$photo" "$work/android-photo.png" || fail "downloaded photo differs from the test asset"
@@ -457,14 +449,14 @@ pass "d. image android (stubbed picker) -> downloaded by bob, byte-identical"
 cli_ok alice send "$group" "Alice replies $run" --reply "$droid_group_msg"
 alice_reply=$(out .message_id)
 wait_marker android-replied
-cli_ok alice wait-for "$group" --text "Android replies $run" --from "$droid" --timeout "$timeout"
+cli_ok alice wait-for "$group" --text "Android replies $run" --from "$droid_id" --timeout "$timeout"
 droid_reply=$(out .message.id)
 expect ".message.reply_to == \"$alice_reply\"" "android's reply quotes alice's message"
 pass "e. reply: quoted preview on android; reply_to in CLI JSON"
 
 cli_ok bob react "$droid_reply" ⛵
 wait_marker android-reacted
-cli_ok alice wait-for "$group" --msg "$alice_reply" --reaction 👍 --from "$droid" --timeout "$timeout"
+cli_ok alice wait-for "$group" --msg "$alice_reply" --reaction 👍 --from "$droid_id" --timeout "$timeout"
 pass "e. reaction: bob -> android chip; android -> alice CLI JSON"
 
 cli_ok alice edit "$alice_reply" "Alice edited $run"
@@ -488,7 +480,7 @@ poll "bob's listener to connect" grep -q '"state":"connected"' "$log_dir/bob-lis
 signal cli-listening
 wait_marker android-typing
 poll "android's typing event" \
-    jq -es "any(.[]; .event == \"typing\" and .user == \"$droid\" and .active)" "$log_dir/bob-listen.jsonl"
+    jq -es "any(.[]; .event == \"typing\" and .user == \"$droid_id\" and .active)" "$log_dir/bob-listen.jsonl"
 docker exec "$cli" pkill -INT -f "gim --json listen" || true
 wait "$listen_pid" || true
 signal typing-seen
@@ -505,10 +497,10 @@ poll "bob to see the new group name" renamed bob
 pass "f. android renamed the group; alice and bob see the new name"
 
 # g. bob removes alice; bob and android keep talking, alice gets nothing new.
-cli_ok bob group remove "$group" "$alice"
+cli_ok bob group remove "$group" "$alice_id"
 cli_ok bob send "$group" "Bob after removal $run"
 wait_marker android-after-removal
-cli_ok bob wait-for "$group" --text "Android after removal $run" --from "$droid" --timeout "$timeout"
+cli_ok bob wait-for "$group" --text "Android after removal $run" --from "$droid_id" --timeout "$timeout"
 for text in "Bob after removal $run" "Android after removal $run"; do
     cli alice wait-for "$group" --text "$text" --timeout 15
     ((CLI_RC == 3)) || fail "alice: wait-for '$text' after removal exited $CLI_RC (want 3, timeout): $CLI_OUT"
